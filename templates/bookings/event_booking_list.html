@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Event Space Bookings</h1>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Room Bookings</a>
+    <a class="btn btn-primary" href="{% url 'event-booking-create' %}">New Event Booking</a>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" name="status" id="status">
+          <option value="">All Statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-md-4">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'event-booking-list' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Event</th>
+          <th>Guest</th>
+          <th>Space</th>
+          <th>Time</th>
+          <th>Guests</th>
+          <th>Status</th>
+          <th>Balance</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event_booking in event_bookings %}
+          <tr>
+            <td>{{ event_booking.event_title }}</td>
+            <td>{{ event_booking.guest }}</td>
+            <td>{{ event_booking.event_space_name }}</td>
+            <td>{{ event_booking.event_start|date:"Y-m-d H:i" }} to {{ event_booking.event_end|date:"Y-m-d H:i" }}</td>
+            <td>{{ event_booking.expected_guests }}</td>
+            <td>{{ event_booking.get_status_display }}</td>
+            <td>GHS {{ event_booking.balance_due }}</td>
+            <td class="text-end">
+              <div class="d-flex justify-content-end gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'event-booking-update' event_booking.pk %}">Edit</a>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'event-booking-payments' event_booking.pk %}">Payments</a>
+
+                {% if event_booking.status == "pending" %}
+                  <form method="post" action="{% url 'event-booking-confirm' event_booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Confirm</button>
+                  </form>
+                {% endif %}
+
+                {% if event_booking.status == "pending" or event_booking.status == "confirmed" %}
+                  <form method="post" action="{% url 'event-booking-start' event_booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-success" type="submit">Start</button>
+                  </form>
+                {% endif %}
+
+                {% if event_booking.status == "in_progress" %}
+                  <form method="post" action="{% url 'event-booking-complete' event_booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-dark" type="submit">Complete</button>
+                  </form>
+                {% endif %}
+
+                {% if event_booking.status == "pending" or event_booking.status == "confirmed" %}
+                  <form method="post" action="{% url 'event-booking-cancel' event_booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Cancel</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">No event space bookings found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

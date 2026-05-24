@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h4 mb-0">{{ title }}</h1>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{% url 'guest-create' %}">New Guest</a>
+        <a class="btn btn-outline-secondary" href="{% url 'event-booking-list' %}">Back</a>
+      </div>
+    </div>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {{ form.non_field_errors }}
+          <div class="row g-3">
+            {% for field in form %}
+              {% if field.name == "notes" or field.name == "purpose" %}
+                <div class="col-12">
+              {% elif field.name == "needs_catering" or field.name == "needs_audio_visual" %}
+                <div class="col-md-6">
+              {% else %}
+                <div class="col-md-6">
+              {% endif %}
+                {% if field.name == "needs_catering" or field.name == "needs_audio_visual" %}
+                  <div class="form-check">
+                    {{ field }}
+                    <label class="form-check-label ms-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  </div>
+                {% else %}
+                  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                {% endif %}
+                {% if field.errors %}
+                  <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="mt-4">
+            <button class="btn btn-primary" type="submit">Save Event Booking</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

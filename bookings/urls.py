@@ -9,6 +9,14 @@ from bookings.views import (
     booking_list,
     booking_payments,
     booking_update,
+    event_booking_cancel,
+    event_booking_complete,
+    event_booking_confirm,
+    event_booking_create,
+    event_booking_list,
+    event_booking_payments,
+    event_booking_start,
+    event_booking_update,
     operations_overview,
 )
 
@@ -22,4 +30,12 @@ urlpatterns = [
     path("<int:pk>/cancel/", booking_cancel, name="booking-cancel"),
     path("<int:pk>/payments/", booking_payments, name="booking-payments"),
     path("operations/", operations_overview, name="operations-overview"),
+    path("events/", event_booking_list, name="event-booking-list"),
+    path("events/new/", event_booking_create, name="event-booking-create"),
+    path("events/<int:pk>/edit/", event_booking_update, name="event-booking-update"),
+    path("events/<int:pk>/confirm/", event_booking_confirm, name="event-booking-confirm"),
+    path("events/<int:pk>/start/", event_booking_start, name="event-booking-start"),
+    path("events/<int:pk>/complete/", event_booking_complete, name="event-booking-complete"),
+    path("events/<int:pk>/cancel/", event_booking_cancel, name="event-booking-cancel"),
+    path("events/<int:pk>/payments/", event_booking_payments, name="event-booking-payments"),
 ]

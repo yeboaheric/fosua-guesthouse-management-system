@@ -20,6 +20,7 @@
             <a class="btn btn-sm brand-nav-button" href="{% url 'room-list' %}">Rooms</a>
             <a class="btn btn-sm brand-nav-button" href="{% url 'guest-list' %}">Guests</a>
             <a class="btn btn-sm brand-nav-button" href="{% url 'booking-list' %}">Bookings</a>
+            <a class="btn btn-sm brand-nav-button" href="{% url 'event-booking-list' %}">Event Space</a>
             <a class="btn btn-sm brand-nav-button" href="{% url 'operations-overview' %}">Operations</a>
             <a class="btn btn-sm brand-nav-button" href="{% url 'handover-list' %}">Handovers</a>
             {% if user.is_superuser or user|has_group:"Admin" %}

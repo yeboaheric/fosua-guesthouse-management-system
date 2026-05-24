@@ -105,3 +105,44 @@ body {
   background: var(--fg-brand-gold);
   opacity: 0.75;
 }
+
+.dashboard-grid {
+  align-items: stretch;
+}
+
+.dashboard-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  border-color: #cfd8d2;
+}
+
+.dashboard-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--fg-brand-deep), var(--fg-brand-gold));
+}
+
+.dashboard-card .card-body {
+  min-height: 140px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbf9 100%);
+}
+
+.dashboard-card h2 {
+  font-size: 1.02rem;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0.8rem 1.5rem rgba(26, 54, 61, 0.12) !important;
+  border-color: #bdcbbe;
+}

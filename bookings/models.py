@@ -111,3 +111,137 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"Payment {self.amount} for booking #{self.booking_id}"
+
+
+class EventBooking(models.Model):
+    class EventBookingStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        CONFIRMED = "confirmed", "Confirmed"
+        IN_PROGRESS = "in_progress", "In Progress"
+        COMPLETED = "completed", "Completed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    class SetupStyle(models.TextChoices):
+        THEATER = "theater", "Theater"
+        CLASSROOM = "classroom", "Classroom"
+        BANQUET = "banquet", "Banquet"
+        BOARDROOM = "boardroom", "Boardroom"
+        OTHER = "other", "Other"
+
+    guest = models.ForeignKey(
+        Guest,
+        on_delete=models.PROTECT,
+        related_name="event_bookings",
+    )
+    event_space_name = models.CharField(max_length=120, default="Main Event Space")
+    event_title = models.CharField(max_length=150)
+    purpose = models.TextField()
+    expected_guests = models.PositiveIntegerField()
+    event_start = models.DateTimeField()
+    event_end = models.DateTimeField()
+    setup_style = models.CharField(
+        max_length=20,
+        choices=SetupStyle.choices,
+        default=SetupStyle.BANQUET,
+    )
+    needs_catering = models.BooleanField(default=False)
+    needs_audio_visual = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=20,
+        choices=EventBookingStatus.choices,
+        default=EventBookingStatus.PENDING,
+    )
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="event_bookings_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["event_start", "event_end"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.event_title} ({self.event_space_name})"
+
+    def clean(self):
+        if self.event_end <= self.event_start:
+            raise ValidationError("Event end time must be after start time.")
+
+        active_statuses = [
+            self.EventBookingStatus.PENDING,
+            self.EventBookingStatus.CONFIRMED,
+            self.EventBookingStatus.IN_PROGRESS,
+        ]
+        overlapping_bookings = (
+            EventBooking.objects.filter(
+                event_space_name=self.event_space_name,
+                status__in=active_statuses,
+            )
+            .exclude(pk=self.pk)
+            .filter(event_start__lt=self.event_end, event_end__gt=self.event_start)
+        )
+        if overlapping_bookings.exists():
+            raise ValidationError("This event space is already reserved for that time range.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def amount_paid(self):
+        return self.payments.aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+            )
+        )["total"]
+
+    @property
+    def balance_due(self):
+        return max(self.total_amount - self.amount_paid, 0)
+
+
+class EventPayment(models.Model):
+    class PaymentMethod(models.TextChoices):
+        CASH = "cash", "Cash"
+        MOBILE_MONEY = "mobile_money", "Mobile Money"
+        CARD = "card", "Card"
+        BANK_TRANSFER = "bank_transfer", "Bank Transfer"
+
+    event_booking = models.ForeignKey(
+        EventBooking,
+        on_delete=models.CASCADE,
+        related_name="payments",
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+    )
+    reference = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="event_payments_received",
+    )
+    paid_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-paid_at"]
+
+    def __str__(self):
+        return f"Payment {self.amount} for event booking #{self.event_booking_id}"

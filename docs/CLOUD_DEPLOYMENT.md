@@ -8,6 +8,29 @@ This project is now cloud-ready with:
 - `/healthz/` endpoint for load balancers
 - Docker and Docker Compose setup
 
+## Fastest Path (Render + GitHub)
+
+This repository now includes [`render.yaml`](/Users/work/Documents/Fosua%20Guesthouse%20Management%20System/render.yaml), so you can deploy with Render Blueprint.
+
+1. Push latest code to GitHub.
+2. In Render dashboard, choose **New** -> **Blueprint**.
+3. Connect your GitHub repo: `yeboaheric/fosua-guesthouse-management-system`.
+4. Render reads `render.yaml` and creates:
+   - web service: `fosua-guesthouse-web`
+   - Postgres DB: `fosua-guesthouse-db`
+5. During setup, provide:
+   - `DJANGO_ALLOWED_HOSTS` = your Render hostname (for example `fosua-guesthouse-web.onrender.com`)
+   - `DJANGO_CSRF_TRUSTED_ORIGINS` = `https://your-render-hostname`
+6. Deploy.
+
+After first successful deploy, open Render Shell and run:
+
+```bash
+python manage.py seed_roles
+python manage.py seed_rooms
+python manage.py createsuperuser
+```
+
 ## 1) Required Environment Variables
 
 Use these in your cloud platform:

@@ -3,7 +3,10 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 mb-0">Bookings</h1>
-  <a class="btn btn-primary" href="{% url 'booking-create' %}">New Booking</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'event-booking-list' %}">Event Space Bookings</a>
+    <a class="btn btn-primary" href="{% url 'booking-create' %}">New Booking</a>
+  </div>
 </div>
 
 <div class="card shadow-sm mb-3">

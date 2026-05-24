@@ -2,7 +2,7 @@ services:
   - type: web
     name: fosua-guesthouse-web
     runtime: python
-    plan: starter
+    plan: hobby
     buildCommand: "pip install -r requirements.txt"
     startCommand: "./scripts/start-cloud.sh"
     autoDeploy: true
@@ -27,4 +27,4 @@ services:
 
 databases:
   - name: fosua-guesthouse-db
-    plan: starter
+    plan: hobby

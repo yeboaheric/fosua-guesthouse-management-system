@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Admin Reports</h1>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-daily' %}?start_date={{ start_date }}&end_date={{ end_date }}">Export Daily CSV</a>
+    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-balances' %}">Export Balances CSV</a>
+    <a class="btn btn-outline-secondary" href="{% url 'admin-dashboard' %}">Back</a>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="start_date">Start Date</label>
+        <input class="form-control" type="date" id="start_date" name="start_date" value="{{ start_date }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="end_date">End Date</label>
+        <input class="form-control" type="date" id="end_date" name="end_date" value="{{ end_date }}">
+      </div>
+      <div class="col-md-4">
+        <button class="btn btn-primary w-100" type="submit">Apply Range</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Date</div>
+        <div class="h5 mb-0">{{ today }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Rooms Occupied</div>
+        <div class="h5 mb-0">{{ occupied_rooms }} / {{ total_rooms }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Active Bookings</div>
+        <div class="h5 mb-0">{{ active_bookings }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Revenue Collected</div>
+        <div class="h5 mb-0">GHS {{ payments_total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Outstanding Balance</div>
+        <div class="h5 mb-0">GHS {{ outstanding_total }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="text-muted small">Range Revenue</div>
+        <div class="h5 mb-0">GHS {{ period_revenue_total }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Daily Revenue</h2>
+        <canvas id="revenueChart" height="130"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Daily Occupancy</h2>
+        <canvas id="occupancyChart" height="130"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Outstanding Bookings</h2>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Booking</th>
+              <th>Guest</th>
+              <th>Room</th>
+              <th>Status</th>
+              <th class="text-end">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in outstanding_bookings %}
+              <tr>
+                <td>#{{ booking.id }}</td>
+                <td>{{ booking.guest }}</td>
+                <td>{{ booking.room.room_number }}</td>
+                <td>{{ booking.get_status_display }}</td>
+                <td class="text-end">GHS {{ booking.balance }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-3">No outstanding bookings.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Daily Detail</h2>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Date</th>
+              <th>Occupied</th>
+              <th>Occ %</th>
+              <th class="text-end">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in daily_rows %}
+              <tr>
+                <td>{{ row.date }}</td>
+                <td>{{ row.occupied_rooms }}</td>
+                <td>{{ row.occupancy_percent }}%</td>
+                <td class="text-end">GHS {{ row.revenue_collected }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ chart_labels_json|json_script:"report-labels" }}
+{{ revenue_data_json|json_script:"report-revenue" }}
+{{ occupancy_data_json|json_script:"report-occupancy" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const labels = JSON.parse(document.getElementById("report-labels").textContent);
+  const revenue = JSON.parse(document.getElementById("report-revenue").textContent);
+  const occupancy = JSON.parse(document.getElementById("report-occupancy").textContent);
+
+  new Chart(document.getElementById("revenueChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Revenue (GHS)",
+        data: revenue,
+        borderColor: "#23444b",
+        backgroundColor: "rgba(35,68,75,0.1)",
+        fill: true,
+        tension: 0.25
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+
+  new Chart(document.getElementById("occupancyChart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Occupied Rooms",
+        data: occupancy,
+        backgroundColor: "#c7ab83"
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+</script>
+{% endblock %}

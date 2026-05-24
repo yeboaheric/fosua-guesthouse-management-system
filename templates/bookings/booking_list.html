@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Bookings</h1>
+  <a class="btn btn-primary" href="{% url 'booking-create' %}">New Booking</a>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" name="status" id="status">
+          <option value="">All Statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-md-4">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'booking-list' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Guest</th>
+          <th>Room</th>
+          <th>Dates</th>
+          <th>Status</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Balance</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for booking in bookings %}
+          <tr>
+            <td>{{ booking.guest }}</td>
+            <td>{{ booking.room.room_number }}</td>
+            <td>{{ booking.check_in }} to {{ booking.check_out }}</td>
+            <td>{{ booking.get_status_display }}</td>
+            <td>GHS {{ booking.total_amount }}</td>
+            <td>GHS {{ booking.paid_total }}</td>
+            <td>GHS {{ booking.balance_due }}</td>
+            <td class="text-end">
+              <div class="d-flex justify-content-end gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'booking-update' booking.pk %}">Edit</a>
+                <a class="btn btn-sm btn-outline-dark" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'booking-payments' booking.pk %}">Payments</a>
+
+                {% if booking.status == "pending" %}
+                  <form method="post" action="{% url 'booking-confirm' booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Confirm</button>
+                  </form>
+                {% endif %}
+
+                {% if booking.status == "pending" or booking.status == "confirmed" %}
+                  <form method="post" action="{% url 'booking-check-in' booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-success" type="submit">Check In</button>
+                  </form>
+                {% endif %}
+
+                {% if booking.status == "checked_in" %}
+                  <form method="post" action="{% url 'booking-check-out' booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-dark" type="submit">Check Out</button>
+                  </form>
+                {% endif %}
+
+                {% if booking.status == "pending" or booking.status == "confirmed" %}
+                  <form method="post" action="{% url 'booking-cancel' booking.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Cancel</button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">No bookings found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

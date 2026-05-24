@@ -1,0 +1,40 @@
+services:
+  web:
+    build: .
+    container_name: fosua_web
+    command: ./scripts/start-cloud.sh
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DJANGO_ENV: cloud
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/fosua_guesthouse
+      DB_SSL_REQUIRE: "False"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    container_name: fosua_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fosua_guesthouse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fosua_guesthouse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

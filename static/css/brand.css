@@ -1,0 +1,107 @@
+:root {
+  --fg-brand-deep: #23444b;
+  --fg-brand-deep-2: #1a363d;
+  --fg-brand-gold: #c7ab83;
+  --fg-brand-gold-dark: #ac9068;
+  --fg-bg: #f7f8f7;
+  --fg-border: #d6ddd8;
+}
+
+body {
+  background: var(--fg-bg);
+  color: #1f2b2f;
+}
+
+.brand-navbar {
+  background: var(--fg-brand-deep);
+  border-bottom: 1px solid #183137;
+}
+
+.brand-link {
+  color: #f7faf9;
+  text-decoration: none;
+}
+
+.brand-link:hover {
+  color: #f7faf9;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  object-fit: cover;
+}
+
+.brand-wordmark {
+  width: 180px;
+  height: auto;
+  border-radius: 4px;
+}
+
+.brand-nav-button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #f7faf9;
+}
+
+.brand-nav-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+
+.brand-username {
+  color: rgba(247, 250, 249, 0.82);
+}
+
+.btn-primary {
+  background: var(--fg-brand-deep);
+  border-color: var(--fg-brand-deep);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: var(--fg-brand-deep-2);
+  border-color: var(--fg-brand-deep-2);
+}
+
+.btn-outline-primary {
+  color: var(--fg-brand-deep);
+  border-color: var(--fg-brand-deep);
+}
+
+.btn-outline-primary:hover {
+  background: var(--fg-brand-deep);
+  border-color: var(--fg-brand-deep);
+}
+
+.card {
+  border: 1px solid var(--fg-border);
+  border-radius: 8px;
+}
+
+.table-light th {
+  background: #eef2f0;
+}
+
+.brand-panel {
+  background: var(--fg-brand-deep);
+  color: #f7faf9;
+  border-radius: 8px;
+}
+
+.brand-panel .text-muted {
+  color: rgba(247, 250, 249, 0.78) !important;
+}
+
+.brand-badge {
+  color: var(--fg-brand-gold);
+}
+
+.brand-gold-line {
+  height: 2px;
+  background: var(--fg-brand-gold);
+  opacity: 0.75;
+}

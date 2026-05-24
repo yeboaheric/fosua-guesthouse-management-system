@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        font-size: 12px;
+        color: #111;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      .section {
+        margin-bottom: 16px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+      }
+      th {
+        background: #f3f4f6;
+        text-align: left;
+      }
+      .text-right {
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h2>{{ guesthouse_name }}</h2>
+        <div>Aduman, Ghana</div>
+      </div>
+      <div class="text-right">
+        <div><strong>Receipt #:</strong> BK-{{ booking.id }}</div>
+        <div><strong>Date:</strong> {{ booking.created_at|date:"Y-m-d H:i" }}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <strong>Guest:</strong> {{ booking.guest.first_name }} {{ booking.guest.last_name }}<br>
+      <strong>Phone:</strong> {{ booking.guest.phone_number }}<br>
+      <strong>Email:</strong> {{ booking.guest.email|default:"-" }}
+    </div>
+
+    <div class="section">
+      <strong>Room:</strong> {{ booking.room.room_number }} ({{ booking.room.get_room_type_display }})<br>
+      <strong>Check-in:</strong> {{ booking.check_in }}<br>
+      <strong>Check-out:</strong> {{ booking.check_out }}<br>
+      <strong>Status:</strong> {{ booking.get_status_display }}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="text-right">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Room booking charge</td>
+          <td class="text-right">GHS {{ booking.total_amount }}</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr>
+          <th>Total</th>
+          <th class="text-right">GHS {{ booking.total_amount }}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </body>
+</html>

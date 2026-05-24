@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Handover Report #{{ handover.id }}</h1>
+  <a class="btn btn-outline-secondary" href="{% url 'handover-list' %}">Back</a>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="row g-3 mb-3">
+      <div class="col-md-3"><strong>Prepared By:</strong><br>{{ handover.prepared_by.username }}</div>
+      <div class="col-md-3"><strong>Start:</strong><br>{{ handover.started_at|date:"Y-m-d H:i" }}</div>
+      <div class="col-md-3"><strong>End:</strong><br>{{ handover.ended_at|date:"Y-m-d H:i" }}</div>
+      <div class="col-md-3"><strong>Created:</strong><br>{{ handover.created_at|date:"Y-m-d H:i" }}</div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">Check-Ins</div><div class="h6 mb-0">{{ handover.check_ins_count }}</div></div></div>
+      <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">Check-Outs</div><div class="h6 mb-0">{{ handover.check_outs_count }}</div></div></div>
+      <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">Reservations</div><div class="h6 mb-0">{{ handover.reservations_count }}</div></div></div>
+      <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">Cancelled</div><div class="h6 mb-0">{{ handover.cancellations_count }}</div></div></div>
+      <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">Maintenance</div><div class="h6 mb-0">{{ handover.maintenance_rooms_count }}</div></div></div>
+      <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">Cleaning</div><div class="h6 mb-0">{{ handover.cleaning_rooms_count }}</div></div></div>
+    </div>
+
+    <hr>
+    <h2 class="h6">Original Handover Note</h2>
+    <p class="mb-0">{{ handover.summary|default:"No summary provided." }}</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Add Your Shift Update</h2>
+        <p class="text-muted small">You can append updates, but the original handover report cannot be modified.</p>
+        <form method="post">
+          {% csrf_token %}
+          {{ update_form.non_field_errors }}
+          {% for field in update_form %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}
+                <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+          <button class="btn btn-primary" type="submit">Add Update</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body"><h2 class="h6 mb-0">Shift Updates</h2></div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Time</th>
+              <th>By</th>
+              <th>Update</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for update in updates %}
+              <tr>
+                <td>{{ update.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ update.author.username }}</td>
+                <td>{{ update.note }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3" class="text-center text-muted py-3">No updates yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

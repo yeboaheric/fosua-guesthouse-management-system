@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="brand-panel p-4 mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h1 class="h4 mb-1">Reception Dashboard</h1>
+    <div class="brand-badge">Fosua Guesthouse - Aduman</div>
+  </div>
+  <img src="{% static 'branding/fosua-mark.png' %}" alt="Fosua mark" class="brand-mark">
+</div>
+<div class="row g-3">
+  <div class="col-md-3">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">New Booking</h2>
+        <a class="btn btn-sm btn-primary" href="{% url 'booking-create' %}">Open</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Check In / Out</h2>
+        <a class="btn btn-sm btn-primary" href="{% url 'booking-list' %}">Open</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Availability</h2>
+        <a class="btn btn-sm btn-primary" href="{% url 'room-availability' %}">Open</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card h-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="h6">Shift Handover</h2>
+        <a class="btn btn-sm btn-primary" href="{% url 'handover-list' %}">Open</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

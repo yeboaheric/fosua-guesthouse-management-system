@@ -1,4 +1,5 @@
 """Django settings for the Fosua Guesthouse Management System."""
+import os
 from pathlib import Path
 
 import dj_database_url
@@ -27,13 +28,13 @@ SECRET_KEY = env(
     default="django-insecure-local-dev-key-change-before-production",
 )
 DEBUG = env("DJANGO_DEBUG")
-ALLOWED_HOSTS = env[
+ALLOWED_HOSTS = [
     "fosua-guesthousemanage-web.onrender.com",
     "localhost",
-    "127.0.0.1"
+    "127.0.0.1",
 ]
-CSRF_TRUSTED_ORIGINS = env[
-    "https://fosua-guesthousemanage-web.onrender.com"
+CSRF_TRUSTED_ORIGINS = [
+    "https://fosua-guesthousemanage-web.onrender.com",
 ]
 APP_ENV = env("DJANGO_ENV").lower()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
@@ -161,7 +162,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 

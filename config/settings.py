@@ -27,8 +27,14 @@ SECRET_KEY = env(
     default="django-insecure-local-dev-key-change-before-production",
 )
 DEBUG = env("DJANGO_DEBUG")
-ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
-CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS")
+ALLOWED_HOSTS = env[
+    "fosua-guesthousemanage-web.onrender.com",
+    "localhost",
+    "127.0.0.1"
+]
+CSRF_TRUSTED_ORIGINS = env[
+    "https://fosua-guesthousemanage-web.onrender.com"
+]
 APP_ENV = env("DJANGO_ENV").lower()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
 

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-background p-4 rounded-4 shadow-sm">
+  <div class="brand-panel p-4 mb-4">
+    <h1 class="h4 mb-1">{{ form_title }}</h1>
+    <div class="brand-gold-line"></div>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="id_first_name">First name</label>
+            {{ form.first_name }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_last_name">Surname</label>
+            {{ form.last_name }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_date_of_birth">Date of birth</label>
+            {{ form.date_of_birth }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_start_date">Start Date</label>
+            {{ form.start_date }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_termination_date">Termination Date</label>
+            {{ form.termination_date }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_position">Position</label>
+            {{ form.position }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_nationality">Nationality</label>
+            {{ form.nationality }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_ghana_card_number">Ghana Card number</label>
+            {{ form.ghana_card_number }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_contact_number">Contact number</label>
+            {{ form.contact_number }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_emergency_contact_number">Emergency Contact number</label>
+            {{ form.emergency_contact_number }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_email">Email address</label>
+            {{ form.email }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_gps_address">GPS address</label>
+            {{ form.gps_address }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin">Next of Kin</label>
+            {{ form.next_of_kin }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_gender">Gender</label>
+            {{ form.gender }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_marital_status">Marital Status</label>
+            {{ form.marital_status }}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_ethnic_origin">Ethnic origin</label>
+            {{ form.ethnic_origin }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_religion">Religion</label>
+            {{ form.religion }}
+          </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Save employee</button>
+          <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}">Back to list</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

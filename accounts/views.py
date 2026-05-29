@@ -12,6 +12,8 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 
 from accounts.decorators import group_required
+from accounts.forms import EmployeeForm
+from accounts.models import Employee
 from bookings.models import Booking, Payment
 from rooms.models import Room
 
@@ -54,6 +56,31 @@ def admin_dashboard(request):
 @group_required("Receptionist", "Admin")
 def reception_dashboard(request):
     return render(request, "accounts/reception_dashboard.html")
+
+
+@group_required("Admin")
+def hr_employee_list(request):
+    employees = Employee.objects.all().order_by("last_name", "first_name")
+    return render(request, "accounts/hr_employee_list.html", {"employees": employees})
+
+
+@group_required("Admin")
+def hr_employee_create(request):
+    form = EmployeeForm(request.POST or None)
+    if form.is_valid():
+        form.save()
+        return redirect("hr-list")
+    return render(request, "accounts/hr_employee_form.html", {"form": form, "form_title": "Add New Employee"})
+
+
+@group_required("Admin")
+def hr_employee_update(request, pk):
+    employee = Employee.objects.get(pk=pk)
+    form = EmployeeForm(request.POST or None, instance=employee)
+    if form.is_valid():
+        form.save()
+        return redirect("hr-list")
+    return render(request, "accounts/hr_employee_form.html", {"form": form, "form_title": "Update Employee"})
 
 
 @group_required("Admin")

@@ -34,6 +34,31 @@ body {
   object-fit: cover;
 }
 
+.dashboard-background {
+  position: relative;
+  background-image: url("../branding/dashboard-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: calc(100vh - 80px);
+  padding: 2rem;
+}
+
+.dashboard-background::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.dashboard-background > * {
+  position: relative;
+  z-index: 1;
+}
+
 .brand-wordmark {
   width: 180px;
   height: auto;

@@ -9,6 +9,9 @@ from accounts.views import (
     admin_reports,
     dashboard,
     home_redirect,
+    hr_employee_create,
+    hr_employee_list,
+    hr_employee_update,
     reception_dashboard,
 )
 
@@ -29,5 +32,8 @@ urlpatterns = [
         admin_reports_export_balances_csv,
         name="admin-reports-export-balances",
     ),
+    path("dashboard/admin/hr/", hr_employee_list, name="hr-list"),
+    path("dashboard/admin/hr/new/", hr_employee_create, name="hr-create"),
+    path("dashboard/admin/hr/<int:pk>/edit/", hr_employee_update, name="hr-update"),
     path("dashboard/reception/", reception_dashboard, name="reception-dashboard"),
 ]

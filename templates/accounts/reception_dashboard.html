@@ -7,10 +7,11 @@
     <h1 class="h4 mb-1">Reception Dashboard</h1>
     <div class="brand-badge">Fosua Guesthouse - Aduman</div>
   </div>
-  <img src="{% static 'branding/fosua-mark.png' %}" alt="Fosua mark" class="brand-mark">
+  <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-mark">
 </div>
-<div class="row g-3 dashboard-grid">
-  <div class="col-sm-6 col-lg-4">
+<div class="dashboard-background p-4 rounded-4">
+  <div class="row g-3 dashboard-grid">
+    <div class="col-sm-6 col-lg-4">
     <div class="card h-100 shadow-sm dashboard-card">
       <div class="card-body">
         <h2 class="h6">New Booking</h2>
@@ -49,6 +50,7 @@
         <a class="btn btn-sm btn-primary" href="{% url 'handover-list' %}">Open</a>
       </div>
     </div>
+  </div>
   </div>
 </div>
 {% endblock %}

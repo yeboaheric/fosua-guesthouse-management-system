@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-background p-4 rounded-4 shadow-sm">
+  <div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center">
+    <div>
+      <h1 class="h4 mb-1">HR Employee Directory</h1>
+      <div class="brand-badge">Manage your team records</div>
+    </div>
+    <a class="btn btn-sm btn-light" href="{% url 'hr-create' %}">Add New Employee</a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Position</th>
+          <th>Contact</th>
+          <th>Start Date</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for employee in employees %}
+        <tr>
+          <td>{{ employee.first_name }} {{ employee.last_name }}</td>
+          <td>{{ employee.position }}</td>
+          <td>{{ employee.contact_number }}</td>
+          <td>{{ employee.start_date }}</td>
+          <td>{% if employee.termination_date %}Inactive{% else %}Active{% endif %}</td>
+          <td>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center text-muted">No employees have been added yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

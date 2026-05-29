@@ -10,9 +10,17 @@
 
   <div class="card shadow-sm border-0">
     <div class="card-body p-4">
-      <form method="post">
+        <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
-        <div class="row g-3">
+        {{ form.non_field_errors }}
+        <div class="row g-4">
+          <div class="col-12">
+            <h2 class="h6 mb-3">Personal details</h2>
+          </div>
+            <div class="col-md-4">
+              <label class="form-label" for="id_passport_photo">Passport photo</label>
+              {{ form.passport_photo }}
+            </div>
           <div class="col-md-6">
             <label class="form-label" for="id_first_name">First name</label>
             {{ form.first_name }}
@@ -26,32 +34,40 @@
             {{ form.date_of_birth }}
           </div>
           <div class="col-md-4">
-            <label class="form-label" for="id_start_date">Start Date</label>
-            {{ form.start_date }}
+            <label class="form-label" for="id_gender">Gender</label>
+            {{ form.gender }}
           </div>
           <div class="col-md-4">
-            <label class="form-label" for="id_termination_date">Termination Date</label>
-            {{ form.termination_date }}
+            <label class="form-label" for="id_marital_status">Marital Status</label>
+            {{ form.marital_status }}
+          </div>
+
+          <div class="col-12">
+            <h2 class="h6 mb-3 mt-4">Employment details</h2>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_position">Position</label>
             {{ form.position }}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_nationality">Nationality</label>
-            {{ form.nationality }}
+            <label class="form-label" for="id_start_date">Start Date</label>
+            {{ form.start_date }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_termination_date">Termination Date</label>
+            {{ form.termination_date }}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_ghana_card_number">Ghana Card number</label>
             {{ form.ghana_card_number }}
           </div>
+
+          <div class="col-12">
+            <h2 class="h6 mb-3 mt-4">Contact & address</h2>
+          </div>
           <div class="col-md-6">
             <label class="form-label" for="id_contact_number">Contact number</label>
             {{ form.contact_number }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="id_emergency_contact_number">Emergency Contact number</label>
-            {{ form.emergency_contact_number }}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_email">Email address</label>
@@ -65,15 +81,15 @@
             <label class="form-label" for="id_next_of_kin">Next of Kin</label>
             {{ form.next_of_kin }}
           </div>
-          <div class="col-md-4">
-            <label class="form-label" for="id_gender">Gender</label>
-            {{ form.gender }}
+
+          <div class="col-12">
+            <h2 class="h6 mb-3 mt-4">Additional details</h2>
           </div>
-          <div class="col-md-4">
-            <label class="form-label" for="id_marital_status">Marital Status</label>
-            {{ form.marital_status }}
+          <div class="col-md-6">
+            <label class="form-label" for="id_nationality">Nationality</label>
+            {{ form.nationality }}
           </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label" for="id_ethnic_origin">Ethnic origin</label>
             {{ form.ethnic_origin }}
           </div>

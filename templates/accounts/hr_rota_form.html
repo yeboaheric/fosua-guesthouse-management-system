@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-background p-4 rounded-4 shadow-sm">
+  <div class="brand-panel p-4 mb-4">
+    <h1 class="h4 mb-1">{{ form_title }}</h1>
+    <div class="brand-gold-line"></div>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body p-4">
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label" for="id_period">Period label</label>
+            {{ form.period }}
+            <div class="form-text">Example: Monday, June 1st to Sunday, June 7th</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_period_start">From</label>
+            {{ form.period_start }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_period_end">To</label>
+            {{ form.period_end }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_opening_time">Opening time</label>
+            {{ form.opening_time }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_closing_time">Closing time</label>
+            {{ form.closing_time }}
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="id_staff_members">Staff Members</label>
+            {{ form.staff_members }}
+            <div class="form-text">Select one or more employees to assign to this rota.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="id_shift_rules">Shift Rules</label>
+            {{ form.shift_rules }}
+          </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Save rota</button>
+          <a class="btn btn-outline-secondary" href="{% url 'hr-rota-list' %}">Back to rotas</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

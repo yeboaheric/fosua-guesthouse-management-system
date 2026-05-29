@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-background p-4 rounded-4 shadow-sm">
+  <div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <div>
+      <h1 class="h4 mb-1">HR Rotas</h1>
+      <div class="brand-badge">View and manage weekly rota schedules</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-light" href="{% url 'hr-list' %}">Employees</a>
+      <a class="btn btn-sm btn-light" href="{% url 'hr-rota-create' %}">Create Rota</a>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Dates</th>
+          <th>Staff Members</th>
+          <th>Operating Hours</th>
+          <th>Shift Rules</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rota in rotas %}
+        <tr>
+          <td>{{ rota.period }}</td>
+          <td>{{ rota.period_start }} – {{ rota.period_end }}</td>
+          <td>{{ rota.staff_members.all|join:", " }}</td>
+          <td>{{ rota.operating_hours }}</td>
+          <td>{{ rota.shift_rules|linebreaksbr }}</td>
+          <td>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-rota-update' rota.pk %}">Edit</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="text-center text-muted">No rotas have been created yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

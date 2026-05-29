@@ -9,11 +9,12 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from accounts.decorators import group_required
-from accounts.forms import EmployeeForm
-from accounts.models import Employee
+from accounts.forms import EmployeeForm, RotaForm
+from accounts.models import Employee, Rota
 from bookings.models import Booking, Payment
 from rooms.models import Room
 
@@ -66,7 +67,7 @@ def hr_employee_list(request):
 
 @group_required("Admin")
 def hr_employee_create(request):
-    form = EmployeeForm(request.POST or None)
+    form = EmployeeForm(request.POST or None, request.FILES or None)
     if form.is_valid():
         form.save()
         return redirect("hr-list")
@@ -76,11 +77,53 @@ def hr_employee_create(request):
 @group_required("Admin")
 def hr_employee_update(request, pk):
     employee = Employee.objects.get(pk=pk)
-    form = EmployeeForm(request.POST or None, instance=employee)
+    form = EmployeeForm(request.POST or None, request.FILES or None, instance=employee)
     if form.is_valid():
         form.save()
         return redirect("hr-list")
     return render(request, "accounts/hr_employee_form.html", {"form": form, "form_title": "Update Employee"})
+
+
+@group_required("Admin")
+def hr_employee_delete(request, pk):
+    employee = get_object_or_404(Employee, pk=pk)
+    if request.method == "POST":
+        employee.delete()
+        return redirect("hr-list")
+    return render(request, "accounts/hr_employee_confirm_delete.html", {"employee": employee})
+
+
+@group_required("Admin")
+def hr_rota_list(request):
+    rotas = Rota.objects.prefetch_related("staff_members").all()
+    return render(request, "accounts/hr_rota_list.html", {"rotas": rotas})
+
+
+@group_required("Admin")
+def hr_rota_create(request):
+    form = RotaForm(request.POST or None)
+    if form.is_valid():
+        form.save()
+        return redirect("hr-rota-list")
+    return render(
+        request,
+        "accounts/hr_rota_form.html",
+        {"form": form, "form_title": "Create New Rota"},
+    )
+
+
+@group_required("Admin")
+def hr_rota_update(request, pk):
+    rota = Rota.objects.get(pk=pk)
+    form = RotaForm(request.POST or None, instance=rota)
+    if form.is_valid():
+        form.save()
+        return redirect("hr-rota-list")
+    return render(
+        request,
+        "accounts/hr_rota_form.html",
+        {"form": form, "form_title": "Edit Rota"},
+    )
 
 
 @group_required("Admin")

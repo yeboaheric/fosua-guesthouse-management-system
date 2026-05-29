@@ -12,6 +12,10 @@ from accounts.views import (
     hr_employee_create,
     hr_employee_list,
     hr_employee_update,
+    hr_employee_delete,
+    hr_rota_create,
+    hr_rota_list,
+    hr_rota_update,
     reception_dashboard,
 )
 
@@ -35,5 +39,9 @@ urlpatterns = [
     path("dashboard/admin/hr/", hr_employee_list, name="hr-list"),
     path("dashboard/admin/hr/new/", hr_employee_create, name="hr-create"),
     path("dashboard/admin/hr/<int:pk>/edit/", hr_employee_update, name="hr-update"),
+    path("dashboard/admin/hr/<int:pk>/delete/", hr_employee_delete, name="hr-delete"),
+    path("dashboard/admin/hr/rotas/", hr_rota_list, name="hr-rota-list"),
+    path("dashboard/admin/hr/rotas/new/", hr_rota_create, name="hr-rota-create"),
+    path("dashboard/admin/hr/rotas/<int:pk>/edit/", hr_rota_update, name="hr-rota-update"),
     path("dashboard/reception/", reception_dashboard, name="reception-dashboard"),
 ]

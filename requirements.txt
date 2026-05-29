@@ -6,4 +6,5 @@ django-axes>=7.1,<8
 reportlab>=4.5,<4.6
 gunicorn>=26,<27
 whitenoise>=6.12,<7
-Pillow>=9.0,<10
+Pillow>=10.0.0
+

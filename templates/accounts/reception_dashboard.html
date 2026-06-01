@@ -1,56 +1,137 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static accounts_extras %}
 
 {% block content %}
-<div class="brand-panel p-4 mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h1 class="h4 mb-1">Reception Dashboard</h1>
-    <div class="brand-badge">Fosua Guesthouse - Aduman</div>
-  </div>
-  <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-mark">
-</div>
-<div class="dashboard-background p-4 rounded-4">
-  <div class="row g-3 dashboard-grid">
-    <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">New Booking</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'booking-create' %}">Open</a>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
+      <div>
+        <div class="section-eyebrow mb-2">Reception workspace</div>
+        <h1 class="page-title mb-2">Front desk dashboard</h1>
+        <div class="page-subtitle">Fast access to bookings, availability, event space, and shift handover.</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Check In / Out</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'booking-list' %}">Open</a>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Available rooms</div>
+        <div class="metric-value">{{ available_rooms }}</div>
+        <div class="text-muted small mt-2">Ready for the next walk-in or reservation</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Active bookings</div>
+        <div class="metric-value">{{ active_bookings }}</div>
+        <div class="text-muted small mt-2">Guests currently being served</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Pending balances</div>
+        <div class="metric-value">{{ pending_payments }}</div>
+        <div class="text-muted small mt-2">Accounts needing payment follow-up</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Staff on duty</div>
+        <div class="metric-value">{{ staff_on_duty }}</div>
+        <div class="text-muted small mt-2">Roster coverage for today</div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Event Space</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'event-booking-list' %}">Open</a>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Reception shortcuts</div>
+            <h2 class="h5 mb-1">Most-used front desk actions</h2>
+            <div class="text-muted small">Everything the desk team needs in one place</div>
+          </div>
+        </div>
+        <div class="row g-3">
+          {% if user|can_access_module:'reservations' %}
+          <div class="col-sm-6">
+            <div class="surface-panel p-3 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <strong>Reservations</strong>
+                <i data-lucide="calendar-range"></i>
+              </div>
+              <p class="text-muted small mb-3">Create, confirm, check in, and check out guests quickly.</p>
+              <a class="topbar-pill w-100 justify-content-center" href="{% url 'booking-list' %}">Open reservation board</a>
+            </div>
+          </div>
+          {% endif %}
+          {% if user|can_access_module:'rooms' %}
+          <div class="col-sm-6">
+            <div class="surface-panel p-3 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <strong>Rooms</strong>
+                <i data-lucide="bed-double"></i>
+              </div>
+              <p class="text-muted small mb-3">Check live availability and room status at a glance.</p>
+              <a class="topbar-pill w-100 justify-content-center" href="{% url 'room-availability' %}">Open availability</a>
+            </div>
+          </div>
+          {% endif %}
+          {% if user|can_access_module:'services' %}
+          <div class="col-sm-6">
+            <div class="surface-panel p-3 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <strong>Event space</strong>
+                <i data-lucide="sparkles"></i>
+              </div>
+              <p class="text-muted small mb-3">Track event bookings, purpose, and guest counts.</p>
+              <a class="topbar-pill w-100 justify-content-center" href="{% url 'event-booking-list' %}">Open event bookings</a>
+            </div>
+          </div>
+          {% endif %}
+          {% if user|can_access_module:'handovers' %}
+          <div class="col-sm-6">
+            <div class="surface-panel p-3 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <strong>Shift handover</strong>
+                <i data-lucide="clipboard-list"></i>
+              </div>
+              <p class="text-muted small mb-3">Review the handover log before starting the next shift.</p>
+              <a class="topbar-pill w-100 justify-content-center" href="{% url 'handover-list' %}">Open handover log</a>
+            </div>
+          </div>
+          {% endif %}
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Availability</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'room-availability' %}">Open</a>
+
+    <div class="col-lg-5">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Live status</div>
+            <h2 class="h5 mb-1">Today at the desk</h2>
+            <div class="text-muted small">Operational snapshot for the receptionist</div>
+          </div>
+        </div>
+        <div class="timeline-list">
+          {% for item in recent_activity|slice:":8" %}
+            <div class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div>
+                <div class="fw-semibold">{{ item.title }}</div>
+                <div class="text-muted small">{{ item.meta }}</div>
+                <div class="text-muted small">{{ item.time|date:"M d, H:i" }}</div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No recent activity yet.</div>
+          {% endfor %}
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Shift Handover</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'handover-list' %}">Open</a>
-      </div>
-    </div>
-  </div>
   </div>
 </div>
 {% endblock %}

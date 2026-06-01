@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Payments center</div>
+        <h1 class="page-title mb-2">Finance and receipts</h1>
+        <div class="page-subtitle">Room and event collections with timestamps, methods, and live balances.</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <span class="status-pill success">Today GHS {{ today_total }}</span>
+        <span class="status-pill neutral">Month GHS {{ month_total }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Room payments</div>
+        <div class="metric-value">{{ room_payments|length }}</div>
+        <div class="text-muted small mt-2">Recent bookings settled from the front desk</div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Event payments</div>
+        <div class="metric-value">{{ event_payments|length }}</div>
+        <div class="text-muted small mt-2">Event space deposits and balances</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-4">
+        <label class="form-label" for="q">Search payments</label>
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Guest, room, event, reference, note">
+      </div>
+      <div class="col-lg-2">
+        <label class="form-label" for="method">Method</label>
+        <select class="form-select" name="method" id="method">
+          <option value="">All methods</option>
+          {% for value, label in payment_methods %}
+            <option value="{{ value }}" {% if payment_method == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-2">
+        <label class="form-label" for="scope">Scope</label>
+        <select class="form-select" name="scope" id="scope">
+          <option value="all" {% if payment_scope == "all" %}selected{% endif %}>All</option>
+          <option value="room" {% if payment_scope == "room" %}selected{% endif %}>Room only</option>
+          <option value="event" {% if payment_scope == "event" %}selected{% endif %}>Event only</option>
+        </select>
+      </div>
+      <div class="col-lg-2">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-lg-2">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'payments-center' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Room payments</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Guest</th>
+                <th>Room</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for payment in room_payments %}
+                <tr>
+                  <td>{{ payment.booking.guest }}</td>
+                  <td>Room {{ payment.booking.room.room_number }}</td>
+                  <td>GHS {{ payment.amount }}</td>
+                  <td>{{ payment.get_method_display }}</td>
+                  <td>{{ payment.paid_at|date:"M d, H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-muted">No room payments yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Event payments</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Event</th>
+                <th>Space</th>
+                <th>Amount</th>
+                <th>Method</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for payment in event_payments %}
+                <tr>
+                  <td>{{ payment.event_booking.event_title }}</td>
+                  <td>{{ payment.event_booking.event_space_name }}</td>
+                  <td>GHS {{ payment.amount }}</td>
+                  <td>{{ payment.get_method_display }}</td>
+                  <td>{{ payment.paid_at|date:"M d, H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="text-muted">No event payments yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-lg-8">
+  <div class="col-lg-10">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 mb-0">{{ title }}</h1>
       <div class="d-flex gap-2">
@@ -18,14 +18,21 @@
           {{ form.non_field_errors }}
           <div class="row g-3">
             {% for field in form %}
-              <div class="{% if field.name == 'notes' %}col-12{% else %}col-md-6{% endif %}">
+              <div class="{% if field.name == 'notes' %}col-12{% elif field.name == 'rooms' %}col-12{% else %}col-md-6{% endif %}">
                 <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
+                {% if field.help_text %}
+                  <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
                 {% if field.errors %}
                   <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
                 {% endif %}
               </div>
             {% endfor %}
+          </div>
+          <div class="mt-3 p-3 rounded-3 bg-light border" id="booking-total-preview">
+            <div class="small text-muted">Estimated total</div>
+            <div class="h5 mb-0" id="booking-total-text">GHS {{ form.total_amount.value|default:"0.00" }}</div>
           </div>
           <div class="mt-4">
             <button class="btn btn-primary" type="submit">Save Booking</button>
@@ -35,4 +42,47 @@
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    const checkIn = document.getElementById("id_check_in");
+    const checkOut = document.getElementById("id_check_out");
+    const roomSelect = document.getElementById("id_room");
+    const roomsSelect = document.getElementById("id_rooms");
+    const totalText = document.getElementById("booking-total-text");
+
+    function parseDate(value) {
+      if (!value) return null;
+      return new Date(value + "T00:00:00");
+    }
+
+    function selectedRates() {
+      const source = roomsSelect || roomSelect;
+      if (!source) return [];
+      return Array.from(source.selectedOptions || []).map((option) => Number(option.dataset.rate || 0));
+    }
+
+    function updateTotal() {
+      const start = parseDate(checkIn && checkIn.value);
+      const end = parseDate(checkOut && checkOut.value);
+      if (!start || !end || end <= start) {
+        totalText.textContent = "GHS 0.00";
+        return;
+      }
+
+      const oneDay = 24 * 60 * 60 * 1000;
+      const nights = Math.round((end - start) / oneDay);
+      const total = selectedRates().reduce((sum, rate) => sum + rate * nights, 0);
+      totalText.textContent = `GHS ${total.toFixed(2)}`;
+    }
+
+    [checkIn, checkOut, roomSelect, roomsSelect].forEach((field) => {
+      if (field) {
+        field.addEventListener("change", updateTotal);
+      }
+    });
+
+    updateTotal();
+  })();
+</script>
 {% endblock %}

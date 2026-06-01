@@ -1,50 +1,157 @@
 {% extends "base.html" %}
-{% load static %}
 
 {% block content %}
-<div class="dashboard-background p-4 rounded-4 shadow-sm">
-  <div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center gap-2 flex-wrap">
-    <div>
-      <h1 class="h4 mb-1">HR Rotas</h1>
-      <div class="brand-badge">View and manage weekly rota schedules</div>
-    </div>
-    <div class="d-flex gap-2">
-      <a class="btn btn-sm btn-light" href="{% url 'hr-list' %}">Employees</a>
-      <a class="btn btn-sm btn-light" href="{% url 'hr-rota-create' %}">Create Rota</a>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
+      <div>
+        <div class="section-eyebrow mb-2">Staff management</div>
+        <h1 class="page-title mb-2">Weekly duty roster</h1>
+        <div class="page-subtitle">Detailed roster accounts with daily hours, filter ranges, and employee-specific views.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'hr-list' %}"><i data-lucide="search"></i> Search employees</a>
+        <a class="topbar-pill" href="{% url 'hr-rota-create' %}"><i data-lucide="plus"></i> Create roster</a>
+      </div>
     </div>
   </div>
 
-  <div class="table-responsive">
-    <table class="table table-hover table-striped align-middle">
-      <thead>
-        <tr>
-          <th>Period</th>
-          <th>Dates</th>
-          <th>Staff Members</th>
-          <th>Operating Hours</th>
-          <th>Shift Rules</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for rota in rotas %}
-        <tr>
-          <td>{{ rota.period }}</td>
-          <td>{{ rota.period_start }} – {{ rota.period_end }}</td>
-          <td>{{ rota.staff_members.all|join:", " }}</td>
-          <td>{{ rota.operating_hours }}</td>
-          <td>{{ rota.shift_rules|linebreaksbr }}</td>
-          <td>
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-rota-update' rota.pk %}">Edit</a>
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="5" class="text-center text-muted">No rotas have been created yet.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Range</label>
+        <select class="form-select" name="period">
+          <option value="week" {% if period == "week" %}selected{% endif %}>Week</option>
+          <option value="month" {% if period == "month" %}selected{% endif %}>Month</option>
+          <option value="year" {% if period == "year" %}selected{% endif %}>Year</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Reference date</label>
+        <input type="date" class="form-control" name="date" value="{{ reference_date|date:'Y-m-d' }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Search employee or notes</label>
+        <input type="search" class="form-control" name="q" value="{{ query }}" placeholder="Name, position, or roster note">
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary" type="submit"><i data-lucide="filter"></i> Filter</button>
+      </div>
+    </form>
+
+    <div class="d-flex flex-wrap gap-2 mt-3">
+      <a class="status-pill neutral" href="?period=week&date={{ reference_date|date:'Y-m-d' }}{% if query %}&q={{ query|urlencode }}{% endif %}">Week</a>
+      <a class="status-pill neutral" href="?period=month&date={{ reference_date|date:'Y-m-d' }}{% if query %}&q={{ query|urlencode }}{% endif %}">Month</a>
+      <a class="status-pill neutral" href="?period=year&date={{ reference_date|date:'Y-m-d' }}{% if query %}&q={{ query|urlencode }}{% endif %}">Year</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Rosters in range</div>
+        <div class="metric-value">{{ summary.total_rotas }}</div>
+        <div class="text-muted small mt-2">Records matching the selected period</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Active employees</div>
+        <div class="metric-value">{{ summary.active_employees }}</div>
+        <div class="text-muted small mt-2">Distinct staff with roster assignments</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total hours</div>
+        <div class="metric-value">{{ summary.total_hours|floatformat:2 }}</div>
+        <div class="text-muted small mt-2">Combined hours across the range</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Employee</th>
+            <th>Position</th>
+            <th>Period</th>
+            <th>Start</th>
+            <th>Finish</th>
+            <th>Daily hours</th>
+            <th>Total hours</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rota in rotas %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ rota.employee }}</div>
+                <div class="text-muted small">{{ rota.employee.contact_number }}</div>
+              </td>
+              <td>{{ rota.employee.get_position_display }}</td>
+              <td>{{ rota.period_start|date:"M d, Y" }} to {{ rota.period_end|date:"M d, Y" }}</td>
+              <td>{{ rota.opening_time|time:"H:i" }}</td>
+              <td>{{ rota.closing_time|time:"H:i" }}</td>
+              <td>{{ rota.daily_hours|floatformat:2 }}</td>
+              <td>{{ rota.total_hours|floatformat:2 }}</td>
+              <td>
+                <div class="d-flex gap-2 justify-content-end">
+                  <a class="status-pill neutral" href="{% url 'hr-rota-detail' rota.pk %}">
+                    <i data-lucide="eye"></i> View
+                  </a>
+                  <a class="status-pill success" href="{% url 'hr-rota-update' rota.pk %}">
+                    <i data-lucide="pencil"></i> Edit
+                  </a>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">No duty rosters have been created yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mt-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+      <div>
+        <div class="section-eyebrow">Daily roster report</div>
+        <h2 class="h5 mb-1">Day-by-day account for the selected range</h2>
+        <div class="text-muted small">Each day shows the employees assigned and the hours scheduled for that day.</div>
+      </div>
+    </div>
+
+    <div class="d-grid gap-3">
+      {% for day in day_reports %}
+        <div class="result-card">
+          <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-2">
+            <div>
+              <div class="fw-semibold">{{ day.day_name }} - {{ day.date|date:"M d, Y" }}</div>
+              <div class="text-muted small">{{ day.employees }} employee(s) scheduled</div>
+            </div>
+            <span class="status-pill neutral">{{ day.hours|floatformat:2 }} hours</span>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            {% for rota in day.rotas %}
+              <a class="status-pill success" href="{% url 'hr-rota-detail' rota.pk %}">
+                <i data-lucide="eye"></i> {{ rota.employee }}
+              </a>
+            {% empty %}
+              <span class="text-muted small">No roster assigned for this day.</span>
+            {% endfor %}
+          </div>
+        </div>
+      {% empty %}
+        <div class="text-muted">No daily report rows available.</div>
+      {% endfor %}
+    </div>
   </div>
 </div>
 {% endblock %}

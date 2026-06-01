@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Guest Booking Account</h1>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Back</a>
+    <a class="btn btn-outline-dark" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="text-muted small">Guest</div>
+        <div class="h6 mb-0">{{ booking.guest }}</div>
+        <div>{{ booking.guest.phone_number }}</div>
+        <div>{{ booking.guest.email|default:"-" }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-muted small">Booking Window</div>
+        <div class="h6 mb-0">{{ booking.check_in }} to {{ booking.check_out }}</div>
+        <div>Created: {{ booking.created_at|date:"Y-m-d H:i" }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-muted small">Account Summary</div>
+        <div class="h6 mb-0">Total: GHS {{ group_total }}</div>
+        <div>Paid: GHS {{ group_paid }}</div>
+        <div>Balance: GHS {{ group_balance }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body"><h2 class="h6 mb-0">Booked Rooms</h2></div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Room</th>
+              <th>Dates Booked</th>
+              <th>Status</th>
+              <th>Booked At</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in related_bookings %}
+              <tr>
+                <td>{{ item.room.room_number }} ({{ item.room.get_room_type_display }})</td>
+                <td>{{ item.check_in }} to {{ item.check_out }}</td>
+                <td>{{ item.get_status_display }}</td>
+                <td>{{ item.created_at|date:"Y-m-d H:i" }}</td>
+                <td>GHS {{ item.total_amount }}</td>
+                <td>GHS {{ item.amount_paid }}</td>
+                <td>GHS {{ item.balance_due }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body"><h2 class="h6 mb-0">Payment History</h2></div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Paid At</th>
+              <th>Room</th>
+              <th>Method</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payment in payments %}
+              <tr>
+                <td>{{ payment.paid_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ payment.booking.room.room_number }}</td>
+                <td>{{ payment.get_method_display }}</td>
+                <td>GHS {{ payment.amount }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted py-3">No payments yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

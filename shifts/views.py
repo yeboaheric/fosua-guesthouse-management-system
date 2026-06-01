@@ -12,13 +12,13 @@ from shifts.models import ShiftHandover
 from shifts.models import ShiftHandoverUpdate
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="handovers")
 def handover_list(request):
     handovers = ShiftHandover.objects.select_related("prepared_by")
     return render(request, "shifts/handover_list.html", {"handovers": handovers})
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="handovers")
 def handover_create(request):
     if request.method == "POST":
         form = ShiftHandoverForm(request.POST)
@@ -47,7 +47,7 @@ def handover_create(request):
     )
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="handovers")
 def handover_detail(request, pk):
     handover = get_object_or_404(
         ShiftHandover.objects.select_related("prepared_by").prefetch_related("updates__author"),

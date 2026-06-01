@@ -6,6 +6,23 @@
   <a class="btn btn-primary" href="{% url 'guest-create' %}">Add Guest</a>
 </div>
 
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-8">
+        <label class="form-label" for="q">Search guests</label>
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, phone, email, Ghana Card, digital address">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-md-2">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'guest-list' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="card shadow-sm">
   <div class="table-responsive">
     <table class="table table-hover mb-0 align-middle">
@@ -14,7 +31,7 @@
           <th>Name</th>
           <th>Phone</th>
           <th>Email</th>
-          <th>ID Number</th>
+          <th>Ghana Card Number</th>
           <th></th>
         </tr>
       </thead>
@@ -24,7 +41,7 @@
             <td>{{ guest.first_name }} {{ guest.last_name }}</td>
             <td>{{ guest.phone_number }}</td>
             <td>{{ guest.email|default:"-" }}</td>
-            <td>{{ guest.id_number|default:"-" }}</td>
+            <td>{{ guest.ghana_card_number|default:"-" }}</td>
             <td class="text-end">
               <a class="btn btn-sm btn-outline-secondary" href="{% url 'guest-update' guest.pk %}">Edit</a>
             </td>

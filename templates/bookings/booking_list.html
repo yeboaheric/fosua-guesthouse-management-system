@@ -12,19 +12,31 @@
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <form method="get" class="row g-3 align-items-end">
-      <div class="col-md-4">
+      <div class="col-lg-3 col-md-6">
+        <label class="form-label" for="q">Search</label>
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Guest, room, Ghana Card, note">
+      </div>
+      <div class="col-lg-2 col-md-6">
         <label class="form-label" for="status">Status</label>
         <select class="form-select" name="status" id="status">
           <option value="">All Statuses</option>
           {% for value, label in status_choices %}
-            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-4">
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label" for="check_in">Check-in date</label>
+        <input class="form-control" type="date" name="check_in" id="check_in" value="{{ check_in }}">
+      </div>
+      <div class="col-lg-2 col-md-6">
+        <label class="form-label" for="check_out">Check-out date</label>
+        <input class="form-control" type="date" name="check_out" id="check_out" value="{{ check_out }}">
+      </div>
+      <div class="col-lg-1 col-md-6">
         <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
       </div>
-      <div class="col-md-4">
+      <div class="col-lg-2 col-md-6">
         <a class="btn btn-outline-secondary w-100" href="{% url 'booking-list' %}">Reset</a>
       </div>
     </form>
@@ -58,6 +70,7 @@
             <td>GHS {{ booking.balance_due }}</td>
             <td class="text-end">
               <div class="d-flex justify-content-end gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'booking-detail' booking.pk %}">View</a>
                 <a class="btn btn-sm btn-outline-secondary" href="{% url 'booking-update' booking.pk %}">Edit</a>
                 <a class="btn btn-sm btn-outline-dark" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'booking-payments' booking.pk %}">Payments</a>

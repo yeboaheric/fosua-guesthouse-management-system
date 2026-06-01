@@ -4,9 +4,10 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 mb-0">Booking Receipt</h1>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Back</a>
     <a class="btn btn-outline-primary" href="{% url 'receipt-pdf' booking.id %}">Download PDF</a>
+    <a class="btn btn-outline-dark" href="{% url 'receipt-email' booking.id %}">Send to Email</a>
     <button class="btn btn-primary" onclick="window.print()">Print</button>
   </div>
 </div>
@@ -21,7 +22,7 @@
       </div>
       <div class="text-end">
         <div><strong>Receipt #:</strong> BK-{{ booking.id }}</div>
-        <div><strong>Date:</strong> {{ booking.created_at|date:"Y-m-d H:i" }}</div>
+        <div><strong>Booked:</strong> {{ booking.created_at|date:"Y-m-d H:i" }}</div>
       </div>
     </div>
 
@@ -35,41 +36,74 @@
         <div>{{ booking.guest.email|default:"-" }}</div>
       </div>
       <div class="col-md-6">
-        <h3 class="h6">Booking</h3>
-        <div><strong>Room:</strong> {{ booking.room.room_number }} ({{ booking.room.get_room_type_display }})</div>
+        <h3 class="h6">Stay Window</h3>
         <div><strong>Check-in:</strong> {{ booking.check_in }}</div>
         <div><strong>Check-out:</strong> {{ booking.check_out }}</div>
-        <div><strong>Status:</strong> {{ booking.get_status_display }}</div>
       </div>
     </div>
 
-    <table class="table">
+    <h3 class="h6">Booked Rooms</h3>
+    <table class="table mb-4">
       <thead>
         <tr>
-          <th>Description</th>
+          <th>Room</th>
+          <th>Booked At</th>
+          <th>Status</th>
           <th class="text-end">Amount</th>
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>Room booking charge</td>
-          <td class="text-end">GHS {{ booking.total_amount }}</td>
-        </tr>
-        <tr>
-          <td>Amount paid</td>
-          <td class="text-end">GHS {{ booking.amount_paid }}</td>
-        </tr>
+        {% for item in related_bookings %}
+          <tr>
+            <td>{{ item.room.room_number }} ({{ item.room.get_room_type_display }})</td>
+            <td>{{ item.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ item.get_status_display }}</td>
+            <td class="text-end">GHS {{ item.total_amount }}</td>
+          </tr>
+        {% endfor %}
       </tbody>
       <tfoot>
         <tr>
-          <th>Balance Due</th>
-          <th class="text-end">GHS {{ booking.balance_due }}</th>
+          <th colspan="3">Total Booking Amount</th>
+          <th class="text-end">GHS {{ group_total }}</th>
         </tr>
         <tr>
-          <th>Total Booking Amount</th>
-          <th class="text-end">GHS {{ booking.total_amount }}</th>
+          <th colspan="3">Amount Paid</th>
+          <th class="text-end">GHS {{ group_paid }}</th>
+        </tr>
+        <tr>
+          <th colspan="3">Balance Due</th>
+          <th class="text-end">GHS {{ group_balance }}</th>
         </tr>
       </tfoot>
+    </table>
+
+    <h3 class="h6">Payments</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Paid At</th>
+          <th>Room</th>
+          <th>Mode</th>
+          <th>Reference</th>
+          <th class="text-end">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for payment in payments %}
+          <tr>
+            <td>{{ payment.paid_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ payment.booking.room.room_number }}</td>
+            <td>{{ payment.get_method_display }}</td>
+            <td>{{ payment.reference|default:"-" }}</td>
+            <td class="text-end">GHS {{ payment.amount }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="text-center text-muted">No payments recorded yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
 </div>

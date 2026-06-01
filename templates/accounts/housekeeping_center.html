@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Housekeeping center</div>
+        <h1 class="page-title mb-2">Room status and maintenance</h1>
+        <div class="page-subtitle">A live view of available, occupied, cleaning, and maintenance rooms.</div>
+      </div>
+      <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations overview</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Available</div><div class="metric-value">{{ available_rooms|length }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Occupied</div><div class="metric-value">{{ occupied_rooms|length }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Cleaning</div><div class="metric-value">{{ cleaning_rooms|length }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Maintenance</div><div class="metric-value">{{ maintenance_rooms|length }}</div></div></div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-4">
+        <label class="form-label" for="q">Search rooms</label>
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Room number or note">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" name="status" id="status">
+          <option value="">All statuses</option>
+          {% for value, label in room_status_choices %}
+            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="room_type">Room type</label>
+        <select class="form-select" name="room_type" id="room_type">
+          <option value="">All room types</option>
+          {% for value, label in room_type_choices %}
+            <option value="{{ value }}" {% if selected_room_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-1">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-lg-1">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'housekeeping-center' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Available rooms</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for room in available_rooms %}
+            <span class="status-pill success">Room {{ room.room_number }}</span>
+          {% empty %}
+            <div class="text-muted">No available rooms.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Occupied rooms</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for room in occupied_rooms %}
+            <span class="status-pill neutral">Room {{ room.room_number }}</span>
+          {% empty %}
+            <div class="text-muted">No occupied rooms.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Cleaning in progress</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for room in cleaning_rooms %}
+            <span class="status-pill warning">Room {{ room.room_number }}</span>
+          {% empty %}
+            <div class="text-muted">No rooms cleaning right now.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Maintenance rooms</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for room in maintenance_rooms %}
+            <span class="status-pill danger">Room {{ room.room_number }}</span>
+          {% empty %}
+            <div class="text-muted">No rooms under maintenance.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="section-eyebrow mb-2">Recent status changes</div>
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Room</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Status started</th>
+            <th>Changed at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for room in recent_rooms %}
+            <tr>
+              <td>Room {{ room.room_number }}</td>
+              <td>{{ room.get_room_type_display }}</td>
+              <td><span class="status-pill neutral">{{ room.get_status_display }}</span></td>
+              <td>{{ room.status_started_at|date:"M d, Y H:i" }}</td>
+              <td>{{ room.last_status_changed_at|date:"M d, Y H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-muted">No status updates yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

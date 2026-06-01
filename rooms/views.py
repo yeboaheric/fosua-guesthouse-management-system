@@ -9,7 +9,7 @@ from rooms.forms import RoomForm
 from rooms.models import Room
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="rooms")
 def room_list(request):
     rooms = Room.objects.all()
     context = {
@@ -49,7 +49,7 @@ def room_update(request, pk):
     return render(request, "rooms/room_form.html", {"form": form, "title": "Edit Room"})
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="rooms")
 def room_availability(request):
     check_in = request.GET.get("check_in")
     check_out = request.GET.get("check_out")

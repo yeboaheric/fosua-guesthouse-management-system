@@ -12,42 +12,49 @@
     <div class="card-body p-4">
       <form method="post">
         {% csrf_token %}
+        {{ form.non_field_errors }}
         <div class="row g-3">
-          <div class="col-12">
+          <div class="col-md-6">
+            <label class="form-label" for="id_employee">Employee</label>
+            {{ form.employee }}
+            {% if form.employee.errors %}<div class="text-danger small mt-1">{{ form.employee.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
             <label class="form-label" for="id_period">Period label</label>
             {{ form.period }}
-            <div class="form-text">Example: Monday, June 1st to Sunday, June 7th</div>
+            <div class="form-text">Example: Week 1 Front Desk Shift</div>
+            {% if form.period.errors %}<div class="text-danger small mt-1">{{ form.period.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_period_start">From</label>
+            <label class="form-label" for="id_period_start">Start date</label>
             {{ form.period_start }}
+            {% if form.period_start.errors %}<div class="text-danger small mt-1">{{ form.period_start.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_period_end">To</label>
+            <label class="form-label" for="id_period_end">Finish date</label>
             {{ form.period_end }}
+            {% if form.period_end.errors %}<div class="text-danger small mt-1">{{ form.period_end.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_opening_time">Opening time</label>
+            <label class="form-label" for="id_opening_time">Start time</label>
             {{ form.opening_time }}
+            {% if form.opening_time.errors %}<div class="text-danger small mt-1">{{ form.opening_time.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
-            <label class="form-label" for="id_closing_time">Closing time</label>
+            <label class="form-label" for="id_closing_time">Finish time</label>
             {{ form.closing_time }}
+            {% if form.closing_time.errors %}<div class="text-danger small mt-1">{{ form.closing_time.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-12">
-            <label class="form-label" for="id_staff_members">Staff Members</label>
-            {{ form.staff_members }}
-            <div class="form-text">Select one or more employees to assign to this rota.</div>
-          </div>
-          <div class="col-12">
-            <label class="form-label" for="id_shift_rules">Shift Rules</label>
+            <label class="form-label" for="id_shift_rules">Necessary info</label>
             {{ form.shift_rules }}
+            {% if form.shift_rules.errors %}<div class="text-danger small mt-1">{{ form.shift_rules.errors|join:", " }}</div>{% endif %}
           </div>
         </div>
 
         <div class="mt-4 d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save rota</button>
-          <a class="btn btn-outline-secondary" href="{% url 'hr-rota-list' %}">Back to rotas</a>
+          <button type="submit" class="btn btn-primary">Save roster</button>
+          <a class="btn btn-outline-secondary" href="{% url 'hr-rota-list' %}">Back to roster</a>
         </div>
       </form>
     </div>

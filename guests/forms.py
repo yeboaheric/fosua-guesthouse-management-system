@@ -7,13 +7,18 @@ class GuestForm(forms.ModelForm):
     class Meta:
         model = Guest
         fields = [
+            "title",
             "first_name",
             "last_name",
             "phone_number",
             "email",
-            "id_number",
-            "address",
+            "ghana_card_number",
+            "ghana_card_expiry_date",
+            "digital_address",
         ]
+        widgets = {
+            "ghana_card_expiry_date": forms.DateInput(attrs={"type": "date"}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

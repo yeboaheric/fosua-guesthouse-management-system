@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="section-eyebrow mb-2">Notifications center</div>
+    <h1 class="page-title mb-2">Live hotel activity feed</h1>
+    <div class="page-subtitle">Guest requests, payments, bookings, event activity, and room changes in one stream.</div>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="timeline-list">
+      {% for item in activities %}
+        <div class="timeline-item">
+          <div class="timeline-marker"></div>
+          <div>
+            <div class="fw-semibold">{{ item.title }}</div>
+            <div class="text-muted small">{{ item.meta }}</div>
+            <div class="text-muted small">{{ item.time|date:"M d, Y H:i" }}</div>
+          </div>
+        </div>
+      {% empty %}
+        <div class="text-muted">No notifications yet.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

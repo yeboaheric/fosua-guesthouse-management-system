@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Services center</div>
+        <h1 class="page-title mb-2">Event space bookings</h1>
+        <div class="page-subtitle">Purpose, guest count, setup style, and status for each event.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'event-booking-create' %}"><i data-lucide="sparkles"></i> New event</a>
+        <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Recent events</div>
+        <div class="metric-value">{{ events|length }}</div>
+        <div class="text-muted small mt-2">Latest event bookings in the system</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Spaces used</div>
+        <div class="metric-value">1</div>
+        <div class="text-muted small mt-2">Primary event space available for booking</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Operations</div>
+        <div class="metric-value">Live</div>
+        <div class="text-muted small mt-2">Confirm, start, complete, or cancel with audit history</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-6">
+        <label class="form-label" for="q">Search events</label>
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Title, space, purpose, guest">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" name="status" id="status">
+          <option value="">All statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-1">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-lg-2">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'services-center' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Event</th>
+            <th>Guest</th>
+            <th>Purpose</th>
+            <th>Expected guests</th>
+            <th>Schedule</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in events %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ event.event_title }}</div>
+                <div class="text-muted small">{{ event.event_space_name }} · {{ event.setup_style|title }}</div>
+              </td>
+              <td>{{ event.guest }}</td>
+              <td>{{ event.purpose|truncatechars:60 }}</td>
+              <td>{{ event.expected_guests }}</td>
+              <td>{{ event.event_start|date:"M d, Y H:i" }}<br><span class="text-muted">{{ event.event_end|date:"M d, Y H:i" }}</span></td>
+              <td><span class="status-pill neutral">{{ event.get_status_display }}</span></td>
+              <td>
+                <div class="d-flex gap-2 flex-wrap">
+                  <a class="status-pill neutral" href="{% url 'event-booking-update' event.pk %}">Edit</a>
+                  <a class="status-pill success" href="{% url 'event-booking-payments' event.pk %}">Payments</a>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="text-muted">No event bookings yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

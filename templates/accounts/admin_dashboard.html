@@ -2,86 +2,286 @@
 {% load static %}
 
 {% block content %}
-<div class="brand-panel p-4 mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h1 class="h4 mb-1">Admin Dashboard</h1>
-    <div class="brand-badge">Fosua Guesthouse - Aduman</div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
+      <div>
+        <div class="section-eyebrow mb-2">Admin control room</div>
+        <h1 class="page-title mb-2">Hotel command center</h1>
+        <div class="page-subtitle">Welcome back, {{ user.get_full_name|default:user.username }}. Live operations for {{ today }}.</div>
+      </div>
+    </div>
   </div>
-  <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-mark">
-</div>
-<div class="dashboard-background p-4 rounded-4">
-  <div class="row g-3 dashboard-grid">
-    <div class="col-sm-6 col-lg-4">
-      <div class="card h-100 shadow-sm dashboard-card">
-        <div class="card-body">
-          <h2 class="h6">Manage Rooms</h2>
-          <a class="btn btn-sm btn-primary" href="{% url 'room-list' %}">Open</a>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Occupancy rate</div>
+        <div class="metric-value">{{ occupancy_rate }}%</div>
+        <div class="text-muted small mt-2">Rooms in active use right now</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Available rooms</div>
+        <div class="metric-value">{{ available_rooms }}</div>
+        <div class="text-muted small mt-2">Ready for new bookings</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Active bookings</div>
+        <div class="metric-value">{{ active_bookings }}</div>
+        <div class="text-muted small mt-2">Confirmed or in-house stays</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Staff on duty</div>
+        <div class="metric-value">{{ staff_on_duty }}</div>
+        <div class="text-muted small mt-2">Rotas covering today</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Daily revenue</div>
+        <div class="metric-value">GHS {{ daily_revenue }}</div>
+        <div class="text-muted small mt-2">Room and event collections</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Monthly revenue</div>
+        <div class="metric-value">GHS {{ monthly_revenue }}</div>
+        <div class="text-muted small mt-2">Month-to-date performance</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Pending balances</div>
+        <div class="metric-value">{{ pending_payments }}</div>
+        <div class="text-muted small mt-2">Open booking and event accounts</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total guests</div>
+        <div class="metric-value">{{ total_guests }}</div>
+        <div class="text-muted small mt-2">Guest profiles stored in the system</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-7">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Performance analytics</div>
+            <h2 class="h5 mb-1">Revenue and occupancy trends</h2>
+            <div class="text-muted small">Rolling 7-day view of operations</div>
+          </div>
+          <span class="status-pill success"><i data-lucide="trending-up"></i> Live</span>
+        </div>
+        {{ chart_labels_json|json_script:"dashboard-labels" }}
+        {{ revenue_data_json|json_script:"dashboard-revenue" }}
+        {{ occupancy_data_json|json_script:"dashboard-occupancy" }}
+        <div class="row g-3">
+          <div class="col-md-6"><canvas id="dashboardRevenueChart" height="180"></canvas></div>
+          <div class="col-md-6"><canvas id="dashboardOccupancyChart" height="180"></canvas></div>
         </div>
       </div>
     </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Bookings</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'booking-list' %}">Open</a>
+    <div class="col-xl-5">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Room status overview</div>
+            <h2 class="h5 mb-1">Operational snapshot</h2>
+            <div class="text-muted small">Color-coded status across all rooms</div>
+          </div>
+        </div>
+        <div class="d-grid gap-2">
+          {% for item in room_status_breakdown %}
+            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border" style="background: rgba(255,255,255,0.55);">
+              <div>
+                <div class="fw-semibold">{{ item.label }}</div>
+                <div class="text-muted small">Rooms currently in this state</div>
+              </div>
+              <span class="status-pill {{ item.tone }}">{{ item.count }}</span>
+            </div>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Event Space</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'event-booking-list' %}">Open</a>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-8">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Recent activity</div>
+            <h2 class="h5 mb-1">Everything moving through the hotel</h2>
+            <div class="text-muted small">Bookings, payments, event work, and room updates</div>
+          </div>
+          <a class="topbar-pill" href="{% url 'notifications-center' %}"><i data-lucide="bell-ring"></i> View feed</a>
+        </div>
+        <div class="timeline-list">
+          {% for item in recent_activity %}
+            <div class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div>
+                <div class="fw-semibold">{{ item.title }}</div>
+                <div class="text-muted small">{{ item.meta }}</div>
+                <div class="text-muted small">{{ item.time|date:"M d, Y · H:i" }}</div>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No recent activity yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="surface-panel p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Quick actions</div>
+            <h2 class="h5 mb-1">Fast daily tasks</h2>
+          </div>
+        </div>
+        <div class="row g-2">
+          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'booking-create' %}"><i data-lucide="calendar-plus"></i> Booking</a></div>
+          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'guest-create' %}"><i data-lucide="users"></i> Guests</a></div>
+          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'room-create' %}"><i data-lucide="bed-double"></i> Rooms</a></div>
+          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'admin-reports' %}"><i data-lucide="chart-column"></i> Reports</a></div>
+          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i> Users & Roles</a></div>
+        </div>
+      </div>
+
+      <div class="surface-panel p-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Operational priorities</div>
+            <h2 class="h5 mb-1">Needs attention today</h2>
+          </div>
+        </div>
+        <div class="d-grid gap-2">
+          <div class="d-flex justify-content-between p-3 rounded-4 border">
+            <span>Pending payments</span>
+            <strong>{{ pending_payments }}</strong>
+          </div>
+          <div class="d-flex justify-content-between p-3 rounded-4 border">
+            <span>Cleaning rooms</span>
+            <strong>{{ cleaning_rooms }}</strong>
+          </div>
+          <div class="d-flex justify-content-between p-3 rounded-4 border">
+            <span>Maintenance rooms</span>
+            <strong>{{ maintenance_rooms }}</strong>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">HR Employees</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'hr-list' %}">Open</a>
+
+  <div class="row g-3">
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Recent bookings</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Guest</th>
+                <th>Room</th>
+                <th>Status</th>
+                <th>Dates</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for booking in recent_bookings %}
+                <tr>
+                  <td>{{ booking.guest }}</td>
+                  <td>Room {{ booking.room.room_number }}</td>
+                  <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
+                  <td>{{ booking.check_in|date:"M d" }} - {{ booking.check_out|date:"M d" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No recent bookings yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">HR Rotas</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'hr-rota-list' %}">Open</a>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Operations</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'operations-overview' %}">Open</a>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Shift Handover</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'handover-list' %}">Open</a>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Reports</h2>
-        <a class="btn btn-sm btn-primary" href="{% url 'admin-reports' %}">Open</a>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-4">
-    <div class="card h-100 shadow-sm dashboard-card">
-      <div class="card-body">
-        <h2 class="h6">Users and Roles</h2>
-        <a class="btn btn-sm btn-primary" href="/admin/auth/user/">Open</a>
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Recent payments</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Guest</th>
+                <th>Room</th>
+                <th>Amount</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for payment in recent_payments %}
+                <tr>
+                  <td>{{ payment.booking.guest }}</td>
+                  <td>Room {{ payment.booking.room.room_number }}</td>
+                  <td>GHS {{ payment.amount }}</td>
+                  <td>{{ payment.paid_at|date:"M d, H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No payments recorded yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const labels = JSON.parse(document.getElementById("dashboard-labels").textContent);
+  const revenue = JSON.parse(document.getElementById("dashboard-revenue").textContent);
+  const occupancy = JSON.parse(document.getElementById("dashboard-occupancy").textContent);
+
+  new Chart(document.getElementById("dashboardRevenueChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Revenue",
+        data: revenue,
+        borderColor: "#3d7dff",
+        backgroundColor: "rgba(61,125,255,0.14)",
+        fill: true,
+        tension: 0.35,
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+
+  new Chart(document.getElementById("dashboardOccupancyChart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Occupied rooms",
+        data: occupancy,
+        backgroundColor: "#1f3b44",
+        borderRadius: 10,
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+</script>
 {% endblock %}

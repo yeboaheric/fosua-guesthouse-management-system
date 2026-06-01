@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Global search</div>
+        <h1 class="page-title mb-2">Search results</h1>
+        <div class="page-subtitle">
+          {% if query %}
+            Results for "{{ query }}"
+          {% else %}
+            Search guests, rooms, bookings, invoices, payments, and staff records from the top bar.
+          {% endif %}
+        </div>
+      </div>
+      {% if query %}
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="status-pill neutral">Guests {{ guest_results|length }}</span>
+          <span class="status-pill neutral">Rooms {{ room_results|length }}</span>
+          <span class="status-pill neutral">Bookings {{ booking_results|length }}</span>
+          <span class="status-pill neutral">Payments {{ payment_results|length }}</span>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if query %}
+    <div class="row g-3">
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Guests</div>
+          {% for guest in guest_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3">
+                <div>
+                  <strong>{{ guest }}</strong>
+                  <div class="text-muted small">{{ guest.phone_number }}{% if guest.email %} · {{ guest.email }}{% endif %}</div>
+                </div>
+                <span class="status-pill neutral">Guest</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No guests matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Rooms</div>
+          {% for room in room_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3">
+                <div>
+                  <strong>Room {{ room.room_number }}</strong>
+                  <div class="text-muted small">{{ room.get_room_type_display }} · {{ room.get_status_display }}</div>
+                </div>
+                <span class="status-pill neutral">GHS {{ room.base_rate }}</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No rooms matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Bookings</div>
+          {% for booking in booking_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3 align-items-start">
+                <div>
+                  <strong>{{ booking.guest }}</strong>
+                  <div class="text-muted small">Room {{ booking.room.room_number }} · {{ booking.check_in|date:"M d, Y" }} to {{ booking.check_out|date:"M d, Y" }}</div>
+                </div>
+                <a class="status-pill neutral" href="{% url 'booking-detail' booking.pk %}">Open</a>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No bookings matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Payments</div>
+          {% for payment in payment_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3 align-items-start">
+                <div>
+                  <strong>{{ payment.booking.guest }}</strong>
+                  <div class="text-muted small">Room {{ payment.booking.room.room_number }} · {{ payment.method|title }} · {{ payment.paid_at|date:"M d, H:i" }}</div>
+                </div>
+                <span class="status-pill success">GHS {{ payment.amount }}</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No payments matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Staff</div>
+          {% for employee in employee_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3">
+                <div>
+                  <strong>{{ employee }}</strong>
+                  <div class="text-muted small">{{ employee.get_position_display }} · {{ employee.get_employment_status_display }}</div>
+                </div>
+                <span class="status-pill neutral">{{ employee.ghana_card_number }}</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No employees matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Event bookings</div>
+          {% for event in event_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3 align-items-start">
+                <div>
+                  <strong>{{ event.event_title }}</strong>
+                  <div class="text-muted small">{{ event.event_space_name }} · {{ event.expected_guests }} guests · {{ event.event_start|date:"M d, Y H:i" }}</div>
+                </div>
+                <a class="status-pill neutral" href="{% url 'event-booking-list' %}">Open</a>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No event bookings matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Event payments</div>
+          {% for payment in event_payment_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3 align-items-start">
+                <div>
+                  <strong>{{ payment.event_booking.event_title }}</strong>
+                  <div class="text-muted small">{{ payment.event_booking.event_space_name }} · {{ payment.paid_at|date:"M d, H:i" }}</div>
+                </div>
+                <span class="status-pill success">GHS {{ payment.amount }}</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No event payments matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="surface-panel p-4">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="mini-metric h-100">
+            <div class="metric-label">Search scope</div>
+            <div class="metric-value">All records</div>
+            <div class="text-muted small mt-2">Guests, rooms, reservations, payments, staff, and events</div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="mini-metric h-100">
+            <div class="metric-label">Fast lookup</div>
+            <div class="metric-value">One bar</div>
+            <div class="text-muted small mt-2">Use the top search bar anywhere in the system</div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="mini-metric h-100">
+            <div class="metric-label">Suggested query</div>
+            <div class="metric-value">Guest name</div>
+            <div class="text-muted small mt-2">Try a phone number, room number, or booking status too</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

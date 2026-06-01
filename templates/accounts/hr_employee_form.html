@@ -9,7 +9,7 @@
   </div>
 
   <div class="card shadow-sm border-0">
-    <div class="card-body p-4">
+      <div class="card-body p-4">
         <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {{ form.non_field_errors }}
@@ -17,29 +17,40 @@
           <div class="col-12">
             <h2 class="h6 mb-3">Personal details</h2>
           </div>
-            <div class="col-md-4">
-              <label class="form-label" for="id_passport_photo">Passport photo</label>
-              {{ form.passport_photo }}
-            </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_passport_photo">Passport photo</label>
+            {{ form.passport_photo }}
+            {% if form.passport_photo.errors %}<div class="text-danger small mt-1">{{ form.passport_photo.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_title">Title</label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors|join:", " }}</div>{% endif %}
+          </div>
           <div class="col-md-6">
             <label class="form-label" for="id_first_name">First name</label>
             {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_last_name">Surname</label>
             {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-4">
             <label class="form-label" for="id_date_of_birth">Date of birth</label>
             {{ form.date_of_birth }}
+            {% if form.date_of_birth.errors %}<div class="text-danger small mt-1">{{ form.date_of_birth.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-4">
             <label class="form-label" for="id_gender">Gender</label>
             {{ form.gender }}
+            {% if form.gender.errors %}<div class="text-danger small mt-1">{{ form.gender.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-4">
             <label class="form-label" for="id_marital_status">Marital Status</label>
             {{ form.marital_status }}
+            {% if form.marital_status.errors %}<div class="text-danger small mt-1">{{ form.marital_status.errors|join:", " }}</div>{% endif %}
           </div>
 
           <div class="col-12">
@@ -48,18 +59,42 @@
           <div class="col-md-6">
             <label class="form-label" for="id_position">Position</label>
             {{ form.position }}
+            {% if form.position.errors %}<div class="text-danger small mt-1">{{ form.position.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_start_date">Start Date</label>
             {{ form.start_date }}
+            {% if form.start_date.errors %}<div class="text-danger small mt-1">{{ form.start_date.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_employment_status">Employee Status</label>
+            {{ form.employment_status }}
+            {% if form.employment_status.errors %}<div class="text-danger small mt-1">{{ form.employment_status.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_termination_date">Termination Date</label>
             {{ form.termination_date }}
+            {% if form.termination_date.errors %}<div class="text-danger small mt-1">{{ form.termination_date.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_ghana_card_number">Ghana Card number</label>
             {{ form.ghana_card_number }}
+            {% if form.ghana_card_number.errors %}<div class="text-danger small mt-1">{{ form.ghana_card_number.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_ghana_card_expiry_date">Ghana Card expiry date</label>
+            {{ form.ghana_card_expiry_date }}
+            {% if form.ghana_card_expiry_date.errors %}<div class="text-danger small mt-1">{{ form.ghana_card_expiry_date.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_ssnit_number">SSNIT number</label>
+            {{ form.ssnit_number }}
+            {% if form.ssnit_number.errors %}<div class="text-danger small mt-1">{{ form.ssnit_number.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-12">
+            <label class="form-label" for="id_termination_reason">Termination reason</label>
+            {{ form.termination_reason }}
+            {% if form.termination_reason.errors %}<div class="text-danger small mt-1">{{ form.termination_reason.errors|join:", " }}</div>{% endif %}
           </div>
 
           <div class="col-12">
@@ -68,18 +103,37 @@
           <div class="col-md-6">
             <label class="form-label" for="id_contact_number">Contact number</label>
             {{ form.contact_number }}
+            {% if form.contact_number.errors %}<div class="text-danger small mt-1">{{ form.contact_number.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_email">Email address</label>
             {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_emergency_contact_number">Emergency contact</label>
+            {{ form.emergency_contact_number }}
+            {% if form.emergency_contact_number.errors %}<div class="text-danger small mt-1">{{ form.emergency_contact_number.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_gps_address">GPS address</label>
             {{ form.gps_address }}
+            {% if form.gps_address.errors %}<div class="text-danger small mt-1">{{ form.gps_address.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_next_of_kin">Next of Kin</label>
             {{ form.next_of_kin }}
+            {% if form.next_of_kin.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_contact">Next of Kin Contact</label>
+            {{ form.next_of_kin_contact }}
+            {% if form.next_of_kin_contact.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_contact.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_relationship">Relationship</label>
+            {{ form.next_of_kin_relationship }}
+            {% if form.next_of_kin_relationship.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_relationship.errors|join:", " }}</div>{% endif %}
           </div>
 
           <div class="col-12">
@@ -88,14 +142,17 @@
           <div class="col-md-6">
             <label class="form-label" for="id_nationality">Nationality</label>
             {{ form.nationality }}
+            {% if form.nationality.errors %}<div class="text-danger small mt-1">{{ form.nationality.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_ethnic_origin">Ethnic origin</label>
             {{ form.ethnic_origin }}
+            {% if form.ethnic_origin.errors %}<div class="text-danger small mt-1">{{ form.ethnic_origin.errors|join:", " }}</div>{% endif %}
           </div>
           <div class="col-md-6">
             <label class="form-label" for="id_religion">Religion</label>
             {{ form.religion }}
+            {% if form.religion.errors %}<div class="text-danger small mt-1">{{ form.religion.errors|join:", " }}</div>{% endif %}
           </div>
         </div>
 

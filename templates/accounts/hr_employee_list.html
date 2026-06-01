@@ -3,46 +3,71 @@
 
 {% block content %}
 <div class="dashboard-background p-4 rounded-4 shadow-sm">
-<div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center flex-column flex-md-row gap-3">
-      <div>
-        <h1 class="h4 mb-1">HR Employee Directory</h1>
-        <div class="brand-badge">Manage your team records</div>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-sm btn-light" href="{% url 'hr-rota-list' %}">Manage Rotas</a>
-        <a class="btn btn-sm btn-light" href="{% url 'hr-create' %}">Add New Employee</a>
-      </div>
+  <div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center flex-column flex-md-row gap-3">
+    <div>
+      <h1 class="h4 mb-1">Search Employees</h1>
+      <div class="brand-badge">Find staff records, leave status, and weekly rosters</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-sm btn-light" href="{% url 'hr-rota-list' %}">Duty Roster</a>
+      <a class="btn btn-sm btn-light" href="{% url 'hr-create' %}">Add New Employee</a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-9">
+          <label class="form-label" for="q">Search employee</label>
+          <input class="form-control" type="text" id="q" name="q" value="{{ query }}" placeholder="Search by name, position, or Ghana Card number">
+        </div>
+        <div class="col-md-3 d-grid">
+          <button class="btn btn-primary" type="submit">Search</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <div class="table-responsive">
     <table class="table table-hover table-striped align-middle">
       <thead>
         <tr>
+          <th>Photo</th>
           <th>Name</th>
           <th>Position</th>
           <th>Contact</th>
-          <th>Start Date</th>
           <th>Status</th>
+          <th>Start Date</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         {% for employee in employees %}
-        <tr>
-          <td>{{ employee.first_name }} {{ employee.last_name }}</td>
-          <td>{{ employee.position }}</td>
-          <td>{{ employee.contact_number }}</td>
-          <td>{{ employee.start_date }}</td>
-          <td>{% if employee.termination_date %}Inactive{% else %}Active{% endif %}</td>
-          <td>
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
-            <a class="btn btn-sm btn-outline-danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
-          </td>
-        </tr>
+          <tr>
+            <td>
+              {% if employee.passport_photo %}
+                <img src="{{ employee.passport_photo.url }}" alt="{{ employee }}" class="employee-avatar">
+              {% else %}
+                <div class="employee-avatar employee-avatar-placeholder">{{ employee.first_name|slice:":1" }}{{ employee.last_name|slice:":1" }}</div>
+              {% endif %}
+            </td>
+            <td>{{ employee.get_title_display }} {{ employee.first_name }} {{ employee.last_name }}</td>
+            <td>{{ employee.get_position_display }}</td>
+            <td>{{ employee.contact_number }}</td>
+            <td>{{ employee.get_employment_status_display }}</td>
+            <td>{{ employee.start_date }}</td>
+            <td>
+              <div class="d-flex gap-2 justify-content-end flex-wrap">
+                <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}">View</a>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
+                <a class="btn btn-sm btn-outline-danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
+              </div>
+            </td>
+          </tr>
         {% empty %}
-        <tr>
-          <td colspan="6" class="text-center text-muted">No employees have been added yet.</td>
-        </tr>
+          <tr>
+            <td colspan="7" class="text-center text-muted">No employees matched your search.</td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>

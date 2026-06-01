@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="card shadow-sm">
-  <div class="card-body">
-    <h1 class="h5">Dashboard Access Needed</h1>
-    <p class="text-muted mb-0">
-      Your account is active, but no role is assigned yet.
-      Ask an administrator to add you to the <strong>Admin</strong> or <strong>Receptionist</strong> group.
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4">
+    <div class="section-eyebrow mb-2">Access setup</div>
+    <h1 class="page-title mb-2">Dashboard access needed</h1>
+    <p class="page-subtitle mb-4">
+      Your account is active, but no role has been assigned yet. Ask an administrator to add you to the
+      <strong>Admin</strong> or <strong>Receptionist</strong> group so the right dashboard appears here.
     </p>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="status-pill neutral">Role-based access control</span>
+      <span class="status-pill neutral">Secure login</span>
+      <span class="status-pill neutral">Cloud-ready</span>
+    </div>
   </div>
 </div>
 {% endblock %}

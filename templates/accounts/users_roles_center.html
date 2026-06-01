@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Users and roles</div>
+        <h1 class="page-title mb-2">Staff access control</h1>
+        <div class="page-subtitle">Create users for the front desk and assign Admin or Receptionist access in one place.</div>
+      </div>
+      <span class="status-pill success"><i data-lucide="shield-check"></i> Role management live</span>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total users</div>
+        <div class="metric-value">{{ users|length }}</div>
+        <div class="text-muted small mt-2">All active login accounts in the system</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Available roles</div>
+        <div class="metric-value">{{ available_roles|length }}</div>
+        <div class="text-muted small mt-2">Admin and Receptionist groups ready to assign</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Access scope</div>
+        <div class="metric-value">Secure</div>
+        <div class="text-muted small mt-2">Role-gated navigation and page permissions</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-5">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Create user</div>
+        <h2 class="h5 mb-3">Add a receptionist or staff login</h2>
+        <form method="post" class="d-grid gap-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_user">
+
+          {% for field in create_form.visible_fields %}
+            <div>
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>{% endif %}
+            </div>
+          {% endfor %}
+
+          {% if create_form.non_field_errors %}
+            <div class="text-danger small">{{ create_form.non_field_errors|join:", " }}</div>
+          {% endif %}
+
+          <div class="d-flex gap-2 flex-wrap">
+            {% for role in available_roles %}
+              <span class="status-pill neutral">{{ role.name }}</span>
+            {% endfor %}
+          </div>
+
+          <button type="submit" class="btn btn-primary">Create user</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-xl-7">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow mb-2">User roster</div>
+            <h2 class="h5 mb-1">Assign roles and account access</h2>
+            <div class="text-muted small">Use the save button per user after changing roles or account status.</div>
+          </div>
+        </div>
+
+        <div class="d-grid gap-3">
+          {% for user_item in users %}
+            {% with role_form=role_forms|get_item:user_item.pk %}
+              <div class="p-3 rounded-4 border bg-white">
+                <form method="post" class="d-grid gap-3">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="update_user">
+                  {{ role_form.user_id }}
+
+                  <div class="d-flex flex-column flex-md-row justify-content-between gap-2">
+                    <div>
+                      <div class="fw-semibold">{{ user_item.username }}</div>
+                      <div class="text-muted small">{{ user_item.get_full_name|default:"-" }}</div>
+                      <div class="text-muted small">{{ user_item.email|default:"-" }}</div>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap align-items-start">
+                      {% for group in user_item.groups.all %}
+                        <span class="status-pill neutral">{{ group.name }}</span>
+                      {% empty %}
+                        <span class="status-pill neutral">No role assigned</span>
+                      {% endfor %}
+                    </div>
+                  </div>
+
+                  <div class="d-flex flex-wrap gap-3">
+                    <div class="form-check form-switch">
+                      {{ role_form.is_active }}
+                      <label class="form-check-label" for="{{ role_form.is_active.id_for_label }}">Active</label>
+                    </div>
+                    <div class="form-check form-switch">
+                      {{ role_form.is_staff }}
+                      <label class="form-check-label" for="{{ role_form.is_staff.id_for_label }}">Staff access</label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="small text-muted mb-2">Roles</div>
+                    <div class="d-flex flex-wrap gap-2">
+                      {% for checkbox in role_form.roles %}
+                        <label class="status-pill neutral d-inline-flex align-items-center gap-2 mb-0">
+                          {{ checkbox.tag }}
+                          <span>{{ checkbox.choice_label }}</span>
+                        </label>
+                      {% endfor %}
+                    </div>
+                    {% if role_form.non_field_errors %}
+                      <div class="text-danger small mt-2">{{ role_form.non_field_errors|join:", " }}</div>
+                    {% endif %}
+                  </div>
+
+                  <div>
+                    <div class="small text-muted mb-2">Permissions</div>
+                    <div class="row g-2">
+                      {% for field in role_form.visible_fields %}
+                        {% if field.name != "user_id" and field.name != "roles" and field.name != "is_active" and field.name != "is_staff" %}
+                          <div class="col-md-4">
+                            <div class="form-check form-switch">
+                              {{ field }}
+                              <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            </div>
+                          </div>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-outline-primary btn-sm">Save changes</button>
+                  </div>
+                </form>
+              </div>
+            {% endwith %}
+          {% empty %}
+            <div class="text-center text-muted py-4">No users found.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

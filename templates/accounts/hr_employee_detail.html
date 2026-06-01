@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-4 rounded-4 shadow-sm">
+  <div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center gap-3 flex-wrap">
+    <div>
+      <h1 class="h4 mb-1">{{ employee.get_title_display }} {{ employee.first_name }} {{ employee.last_name }}</h1>
+      <div class="brand-badge">{{ employee.get_position_display }} • {{ employee.get_employment_status_display }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-light" href="{% url 'hr-list' %}">Back</a>
+      <a class="btn btn-sm btn-light" href="{% url 'hr-update' employee.pk %}">Edit</a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body text-center">
+          {% if employee.passport_photo %}
+            <img src="{{ employee.passport_photo.url }}" alt="{{ employee }}" class="employee-portrait mb-3">
+          {% else %}
+            <div class="employee-portrait employee-portrait-placeholder mb-3">{{ employee.first_name|slice:":1" }}{{ employee.last_name|slice:":1" }}</div>
+          {% endif %}
+          <div class="small text-muted">Ghana Card</div>
+          <div class="fw-semibold">{{ employee.ghana_card_number }}</div>
+          <div class="small text-muted mt-2">Expiry</div>
+          <div>{{ employee.ghana_card_expiry_date|default:"-" }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h6 mb-3">Employee Information</h2>
+          <div class="row g-3">
+            <div class="col-md-6"><strong>Email:</strong> {{ employee.email|default:"-" }}</div>
+            <div class="col-md-6"><strong>Contact:</strong> {{ employee.contact_number }}</div>
+            <div class="col-md-6"><strong>SSNIT Number:</strong> {{ employee.ssnit_number|default:"-" }}</div>
+            <div class="col-md-6"><strong>GPS Address:</strong> {{ employee.gps_address|default:"-" }}</div>
+            <div class="col-md-6"><strong>Start Date:</strong> {{ employee.start_date }}</div>
+            <div class="col-md-6"><strong>Termination Date:</strong> {{ employee.termination_date|default:"-" }}</div>
+            <div class="col-md-12"><strong>Termination Reason:</strong> {{ employee.termination_reason|default:"-" }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h2 class="h6 mb-3">Next of Kin</h2>
+          <div class="row g-3">
+            <div class="col-md-4"><strong>Name:</strong> {{ employee.next_of_kin|default:"-" }}</div>
+            <div class="col-md-4"><strong>Contact:</strong> {{ employee.next_of_kin_contact|default:"-" }}</div>
+            <div class="col-md-4"><strong>Relationship:</strong> {{ employee.next_of_kin_relationship|default:"-" }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mt-4">
+    <div class="card-body">
+      <h2 class="h6 mb-3">Weekly Duty Rosters</h2>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Week</th>
+              <th>Shift</th>
+              <th>Total Hours</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for rota in rotas %}
+              <tr>
+                <td>{{ rota.period_start }} to {{ rota.period_end }}</td>
+                <td>{{ rota.operating_hours }}</td>
+                <td>{{ rota.total_hours }}</td>
+                <td class="text-end"><a class="btn btn-sm btn-outline-dark" href="{% url 'hr-rota-detail' rota.pk %}">View</a></td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center text-muted">No duty rosters assigned yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

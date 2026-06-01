@@ -21,6 +21,8 @@
           <th>Number</th>
           <th>Type</th>
           <th>Status</th>
+          <th>Status Started</th>
+          <th>Last Changed</th>
           <th>Rate</th>
           <th></th>
         </tr>
@@ -31,6 +33,8 @@
             <td>{{ room.room_number }}</td>
             <td>{{ room.get_room_type_display }}</td>
             <td>{{ room.get_status_display }}</td>
+            <td>{{ room.status_started_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ room.last_status_changed_at|date:"Y-m-d H:i" }}</td>
             <td>GHS {{ room.base_rate }}</td>
             <td class="text-end">
               <a class="btn btn-sm btn-outline-secondary" href="{% url 'room-update' room.pk %}">Edit</a>
@@ -38,7 +42,7 @@
           </tr>
         {% empty %}
           <tr>
-            <td colspan="5" class="text-center text-muted py-4">No rooms added yet.</td>
+            <td colspan="7" class="text-center text-muted py-4">No rooms added yet.</td>
           </tr>
         {% endfor %}
       </tbody>

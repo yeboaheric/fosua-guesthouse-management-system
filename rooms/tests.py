@@ -1,6 +1,7 @@
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from rooms.models import Room
 
@@ -30,3 +31,28 @@ class RoomCategoryTests(TestCase):
         self.assertContains(response, "Deluxe Rooms")
         self.assertContains(response, "Standard Rooms")
         self.assertContains(response, "Cleaning In Progress")
+
+
+class RoomTimestampTests(TestCase):
+    def test_room_status_timestamps_only_change_when_status_changes(self):
+        room = Room.objects.create(
+            room_number="210",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=200,
+        )
+
+        original_started = room.status_started_at
+        original_changed = room.last_status_changed_at
+
+        room.base_rate = 250
+        room.save()
+        room.refresh_from_db()
+        self.assertEqual(room.status_started_at, original_started)
+        self.assertEqual(room.last_status_changed_at, original_changed)
+
+        room.status = Room.RoomStatus.CLEANING
+        room.save()
+        room.refresh_from_db()
+        self.assertGreater(room.status_started_at, original_started)
+        self.assertGreater(room.last_status_changed_at, original_changed)

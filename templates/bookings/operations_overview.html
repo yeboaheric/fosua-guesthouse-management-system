@@ -154,12 +154,17 @@
       <div class="card-body"><h2 class="h6 mb-0">Rooms Under Maintenance</h2></div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead class="table-light"><tr><th>Room</th><th>Type</th></tr></thead>
+          <thead class="table-light"><tr><th>Room</th><th>Type</th><th>Status Started</th><th>Last Changed</th></tr></thead>
           <tbody>
             {% for room in maintenance_rooms %}
-              <tr><td>{{ room.room_number }}</td><td>{{ room.get_room_type_display }}</td></tr>
+              <tr>
+                <td>{{ room.room_number }}</td>
+                <td>{{ room.get_room_type_display }}</td>
+                <td>{{ room.status_started_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i" }}</td>
+              </tr>
             {% empty %}
-              <tr><td colspan="2" class="text-center text-muted py-3">No rooms under maintenance.</td></tr>
+              <tr><td colspan="4" class="text-center text-muted py-3">No rooms under maintenance.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -172,12 +177,17 @@
       <div class="card-body"><h2 class="h6 mb-0">Rooms Cleaning In Progress</h2></div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead class="table-light"><tr><th>Room</th><th>Type</th></tr></thead>
+          <thead class="table-light"><tr><th>Room</th><th>Type</th><th>Status Started</th><th>Last Changed</th></tr></thead>
           <tbody>
             {% for room in cleaning_rooms %}
-              <tr><td>{{ room.room_number }}</td><td>{{ room.get_room_type_display }}</td></tr>
+              <tr>
+                <td>{{ room.room_number }}</td>
+                <td>{{ room.get_room_type_display }}</td>
+                <td>{{ room.status_started_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i" }}</td>
+              </tr>
             {% empty %}
-              <tr><td colspan="2" class="text-center text-muted py-3">No rooms currently cleaning.</td></tr>
+              <tr><td colspan="4" class="text-center text-muted py-3">No rooms currently cleaning.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -190,16 +200,18 @@
       <div class="card-body"><h2 class="h6 mb-0">Event Space Bookings Today</h2></div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead class="table-light"><tr><th>Event</th><th>Guest</th><th>Time</th></tr></thead>
+          <thead class="table-light"><tr><th>Event</th><th>Guest</th><th>Start</th><th>End</th><th>Created</th></tr></thead>
           <tbody>
             {% for event_booking in today_event_bookings %}
               <tr>
                 <td>{{ event_booking.event_title }}</td>
                 <td>{{ event_booking.guest }}</td>
-                <td>{{ event_booking.event_start|date:"H:i" }} - {{ event_booking.event_end|date:"H:i" }}</td>
+                <td>{{ event_booking.event_start|date:"Y-m-d H:i" }}</td>
+                <td>{{ event_booking.event_end|date:"Y-m-d H:i" }}</td>
+                <td>{{ event_booking.created_at|date:"Y-m-d H:i" }}</td>
               </tr>
             {% empty %}
-              <tr><td colspan="3" class="text-center text-muted py-3">No events scheduled today.</td></tr>
+              <tr><td colspan="5" class="text-center text-muted py-3">No events scheduled today.</td></tr>
             {% endfor %}
           </tbody>
         </table>

@@ -6,6 +6,7 @@ from bookings.views import (
     booking_check_out,
     booking_confirm,
     booking_create,
+    booking_detail,
     booking_list,
     booking_payments,
     booking_update,
@@ -23,6 +24,7 @@ from bookings.views import (
 urlpatterns = [
     path("", booking_list, name="booking-list"),
     path("new/", booking_create, name="booking-create"),
+    path("<int:pk>/view/", booking_detail, name="booking-detail"),
     path("<int:pk>/edit/", booking_update, name="booking-update"),
     path("<int:pk>/confirm/", booking_confirm, name="booking-confirm"),
     path("<int:pk>/check-in/", booking_check_in, name="booking-check-in"),

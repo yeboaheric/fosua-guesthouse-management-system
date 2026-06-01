@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="section-eyebrow mb-2">Settings</div>
+    <h1 class="page-title mb-2">System configuration</h1>
+    <div class="page-subtitle">Hospitality settings, room categories, payments, security, and integrations.</div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Room categories</div>
+        <div class="timeline-list">
+          {% for room in room_categories %}
+            <div class="timeline-item">
+              <div class="timeline-marker"></div>
+              <div class="d-flex justify-content-between gap-3 align-items-center w-100">
+                <div>
+                  <div class="fw-semibold">{{ room.label }}</div>
+                  <div class="text-muted small">Configured room inventory in the system</div>
+                </div>
+                <span class="status-pill neutral">{{ room.count }}</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Payment methods</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for method in payment_methods %}
+            <span class="status-pill neutral">{{ method }}</span>
+          {% endfor %}
+        </div>
+        <hr class="my-4">
+        <div class="section-eyebrow mb-2">Security</div>
+        <div class="text-muted small">Role-based access, authenticated dashboards, and protected staff actions are enforced across the app.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Hotel profile</div>
+        <div class="metric-value">Branding</div>
+        <div class="text-muted small mt-2">Logo, name, and hotel identity</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Communication</div>
+        <div class="metric-value">Email</div>
+        <div class="text-muted small mt-2">Receipt delivery and notifications</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Backups</div>
+        <div class="metric-value">Cloud ready</div>
+        <div class="text-muted small mt-2">Deployment-safe and host-friendly</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

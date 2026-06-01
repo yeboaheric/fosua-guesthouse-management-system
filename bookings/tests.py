@@ -105,10 +105,21 @@ class BookingWorkflowTests(TestCase):
             status=Room.RoomStatus.AVAILABLE,
             base_rate=200,
         )
+        self.room_two = Room.objects.create(
+            room_number="202",
+            room_type=Room.RoomType.DELUXE,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=220,
+        )
         self.guest = Guest.objects.create(
             first_name="Akua",
             last_name="Owusu",
             phone_number="0270000000",
+        )
+        self.other_guest = Guest.objects.create(
+            first_name="Yaw",
+            last_name="Asare",
+            phone_number="0200000000",
         )
         self.booking = Booking.objects.create(
             guest=self.guest,
@@ -118,8 +129,18 @@ class BookingWorkflowTests(TestCase):
             status=Booking.BookingStatus.CONFIRMED,
             created_by=self.user,
         )
+        self.booking_two = Booking.objects.create(
+            guest=self.other_guest,
+            room=self.room_two,
+            check_in=date(2026, 7, 1),
+            check_out=date(2026, 7, 4),
+            status=Booking.BookingStatus.PENDING,
+            created_by=self.user,
+        )
 
     def test_check_in_updates_booking_and_room_status(self):
+        original_started = self.room.status_started_at
+        original_changed = self.room.last_status_changed_at
         self.client.force_login(self.user)
         response = self.client.post(reverse("booking-check-in", args=[self.booking.pk]))
         self.assertRedirects(response, reverse("booking-list"))
@@ -128,12 +149,16 @@ class BookingWorkflowTests(TestCase):
         self.room.refresh_from_db()
         self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_IN)
         self.assertEqual(self.room.status, Room.RoomStatus.OCCUPIED)
+        self.assertGreater(self.room.status_started_at, original_started)
+        self.assertGreater(self.room.last_status_changed_at, original_changed)
 
     def test_check_out_updates_booking_and_room_status(self):
         self.booking.status = Booking.BookingStatus.CHECKED_IN
         self.booking.save()
         self.room.status = Room.RoomStatus.OCCUPIED
         self.room.save()
+        original_started = self.room.status_started_at
+        original_changed = self.room.last_status_changed_at
 
         self.client.force_login(self.user)
         response = self.client.post(reverse("booking-check-out", args=[self.booking.pk]))
@@ -143,10 +168,10 @@ class BookingWorkflowTests(TestCase):
         self.room.refresh_from_db()
         self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_OUT)
         self.assertEqual(self.room.status, Room.RoomStatus.AVAILABLE)
+        self.assertGreater(self.room.status_started_at, original_started)
+        self.assertGreater(self.room.last_status_changed_at, original_changed)
 
     def test_record_payment_updates_booking_balance(self):
-        self.booking.total_amount = 500
-        self.booking.save()
         self.client.force_login(self.user)
         response = self.client.post(
             reverse("booking-payments", args=[self.booking.pk]),
@@ -161,7 +186,7 @@ class BookingWorkflowTests(TestCase):
 
         self.booking.refresh_from_db()
         self.assertEqual(self.booking.amount_paid, 150)
-        self.assertEqual(self.booking.balance_due, 350)
+        self.assertEqual(self.booking.balance_due, 250)
 
     def test_operations_overview_access_and_counts(self):
         self.room.status = Room.RoomStatus.CLEANING
@@ -171,6 +196,44 @@ class BookingWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Operations Overview")
         self.assertContains(response, "Cleaning")
+
+    def test_create_booking_for_multiple_rooms(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("booking-create"),
+            {
+                "guest": self.guest.pk,
+                "rooms": [self.room.pk, self.room_two.pk],
+                "check_in": "2026-07-10",
+                "check_out": "2026-07-12",
+                "adults": 2,
+                "children": 0,
+                "status": Booking.BookingStatus.PENDING,
+                "notes": "Family reservation",
+                "total_amount": "",
+            },
+        )
+        self.assertRedirects(response, reverse("booking-list"))
+        created = Booking.objects.filter(
+            guest=self.guest,
+            check_in=date(2026, 7, 10),
+            check_out=date(2026, 7, 12),
+        )
+        self.assertEqual(created.count(), 2)
+
+    def test_booking_list_filters_by_status_and_search(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("booking-list"),
+            {"status": Booking.BookingStatus.CONFIRMED, "q": "Akua"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        bookings = list(response.context["bookings"])
+        self.assertEqual(len(bookings), 1)
+        self.assertEqual(bookings[0].pk, self.booking.pk)
+        self.assertContains(response, "Akua Owusu")
+        self.assertNotContains(response, "Yaw Asare")
 
 
 class EventBookingWorkflowTests(TestCase):

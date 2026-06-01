@@ -1,12 +1,12 @@
-from datetime import date
-
+from accounts.models import Employee, Rota, UserAccessProfile
+from bookings.models import Booking, EventBooking, EventPayment, Payment
+from datetime import date, time
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
-
-from bookings.models import Booking, Payment
 from guests.models import Guest
 from rooms.models import Room
+from django.utils import timezone
 
 
 class DashboardRoutingTests(TestCase):
@@ -52,6 +52,51 @@ class DashboardRoutingTests(TestCase):
         response = self.client.get(reverse("healthz"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+
+    def test_users_roles_center_access_for_admin_only(self):
+        admin_user = User.objects.create_user(username="admin-users", password="pass123456")
+        admin_user.groups.add(self.admin_group)
+        self.client.force_login(admin_user)
+        response = self.client.get(reverse("users-roles-center"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Users and roles")
+        self.assertContains(response, "Permissions")
+
+        receptionist_user = User.objects.create_user(
+            username="reception-users", password="pass123456"
+        )
+        receptionist_user.groups.add(self.receptionist_group)
+        self.client.force_login(receptionist_user)
+        response = self.client.get(reverse("users-roles-center"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_receptionist_module_access_can_be_restricted(self):
+        user = User.objects.create_user(username="reception-blocked", password="pass123456")
+        user.groups.add(self.receptionist_group)
+        UserAccessProfile.objects.create(
+            user=user,
+            dashboard_access=True,
+            reservations_access=False,
+            rooms_access=True,
+            guests_access=True,
+            payments_access=True,
+            services_access=True,
+            housekeeping_access=True,
+            notifications_access=True,
+            analytics_access=True,
+            reports_access=False,
+            settings_access=False,
+            staff_management_access=False,
+            handovers_access=True,
+            users_roles_access=False,
+        )
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("booking-list"))
+        self.assertEqual(response.status_code, 403)
+
+        response = self.client.get(reverse("room-list"))
+        self.assertEqual(response.status_code, 200)
 
 
 class AdminReportExportTests(TestCase):
@@ -104,3 +149,175 @@ class AdminReportExportTests(TestCase):
         content = response.content.decode()
         self.assertIn("balance_due", content)
         self.assertIn("Efua Sarpong", content)
+
+
+class RotaViewTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.admin_user = User.objects.create_user(username="admin4", password="pass123456")
+        self.admin_user.groups.add(self.admin_group)
+        self.client.force_login(self.admin_user)
+
+        self.employee = Employee.objects.create(
+            title="mr",
+            first_name="Kwame",
+            last_name="Mensah",
+            date_of_birth=date(1995, 6, 1),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-999999999-9",
+            contact_number="0249999999",
+            start_date=date(2025, 1, 1),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        self.rota = Rota.objects.create(
+            employee=self.employee,
+            period="Kwame Mensah weekly duty roster",
+            period_start=date(2026, 5, 18),
+            period_end=date(2026, 5, 24),
+            opening_time=time(8, 0),
+            closing_time=time(16, 0),
+            shift_rules="Keep the front desk fully covered and hand over notes each evening.",
+        )
+        self.rota.staff_members.set([self.employee])
+
+    def test_rota_list_supports_range_filtering(self):
+        response = self.client.get(
+            reverse("hr-rota-list"),
+            {"period": "month", "date": "2026-05-20", "q": "Kwame"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Kwame Mensah")
+        self.assertContains(response, "Daily roster report")
+
+    def test_rota_detail_shows_daily_breakdown(self):
+        response = self.client.get(reverse("hr-rota-detail", args=[self.rota.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Day-by-day employee account")
+        self.assertContains(response, "Monday")
+        self.assertContains(response, "8.00")
+
+
+class CenterFilterTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.user = User.objects.create_user(username="admin5", password="pass123456")
+        self.user.groups.add(self.admin_group)
+        self.client.force_login(self.user)
+
+        self.room = Room.objects.create(
+            room_number="401",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=150,
+            notes="Near the courtyard",
+        )
+        self.cleaning_room = Room.objects.create(
+            room_number="402",
+            room_type=Room.RoomType.DELUXE,
+            status=Room.RoomStatus.CLEANING,
+            base_rate=250,
+            notes="Deep clean scheduled",
+        )
+        self.guest = Guest.objects.create(
+            first_name="Abena",
+            last_name="Danso",
+            phone_number="0243333333",
+            ghana_card_number="GHA-222222222-2",
+        )
+        self.event_guest = Guest.objects.create(
+            first_name="Kwesi",
+            last_name="Appiah",
+            phone_number="0553333333",
+        )
+        self.booking = Booking.objects.create(
+            guest=self.guest,
+            room=self.room,
+            check_in=date(2026, 6, 1),
+            check_out=date(2026, 6, 3),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.user,
+        )
+        self.event_booking = EventBooking.objects.create(
+            guest=self.event_guest,
+            event_space_name="Main Event Space",
+            event_title="Annual Gala",
+            purpose="Company celebration",
+            expected_guests=80,
+            event_start=timezone.localtime().replace(day=5, hour=10, minute=0, second=0, microsecond=0),
+            event_end=timezone.localtime().replace(day=5, hour=15, minute=0, second=0, microsecond=0),
+            status=EventBooking.EventBookingStatus.CONFIRMED,
+            created_by=self.user,
+        )
+        self.cancelled_event = EventBooking.objects.create(
+            guest=self.event_guest,
+            event_space_name="Main Event Space",
+            event_title="Cancelled Workshop",
+            purpose="Training session",
+            expected_guests=20,
+            event_start=timezone.localtime().replace(day=8, hour=9, minute=0, second=0, microsecond=0),
+            event_end=timezone.localtime().replace(day=8, hour=11, minute=0, second=0, microsecond=0),
+            status=EventBooking.EventBookingStatus.CANCELLED,
+            created_by=self.user,
+        )
+        self.room_payment = Payment.objects.create(
+            booking=self.booking,
+            amount=100,
+            method=Payment.PaymentMethod.CASH,
+            reference="ROOM-001",
+            received_by=self.user,
+        )
+        self.event_payment = EventPayment.objects.create(
+            event_booking=self.event_booking,
+            amount=300,
+            method=EventPayment.PaymentMethod.MOBILE_MONEY,
+            reference="EVENT-001",
+            received_by=self.user,
+        )
+
+    def test_guest_list_filter_returns_matching_guest(self):
+        response = self.client.get(reverse("guest-list"), {"q": "Abena"})
+        self.assertEqual(response.status_code, 200)
+        guests = list(response.context["guests"])
+        self.assertEqual(len(guests), 1)
+        self.assertEqual(guests[0].first_name, "Abena")
+
+    def test_booking_list_filter_combines_status_and_query(self):
+        response = self.client.get(
+            reverse("booking-list"),
+            {"status": Booking.BookingStatus.CONFIRMED, "q": "401"},
+        )
+        self.assertEqual(response.status_code, 200)
+        bookings = list(response.context["bookings"])
+        self.assertEqual(len(bookings), 1)
+        self.assertEqual(bookings[0].room.room_number, "401")
+
+    def test_payments_center_filters_by_method_and_scope(self):
+        response = self.client.get(
+            reverse("payments-center"),
+            {"method": Payment.PaymentMethod.CASH, "scope": "room", "q": "ROOM-001"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["room_payments"]), [self.room_payment])
+        self.assertEqual(list(response.context["event_payments"]), [])
+
+    def test_services_center_filters_by_status_and_query(self):
+        response = self.client.get(
+            reverse("services-center"),
+            {"status": EventBooking.EventBookingStatus.CONFIRMED, "q": "Annual"},
+        )
+        self.assertEqual(response.status_code, 200)
+        events = list(response.context["events"])
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].pk, self.event_booking.pk)
+
+    def test_housekeeping_center_filters_by_status_and_type(self):
+        response = self.client.get(
+            reverse("housekeeping-center"),
+            {"status": Room.RoomStatus.CLEANING, "room_type": Room.RoomType.DELUXE},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["cleaning_rooms"]), [self.cleaning_room])
+        self.assertEqual(list(response.context["available_rooms"]), [])

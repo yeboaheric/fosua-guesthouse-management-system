@@ -49,9 +49,16 @@ class Booking(models.Model):
     def __str__(self):
         return f"{self.guest} - Room {self.room.room_number} ({self.check_in} to {self.check_out})"
 
+    @property
+    def nights(self):
+        return (self.check_out - self.check_in).days
+
     def clean(self):
         if self.check_out <= self.check_in:
             raise ValidationError("Check-out date must be after check-in date.")
+
+        if not self.room_id:
+            return
 
         active_statuses = [
             self.BookingStatus.PENDING,
@@ -67,6 +74,8 @@ class Booking(models.Model):
             raise ValidationError("This room is already booked for the selected dates.")
 
     def save(self, *args, **kwargs):
+        if self.room_id and self.check_in and self.check_out:
+            self.total_amount = self.room.base_rate * self.nights
         self.full_clean()
         return super().save(*args, **kwargs)
 

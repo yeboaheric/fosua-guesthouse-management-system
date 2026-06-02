@@ -1,5 +1,6 @@
 import csv
 import json
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
+from django.db import IntegrityError
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMessage
 from django.db import transaction
@@ -45,6 +47,7 @@ from inventory.models import (
 
 ZERO_MONEY = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
 ZERO_UNITS = Value(Decimal("0.000"), output_field=DecimalField(max_digits=12, decimal_places=3))
+logger = logging.getLogger(__name__)
 
 
 @group_required("Admin", "Receptionist", module="inventory")
@@ -466,77 +469,85 @@ def pos_checkout(request):
         form.add_error("cart", "Cart is empty.")
         return render(request, "inventory/pos_terminal.html", _pos_terminal_context(request, form), status=400)
 
-    with transaction.atomic():
-        item_ids = [line["id"] for line in cart]
-        items_by_id = {
-            item.pk: item
-            for item in InventoryItem.objects.select_for_update().filter(pk__in=item_ids)
-        }
-        sale = Sale.objects.create(
-            cashier=request.user,
-            customer_name=form.cleaned_data.get("customer_name", ""),
-            customer_phone=form.cleaned_data.get("customer_phone", ""),
-            customer_email=form.cleaned_data.get("customer_email", ""),
-            payment_method=form.cleaned_data["payment_method"],
-            tax_amount=form.cleaned_data.get("tax_amount") or Decimal("0.00"),
-            discount_amount=form.cleaned_data.get("discount_amount") or Decimal("0.00"),
-            notes=form.cleaned_data.get("notes", ""),
-        )
-
-        subtotal = Decimal("0.00")
-        for line in cart:
-            item = items_by_id.get(line["id"])
-            if item is None:
+    try:
+        with transaction.atomic():
+            item_ids = [line["id"] for line in cart]
+            items_by_id = {
+                item.pk: item
+                for item in InventoryItem.objects.select_for_update().filter(pk__in=item_ids)
+            }
+            missing_ids = [line["id"] for line in cart if line["id"] not in items_by_id]
+            if missing_ids:
                 raise ValidationError("One of the selected items no longer exists.")
-            quantity = Decimal(str(line.get("quantity", "0")))
-            if quantity <= 0:
-                raise ValidationError("Cart quantities must be greater than zero.")
-            if item.quantity_in_stock < quantity:
-                raise ValidationError(f"Not enough stock for {item.name}.")
 
-            line_total = (item.selling_price * quantity).quantize(Decimal("0.01"))
-            subtotal += line_total
-            previous_quantity = item.quantity_in_stock
-            item.quantity_in_stock = previous_quantity - quantity
-            item.save(update_fields=["quantity_in_stock", "updated_at"])
-            SaleItem.objects.create(
-                sale=sale,
-                item=item,
-                quantity=quantity,
-                unit_price=item.selling_price,
-                line_total=line_total,
-            )
-            _log_transaction(
-                item=item,
-                quantity_before=previous_quantity,
-                quantity_changed=-quantity,
-                quantity_after=item.quantity_in_stock,
-                transaction_type=InventoryTransaction.TransactionType.SALE,
-                created_by=request.user,
-                sale=sale,
-                reference=sale.receipt_number,
+            sale = Sale.objects.create(
+                cashier=request.user,
+                payment_method=form.cleaned_data["payment_method"],
+                tax_amount=form.cleaned_data.get("tax_amount") or Decimal("0.00"),
+                discount_amount=form.cleaned_data.get("discount_amount") or Decimal("0.00"),
                 notes=form.cleaned_data.get("notes", ""),
             )
 
-        tax_amount = form.cleaned_data.get("tax_amount") or Decimal("0.00")
-        discount_amount = form.cleaned_data.get("discount_amount") or Decimal("0.00")
-        grand_total = (subtotal + tax_amount - discount_amount).quantize(Decimal("0.01"))
-        amount_paid = form.cleaned_data.get("amount_paid") or grand_total
+            subtotal = Decimal("0.00")
+            for line in cart:
+                item = items_by_id[line["id"]]
+                quantity = Decimal(str(line.get("quantity", "0")))
+                if quantity <= 0:
+                    raise ValidationError("Cart quantities must be greater than zero.")
+                if item.quantity_in_stock < quantity:
+                    raise ValidationError(f"Not enough stock for {item.name}.")
 
-        sale.subtotal = subtotal.quantize(Decimal("0.01"))
-        sale.grand_total = grand_total
-        sale.amount_paid = amount_paid
-        sale.change_due = max(amount_paid - grand_total, Decimal("0.00"))
-        sale.save(update_fields=[
-            "subtotal",
-            "grand_total",
-            "amount_paid",
-            "change_due",
-            "tax_amount",
-            "discount_amount",
-            "updated_at",
-            "receipt_number",
-        ])
+                line_total = (item.selling_price * quantity).quantize(Decimal("0.01"))
+                subtotal += line_total
+                previous_quantity = item.quantity_in_stock
+                item.quantity_in_stock = previous_quantity - quantity
+                item.save(update_fields=["quantity_in_stock", "updated_at"])
+                SaleItem.objects.create(
+                    sale=sale,
+                    item=item,
+                    quantity=quantity,
+                    unit_price=item.selling_price,
+                    line_total=line_total,
+                )
+                _log_transaction(
+                    item=item,
+                    quantity_before=previous_quantity,
+                    quantity_changed=-quantity,
+                    quantity_after=item.quantity_in_stock,
+                    transaction_type=InventoryTransaction.TransactionType.SALE,
+                    created_by=request.user,
+                    sale=sale,
+                    reference=sale.receipt_number,
+                    notes=form.cleaned_data.get("notes", ""),
+                )
+
+            tax_amount = form.cleaned_data.get("tax_amount") or Decimal("0.00")
+            discount_amount = form.cleaned_data.get("discount_amount") or Decimal("0.00")
+            grand_total = (subtotal + tax_amount - discount_amount).quantize(Decimal("0.01"))
+            amount_paid = form.cleaned_data.get("amount_paid") or grand_total
+
+            sale.subtotal = subtotal.quantize(Decimal("0.01"))
+            sale.grand_total = grand_total
+            sale.amount_paid = amount_paid
+            sale.change_due = max(amount_paid - grand_total, Decimal("0.00"))
+            sale.save(update_fields=[
+                "subtotal",
+                "grand_total",
+                "amount_paid",
+                "change_due",
+                "tax_amount",
+                "discount_amount",
+                "updated_at",
+                "receipt_number",
+            ])
+    except (ValidationError, IntegrityError, ValueError, KeyError, TypeError) as exc:
+        logger.exception("POS checkout failed")
+        if isinstance(exc, ValidationError):
+            message = "; ".join(exc.messages) if getattr(exc, "messages", None) else "Unable to complete sale."
+        else:
+            message = str(exc)
+        form.add_error(None, message)
+        return render(request, "inventory/pos_terminal.html", _pos_terminal_context(request, form), status=400)
 
     messages.success(request, f"Sale completed. Receipt {sale.receipt_number} generated.")
     return redirect("inventory-sale-detail", pk=sale.pk)

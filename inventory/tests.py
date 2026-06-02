@@ -119,9 +119,6 @@ class InventoryPosWorkflowTests(TestCase):
         response = self.client.post(
             reverse("inventory-pos-checkout"),
             {
-                "customer_name": "Kojo Mensah",
-                "customer_phone": "0241000000",
-                "customer_email": "kojo@example.com",
                 "payment_method": Sale.PaymentMethod.CASH,
                 "tax_amount": "0.00",
                 "discount_amount": "0.00",
@@ -132,7 +129,7 @@ class InventoryPosWorkflowTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
 
-        sale = Sale.objects.get(customer_name="Kojo Mensah")
+        sale = Sale.objects.latest("created_at")
         self.item.refresh_from_db()
         self.assertEqual(sale.receipt_number.startswith("POS-"), True)
         self.assertEqual(str(sale.grand_total), "30.00")
@@ -149,7 +146,6 @@ class InventoryPosWorkflowTests(TestCase):
     def test_sale_receipt_pdf_endpoint_returns_pdf(self):
         sale = Sale.objects.create(
             cashier=self.user,
-            customer_name="Walk-in",
             payment_method=Sale.PaymentMethod.CASH,
             subtotal="10.00",
             grand_total="10.00",
@@ -164,7 +160,6 @@ class InventoryPosWorkflowTests(TestCase):
     def test_sale_list_csv_export_works(self):
         Sale.objects.create(
             cashier=self.user,
-            customer_name="Walk-in",
             payment_method=Sale.PaymentMethod.CASH,
             subtotal="10.00",
             grand_total="10.00",

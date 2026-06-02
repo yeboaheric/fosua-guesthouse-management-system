@@ -94,9 +94,6 @@ class StockAdjustmentForm(forms.Form):
 
 
 class POSCheckoutForm(forms.Form):
-    customer_name = forms.CharField(required=False, max_length=160)
-    customer_phone = forms.CharField(required=False, max_length=40)
-    customer_email = forms.EmailField(required=False)
     payment_method = forms.ChoiceField(choices=Sale.PaymentMethod.choices, widget=forms.Select(attrs={"class": "form-select"}))
     tax_amount = forms.DecimalField(required=False, max_digits=12, decimal_places=2, initial=Decimal("0.00"), widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}))
     discount_amount = forms.DecimalField(required=False, max_digits=12, decimal_places=2, initial=Decimal("0.00"), widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}))

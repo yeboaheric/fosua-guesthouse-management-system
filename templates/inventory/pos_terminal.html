@@ -112,14 +112,12 @@
 
           <div class="d-grid gap-2">
             <div class="row g-2">
-              {% for field in checkout_form %}
-                {% if field.name != "cart" %}
-                  <div class="{% if field.name in 'customer_name customer_phone customer_email' %}col-12{% else %}col-12{% endif %}">
-                    <label class="form-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
-                  </div>
-                {% endif %}
+              {% for field in checkout_form.visible_fields %}
+                <div class="col-12">
+                  <label class="form-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+                </div>
               {% endfor %}
             </div>
 

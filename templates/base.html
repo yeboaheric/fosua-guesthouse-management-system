@@ -35,7 +35,7 @@
             {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
             {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
             {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
-            {% if user.is_superuser or user|has_group:'Admin' %}
+            {% if user|can_access_module:'users_roles' %}
               <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
             {% endif %}
             {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
@@ -71,7 +71,7 @@
               {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
               {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
               {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
-              {% if user.is_superuser or user|has_group:'Admin' %}
+              {% if user|can_access_module:'users_roles' %}
                 <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
               {% endif %}
               {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
@@ -139,12 +139,24 @@
         <nav class="mobile-bottom-nav d-lg-none">
           <div class="mobile-bottom-scroll">
             <a href="{% url 'dashboard' %}" class="mobile-bottom-item {{ request|nav_active:'dashboard admin-dashboard reception-dashboard' }}"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></a>
-            <a href="{% url 'booking-list' %}" class="mobile-bottom-item {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>
-            <a href="{% url 'room-list' %}" class="mobile-bottom-item {{ request|nav_active:'room-list room-create room-update room-availability' }}"><i data-lucide="bed-double"></i><span>Rooms</span></a>
-            <a href="{% url 'guest-list' %}" class="mobile-bottom-item {{ request|nav_active:'guest-list guest-create guest-update' }}"><i data-lucide="users"></i><span>Guests</span></a>
-            <a href="{% url 'payments-center' %}" class="mobile-bottom-item {{ request|nav_active:'payments-center' }}"><i data-lucide="credit-card"></i><span>Payments</span></a>
-            <a href="{% url 'services-center' %}" class="mobile-bottom-item {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}"><i data-lucide="concierge-bell"></i><span>Services</span></a>
-            <a href="{% url 'housekeeping-center' %}" class="mobile-bottom-item {{ request|nav_active:'housekeeping-center operations-overview' }}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>
+            {% if user|can_access_module:'reservations' %}
+              <a href="{% url 'booking-list' %}" class="mobile-bottom-item {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>
+            {% endif %}
+            {% if user|can_access_module:'rooms' %}
+              <a href="{% url 'room-list' %}" class="mobile-bottom-item {{ request|nav_active:'room-list room-create room-update room-availability' }}"><i data-lucide="bed-double"></i><span>Rooms</span></a>
+            {% endif %}
+            {% if user|can_access_module:'guests' %}
+              <a href="{% url 'guest-list' %}" class="mobile-bottom-item {{ request|nav_active:'guest-list guest-create guest-update' }}"><i data-lucide="users"></i><span>Guests</span></a>
+            {% endif %}
+            {% if user|can_access_module:'payments' %}
+              <a href="{% url 'payments-center' %}" class="mobile-bottom-item {{ request|nav_active:'payments-center' }}"><i data-lucide="credit-card"></i><span>Payments</span></a>
+            {% endif %}
+            {% if user|can_access_module:'services' %}
+              <a href="{% url 'services-center' %}" class="mobile-bottom-item {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}"><i data-lucide="concierge-bell"></i><span>Services</span></a>
+            {% endif %}
+            {% if user|can_access_module:'housekeeping' %}
+              <a href="{% url 'housekeeping-center' %}" class="mobile-bottom-item {{ request|nav_active:'housekeeping-center operations-overview' }}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>
+            {% endif %}
             {% if user|can_access_module:'handovers' %}
               <a href="{% url 'handover-list' %}" class="mobile-bottom-item {{ request|nav_active:'handover-list handover-create handover-detail' }}"><i data-lucide="clipboard-list"></i><span>Handovers</span></a>
             {% endif %}
@@ -154,14 +166,24 @@
             {% if user|can_access_module:'pos' %}
               <a href="{% url 'inventory-pos' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}"><i data-lucide="receipt"></i><span>POS</span></a>
             {% endif %}
-            <a href="{% url 'hr-list' %}" class="mobile-bottom-item {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}"><i data-lucide="badge-check"></i><span>Staff</span></a>
-            {% if user.is_superuser or user|has_group:'Admin' %}
+            {% if user|can_access_module:'staff_management' %}
+              <a href="{% url 'hr-list' %}" class="mobile-bottom-item {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}"><i data-lucide="badge-check"></i><span>Staff</span></a>
+            {% endif %}
+            {% if user|can_access_module:'users_roles' %}
               <a href="{% url 'users-roles-center' %}" class="mobile-bottom-item {{ request|nav_active:'users-roles-center' }}"><i data-lucide="shield-user"></i><span>Users</span></a>
             {% endif %}
-            <a href="{% url 'admin-reports' %}" class="mobile-bottom-item {{ request|nav_active:'admin-reports analytics-center' }}"><i data-lucide="bar-chart-3"></i><span>Reports</span></a>
-            <a href="{% url 'analytics-center' %}" class="mobile-bottom-item {{ request|nav_active:'analytics-center' }}"><i data-lucide="chart-column"></i><span>Analytics</span></a>
-            <a href="{% url 'notifications-center' %}" class="mobile-bottom-item {{ request|nav_active:'notifications-center' }}"><i data-lucide="bell-ring"></i><span>Alerts</span></a>
-            <a href="{% url 'settings-center' %}" class="mobile-bottom-item {{ request|nav_active:'settings-center' }}"><i data-lucide="settings-2"></i><span>Settings</span></a>
+            {% if user|can_access_module:'reports' %}
+              <a href="{% url 'admin-reports' %}" class="mobile-bottom-item {{ request|nav_active:'admin-reports analytics-center' }}"><i data-lucide="bar-chart-3"></i><span>Reports</span></a>
+            {% endif %}
+            {% if user|can_access_module:'analytics' %}
+              <a href="{% url 'analytics-center' %}" class="mobile-bottom-item {{ request|nav_active:'analytics-center' }}"><i data-lucide="chart-column"></i><span>Analytics</span></a>
+            {% endif %}
+            {% if user|can_access_module:'notifications' %}
+              <a href="{% url 'notifications-center' %}" class="mobile-bottom-item {{ request|nav_active:'notifications-center' }}"><i data-lucide="bell-ring"></i><span>Alerts</span></a>
+            {% endif %}
+            {% if user|can_access_module:'settings' %}
+              <a href="{% url 'settings-center' %}" class="mobile-bottom-item {{ request|nav_active:'settings-center' }}"><i data-lucide="settings-2"></i><span>Settings</span></a>
+            {% endif %}
           </div>
         </nav>
       </div>

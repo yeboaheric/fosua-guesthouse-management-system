@@ -6,51 +6,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 
 from accounts.models import UserAccessProfile
+from accounts.permissions import access_defaults_for_roles, user_has_permission
 
 
 def _default_access_for_user(user):
-    if user.is_superuser or user.groups.filter(name="Admin").exists():
-        return {
-            "dashboard_access": True,
-            "reservations_access": True,
-            "rooms_access": True,
-            "guests_access": True,
-            "payments_access": True,
-            "services_access": True,
-            "housekeeping_access": True,
-            "inventory_access": True,
-            "pos_access": True,
-            "notifications_access": True,
-            "analytics_access": True,
-            "reports_access": True,
-            "settings_access": True,
-            "staff_management_access": True,
-            "handovers_access": True,
-            "users_roles_access": True,
-        }
-    if user.groups.filter(name="Receptionist").exists():
-        return {
-            "dashboard_access": True,
-            "reservations_access": True,
-            "rooms_access": True,
-            "guests_access": True,
-            "payments_access": True,
-            "services_access": True,
-            "housekeeping_access": True,
-            "inventory_access": False,
-            "pos_access": True,
-            "notifications_access": True,
-            "analytics_access": True,
-            "reports_access": False,
-            "settings_access": False,
-            "staff_management_access": False,
-            "handovers_access": True,
-            "users_roles_access": False,
-        }
-    return {"dashboard_access": True}
+    return access_defaults_for_roles(user.groups.values_list("name", flat=True))
 
 
-def group_required(*group_names, module=None):
+def group_required(*group_names, module=None, action="view"):
     """Require the logged-in user to belong to one of the given groups."""
 
     def decorator(view_func):
@@ -58,17 +21,17 @@ def group_required(*group_names, module=None):
         @login_required
         def _wrapped_view(request, *args, **kwargs):
             user = request.user
-            if user.is_superuser or user.groups.filter(name="Admin").exists():
+            if user.is_superuser:
                 return view_func(request, *args, **kwargs)
-            if not user.groups.filter(name__in=group_names).exists():
-                raise PermissionDenied
             if module:
                 access_profile, _ = UserAccessProfile.objects.get_or_create(
                     user=user,
                     defaults=_default_access_for_user(user),
                 )
-                if not access_profile.has_module_access(module):
+                if not user_has_permission(user, module, action):
                     raise PermissionDenied
+            elif group_names and not user.groups.filter(name__in=group_names).exists():
+                raise PermissionDenied
             return view_func(request, *args, **kwargs)
 
         return _wrapped_view

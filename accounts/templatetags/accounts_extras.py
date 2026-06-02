@@ -1,5 +1,7 @@
 from django import template
 
+from accounts.permissions import user_has_permission
+
 register = template.Library()
 
 
@@ -26,11 +28,12 @@ def get_item(mapping, key):
 
 @register.filter
 def can_access_module(user, module_name):
-    if not user.is_authenticated:
-        return False
-    if user.is_superuser or user.groups.filter(name="Admin").exists():
-        return True
-    access_profile = getattr(user, "access_profile", None)
-    if access_profile is None:
-        return False
-    return access_profile.has_module_access(module_name)
+    return user_has_permission(user, module_name, "view")
+
+
+@register.filter
+def get_field(form, field_name):
+    try:
+        return form[field_name]
+    except Exception:
+        return None

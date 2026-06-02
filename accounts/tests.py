@@ -1,4 +1,5 @@
-from accounts.models import Employee, Rota, UserAccessProfile
+from accounts.models import Employee, Rota, RolePermission, UserAccessProfile
+from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time
 from django.contrib.auth.models import Group, User
@@ -198,6 +199,35 @@ class RotaViewTests(TestCase):
         self.assertContains(response, "Day-by-day employee account")
         self.assertContains(response, "Monday")
         self.assertContains(response, "8.00")
+
+
+class CustomRolePermissionTests(TestCase):
+    def setUp(self):
+        self.role = Group.objects.create(name="Stock Specialist")
+        RolePermission.objects.create(
+            role=self.role,
+            module="inventory",
+            can_view=True,
+            can_create=True,
+            can_edit=True,
+            can_delete=False,
+            can_approve=False,
+            can_export=True,
+            can_print=True,
+            can_manage=False,
+        )
+        self.user = User.objects.create_user(username="stockuser", password="pass123456")
+        self.user.groups.add(self.role)
+        self.client.force_login(self.user)
+
+    def test_custom_role_can_access_inventory_but_not_user_management(self):
+        self.assertTrue(user_has_permission(self.user, "inventory", "view"))
+
+        response = self.client.get(reverse("inventory-dashboard"))
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(reverse("users-roles-center"))
+        self.assertEqual(response.status_code, 403)
 
 
 class CenterFilterTests(TestCase):

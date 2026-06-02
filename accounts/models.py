@@ -1,5 +1,8 @@
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.db import models
+
+from accounts.permissions import ACCESS_MODULE_CHOICES, ACTION_CHOICES, user_has_permission
 
 
 class Employee(models.Model):
@@ -180,4 +183,102 @@ class UserAccessProfile(models.Model):
         return f"Access profile for {self.user.username}"
 
     def has_module_access(self, module_name):
-        return bool(getattr(self, f"{module_name}_access", False))
+        return self.has_permission(module_name, "view")
+
+    def has_permission(self, module_name, action="view"):
+        return user_has_permission(self.user, module_name, action)
+
+
+class StaffProfile(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="staff_profile",
+    )
+    phone_number = models.CharField(max_length=40, blank=True)
+    employee_id = models.CharField(max_length=80, blank=True, unique=True, null=True)
+    department = models.CharField(max_length=120, blank=True)
+    profile_image = models.ImageField(upload_to="staff_profiles/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["user__username"]
+
+    def __str__(self):
+        return f"Staff profile for {self.user.username}"
+
+
+class RolePermission(models.Model):
+    role = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        related_name="role_permissions",
+    )
+    module = models.CharField(max_length=40, choices=ACCESS_MODULE_CHOICES)
+    can_view = models.BooleanField(default=False)
+    can_create = models.BooleanField(default=False)
+    can_edit = models.BooleanField(default=False)
+    can_delete = models.BooleanField(default=False)
+    can_approve = models.BooleanField(default=False)
+    can_export = models.BooleanField(default=False)
+    can_print = models.BooleanField(default=False)
+    can_manage = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["role__name", "module"]
+        constraints = [
+            models.UniqueConstraint(fields=["role", "module"], name="unique_role_permission_per_module"),
+        ]
+
+    def __str__(self):
+        return f"{self.role.name} / {self.get_module_display()}"
+
+    def allows(self, action="view"):
+        if self.can_manage:
+            return True
+        return bool(getattr(self, f"can_{action}", False))
+
+
+class AuditLog(models.Model):
+    class ActionType(models.TextChoices):
+        LOGIN = "login", "Login"
+        LOGOUT = "logout", "Logout"
+        CREATE = "create", "Create"
+        UPDATE = "update", "Update"
+        DELETE = "delete", "Delete"
+        APPROVE = "approve", "Approve"
+        PERMISSION_CHANGE = "permission_change", "Permission Change"
+        EXPORT = "export", "Export"
+        PRINT = "print", "Print"
+        MANAGE = "manage", "Manage"
+        OTHER = "other", "Other"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_logs",
+    )
+    action = models.CharField(max_length=40, choices=ActionType.choices)
+    module = models.CharField(max_length=40, blank=True)
+    object_repr = models.CharField(max_length=255, blank=True)
+    object_id = models.CharField(max_length=120, blank=True)
+    path = models.CharField(max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    status_code = models.PositiveSmallIntegerField(blank=True, null=True)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["action", "created_at"]),
+            models.Index(fields=["module", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_action_display()} by {self.user or 'system'}"

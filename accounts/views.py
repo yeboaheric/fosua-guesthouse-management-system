@@ -1,24 +1,33 @@
 import csv
 import json
+from datetime import date, timedelta
 from calendar import monthrange
 from itertools import chain
-from datetime import date, timedelta
 
 from django.contrib import messages
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group
+from django.contrib.auth.models import User
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView, LogoutView
 from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.views import LoginView, LogoutView
 from django.http import HttpResponse
-from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect, render
 from django.utils import timezone
 
+from accounts.audit import log_audit_event
 from accounts.decorators import group_required
-from accounts.forms import EmployeeForm, RotaForm, StaffRoleForm, StaffUserForm
-from accounts.models import Employee, Rota, UserAccessProfile
+from accounts.forms import EmployeeForm, RoleCreateForm, RolePermissionForm, RotaForm, StaffRoleForm, StaffUserForm
+from accounts.models import AuditLog, Employee, Rota, RolePermission
+from accounts.permissions import (
+    ACTION_CHOICES,
+    ACCESS_MODULE_CHOICES,
+    default_permissions_for_role,
+    seed_default_role_names,
+    user_has_permission,
+)
 from bookings.models import Booking, EventBooking, Payment
 from bookings.models import EventPayment
 from guests.models import Guest
@@ -46,30 +55,38 @@ def _is_group_member(user, group_name):
 
 
 def _user_can_access_module(user, module_name):
-    if user.is_superuser or _is_group_member(user, "Admin"):
-        return True
-    access_profile, _ = UserAccessProfile.objects.get_or_create(
-        user=user,
-        defaults={
-            "dashboard_access": True,
-            "reservations_access": True,
-            "rooms_access": True,
-            "guests_access": True,
-            "payments_access": True,
-            "services_access": True,
-            "housekeeping_access": True,
-            "inventory_access": True,
-            "pos_access": True,
-            "notifications_access": True,
-            "analytics_access": True,
-            "reports_access": False,
-            "settings_access": False,
-            "staff_management_access": False,
-            "handovers_access": True,
-            "users_roles_access": False,
-        },
-    )
-    return access_profile.has_module_access(module_name)
+    return user_has_permission(user, module_name, "view")
+
+
+def _permission_defaults_from_actions(actions):
+    return {
+        "can_view": "view" in actions,
+        "can_create": "create" in actions,
+        "can_edit": "edit" in actions,
+        "can_delete": "delete" in actions,
+        "can_approve": "approve" in actions,
+        "can_export": "export" in actions,
+        "can_print": "print" in actions,
+        "can_manage": "manage" in actions,
+    }
+
+
+def _seed_default_roles():
+    role_names = set(seed_default_role_names()) | {"Admin"}
+    for role_name in role_names:
+        role, _ = Group.objects.get_or_create(name=role_name)
+        if role.role_permissions.exists():
+            continue
+        if role.name == "Admin":
+            preset = {module: {action for action, _ in ACTION_CHOICES} for module, _ in ACCESS_MODULE_CHOICES}
+        else:
+            preset = default_permissions_for_role(role.name)
+        for module_name, actions in preset.items():
+            RolePermission.objects.update_or_create(
+                role=role,
+                module=module_name,
+                defaults=_permission_defaults_from_actions(actions),
+            )
 
 
 def _dashboard_snapshot():
@@ -452,41 +469,125 @@ def settings_center(request):
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="users_roles")
 def users_roles_center(request):
-    for role_name in ("Admin", "Receptionist"):
-        Group.objects.get_or_create(name=role_name)
+    _seed_default_roles()
+
+    users = User.objects.select_related("staff_profile", "access_profile").prefetch_related("groups", "groups__role_permissions").order_by("username")
+    roles = Group.objects.prefetch_related("role_permissions").order_by("name")
+    create_form = StaffUserForm()
+    role_create_form = RoleCreateForm()
+    user_forms = {user.pk: StaffRoleForm(user=user, initial={"user_id": user.pk}) for user in users}
+    role_permission_forms = {role.pk: RolePermissionForm(role=role, initial={"role_id": role.pk}) for role in roles}
 
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "create_user":
-            create_form = StaffUserForm(request.POST)
+            create_form = StaffUserForm(request.POST, request.FILES)
             if create_form.is_valid():
                 user = create_form.save()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.CREATE,
+                    module="users_roles",
+                    object_repr=user.username,
+                    object_id=user.pk,
+                    details={
+                        "event": "user_created",
+                        "roles": list(user.groups.values_list("name", flat=True)),
+                    },
+                )
                 messages.success(request, f"User '{user.username}' created successfully.")
                 return redirect("users-roles-center")
         elif action == "update_user":
             user = get_object_or_404(User, pk=request.POST.get("user_id"))
-            role_form = StaffRoleForm(request.POST, user=user)
+            role_form = StaffRoleForm(request.POST, request.FILES, user=user)
+            user_forms[user.pk] = role_form
             if role_form.is_valid():
-                role_form.save()
+                updated_user = role_form.save()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.UPDATE,
+                    module="users_roles",
+                    object_repr=updated_user.username,
+                    object_id=updated_user.pk,
+                    details={
+                        "event": "user_updated",
+                        "roles": list(updated_user.groups.values_list("name", flat=True)),
+                        "is_active": updated_user.is_active,
+                        "is_staff": updated_user.is_staff,
+                    },
+                )
                 messages.success(request, f"Roles updated for '{user.username}'.")
                 return redirect("users-roles-center")
-        else:
-            create_form = StaffUserForm()
-    else:
-        create_form = StaffUserForm()
+        elif action == "delete_user":
+            user = get_object_or_404(User, pk=request.POST.get("user_id"))
+            if user.pk == request.user.pk:
+                messages.error(request, "You cannot delete your own account while logged in.")
+            else:
+                username = user.username
+                user_id = user.pk
+                user.delete()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.DELETE,
+                    module="users_roles",
+                    object_repr=username,
+                    object_id=user_id,
+                    details={"event": "user_deleted"},
+                )
+                messages.success(request, f"User '{username}' deleted successfully.")
+                return redirect("users-roles-center")
+        elif action == "create_role":
+            role_create_form = RoleCreateForm(request.POST)
+            if role_create_form.is_valid():
+                role = role_create_form.save()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.CREATE,
+                    module="users_roles",
+                    object_repr=role.name,
+                    object_id=role.pk,
+                    details={"event": "role_created"},
+                )
+                messages.success(request, f"Role '{role.name}' created successfully.")
+                return redirect("users-roles-center")
+        elif action == "save_role_permissions":
+            role = get_object_or_404(Group, pk=request.POST.get("role_id"))
+            role_form = RolePermissionForm(request.POST, role=role)
+            role_permission_forms[role.pk] = role_form
+            if role_form.is_valid():
+                role = role_form.save()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.PERMISSION_CHANGE,
+                    module="users_roles",
+                    object_repr=role.name,
+                    object_id=role.pk,
+                    details={"event": "role_permissions_updated"},
+                )
+                messages.success(request, f"Permissions updated for role '{role.name}'.")
+                return redirect("users-roles-center")
 
-    users = User.objects.prefetch_related("groups").order_by("username")
-    role_forms = {user.pk: StaffRoleForm(user=user, initial={"user_id": user.pk}) for user in users}
+    recent_audit_logs = AuditLog.objects.select_related("user").order_by("-created_at")[:15]
     return render(
         request,
         "accounts/users_roles_center.html",
         {
             "create_form": create_form,
+            "role_create_form": role_create_form,
             "users": users,
-            "role_forms": role_forms,
-            "available_roles": Group.objects.filter(name__in=["Admin", "Receptionist"]).order_by("name"),
+            "role_forms": user_forms,
+            "role_permission_forms": role_permission_forms,
+            "available_roles": roles,
+            "recent_audit_logs": recent_audit_logs,
+            "permission_modules": ACCESS_MODULE_CHOICES,
+            "permission_actions": ACTION_CHOICES,
         },
     )
 

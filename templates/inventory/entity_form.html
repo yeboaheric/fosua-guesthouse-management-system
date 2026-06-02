@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="section-eyebrow mb-2">{{ title|default:"Manage record" }}</div>
+    <h1 class="page-title mb-2">{{ title|default:"Manage record" }}</h1>
+    <div class="page-subtitle">Use this form to update inventory master data.</div>
+  </div>
+
+  <div class="surface-panel p-4">
+    <form method="post">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+      <div class="row g-3">
+        {% for field in form %}
+          <div class="{% if field.field.widget.input_type == 'checkbox' %}col-md-4{% else %}col-md-6{% endif %}">
+            {% if field.field.widget.input_type == 'checkbox' %}
+              <div class="form-check mt-4">
+                {{ field }}
+                <label class="form-check-label ms-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% else %}
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="d-flex gap-2 mt-4">
+        <button class="btn btn-primary" type="submit">Save changes</button>
+        <a class="btn btn-outline-secondary" href="javascript:history.back()">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

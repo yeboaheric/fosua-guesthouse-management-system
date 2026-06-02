@@ -21,6 +21,8 @@
           <span class="status-pill neutral">Rooms {{ room_results|length }}</span>
           <span class="status-pill neutral">Bookings {{ booking_results|length }}</span>
           <span class="status-pill neutral">Payments {{ payment_results|length }}</span>
+          <span class="status-pill neutral">Inventory {{ inventory_results|length }}</span>
+          <span class="status-pill neutral">Sales {{ sale_results|length }}</span>
         </div>
       {% endif %}
     </div>
@@ -100,6 +102,44 @@
             </div>
           {% empty %}
             <div class="text-muted">No payments matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">Inventory</div>
+          {% for item in inventory_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3 align-items-start">
+                <div>
+                  <strong>{{ item.name }}</strong>
+                  <div class="text-muted small">{{ item.sku }} · {{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
+                </div>
+                <span class="status-pill neutral">{{ item.quantity_in_stock }} {{ item.get_unit_of_measure_display }}</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No inventory items matched that search.</div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-xl-6">
+        <div class="surface-panel p-4 h-100">
+          <div class="section-eyebrow mb-2">POS sales</div>
+          {% for sale in sale_results %}
+            <div class="result-card">
+              <div class="d-flex justify-content-between gap-3 align-items-start">
+                <div>
+                  <strong>{{ sale.receipt_number }}</strong>
+                  <div class="text-muted small">{{ sale.customer_name|default:"Walk-in customer" }} · {{ sale.get_payment_method_display }} · {{ sale.created_at|date:"M d, H:i" }}</div>
+                </div>
+                <a class="status-pill success" href="{% url 'inventory-sale-detail' sale.pk %}">Open</a>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-muted">No POS sales matched that search.</div>
           {% endfor %}
         </div>
       </div>

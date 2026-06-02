@@ -103,6 +103,30 @@
             </div>
           </div>
           {% endif %}
+          {% if user|can_access_module:'inventory' %}
+          <div class="col-sm-6">
+            <div class="surface-panel p-3 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <strong>Inventory</strong>
+                <i data-lucide="boxes"></i>
+              </div>
+              <p class="text-muted small mb-3">Check stock, low items, and movement history.</p>
+              <a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-dashboard' %}">Open inventory</a>
+            </div>
+          </div>
+          {% endif %}
+          {% if user|can_access_module:'pos' %}
+          <div class="col-sm-6">
+            <div class="surface-panel p-3 h-100">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <strong>POS</strong>
+                <i data-lucide="receipt"></i>
+              </div>
+              <p class="text-muted small mb-3">Quick sale terminal for drinks, snacks, and supplies.</p>
+              <a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-pos' %}">Open POS</a>
+            </div>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>

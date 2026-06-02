@@ -157,6 +157,8 @@ ACCESS_MODULES = [
     ("payments_access", "Payments"),
     ("services_access", "Services"),
     ("housekeeping_access", "Housekeeping"),
+    ("inventory_access", "Inventory"),
+    ("pos_access", "Point of Sale"),
     ("notifications_access", "Notifications"),
     ("analytics_access", "Analytics"),
     ("reports_access", "Reports"),
@@ -174,6 +176,8 @@ RECEPTION_DEFAULT_ACCESS = {
     "payments_access": True,
     "services_access": True,
     "housekeeping_access": True,
+    "inventory_access": False,
+    "pos_access": True,
     "notifications_access": True,
     "analytics_access": True,
     "reports_access": False,
@@ -227,7 +231,9 @@ class StaffUserForm(forms.Form):
         )
         roles = Group.objects.filter(name__in=self.cleaned_data["roles"])
         user.groups.set(roles)
-        access_defaults = ADMIN_DEFAULT_ACCESS if "Admin" in self.cleaned_data["roles"] else RECEPTION_DEFAULT_ACCESS
+        access_defaults = (
+            ADMIN_DEFAULT_ACCESS if "Admin" in self.cleaned_data["roles"] else RECEPTION_DEFAULT_ACCESS
+        )
         UserAccessProfile.objects.create(user=user, **access_defaults)
         return user
 
@@ -256,7 +262,11 @@ class StaffRoleForm(forms.Form):
             self.fields["is_staff"].initial = user.is_staff
             profile = getattr(user, "access_profile", None)
             if profile is None:
-                defaults = ADMIN_DEFAULT_ACCESS if user.groups.filter(name="Admin").exists() else RECEPTION_DEFAULT_ACCESS
+                defaults = (
+                    ADMIN_DEFAULT_ACCESS
+                    if user.groups.filter(name="Admin").exists()
+                    else RECEPTION_DEFAULT_ACCESS
+                )
                 profile, _ = UserAccessProfile.objects.get_or_create(user=user, defaults=defaults)
             for field_name, _ in ACCESS_MODULES:
                 self.fields[field_name].initial = getattr(profile, field_name)

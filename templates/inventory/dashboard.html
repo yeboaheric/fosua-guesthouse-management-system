@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Inventory control</div>
+        <h1 class="page-title mb-2">Stock and POS overview</h1>
+        <div class="page-subtitle">Track drinks, foodstuff, housekeeping items, and live sales across the hotel.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'inventory-items' %}"><i data-lucide="package-search"></i> Items</a>
+        <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a>
+        <a class="topbar-pill" href="{% url 'inventory-reports' %}"><i data-lucide="bar-chart-3"></i> Reports</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Inventory value</div><div class="metric-value">GHS {{ inventory_value }}</div><div class="text-muted small mt-2">Cost value on the shelves</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Items tracked</div><div class="metric-value">{{ items_count }}</div><div class="text-muted small mt-2">Active stock items in the database</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Low stock</div><div class="metric-value">{{ low_stock_count }}</div><div class="text-muted small mt-2">Items near reorder point</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Out of stock</div><div class="metric-value">{{ out_of_stock_count }}</div><div class="text-muted small mt-2">Items needing urgent restock</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Today sales</div><div class="metric-value">GHS {{ sales_today_total }}</div><div class="text-muted small mt-2">Completed POS transactions today</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Month sales</div><div class="metric-value">GHS {{ sales_month_total }}</div><div class="text-muted small mt-2">Completed sales this month</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Categories</div><div class="metric-value">{{ categories_count }}</div><div class="text-muted small mt-2">Drinks, foodstuff, housekeeping, and more</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Suppliers</div><div class="metric-value">{{ suppliers_count }}</div><div class="text-muted small mt-2">Active supply contacts on file</div></div></div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-7">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Performance</div>
+            <h2 class="h5 mb-1">Sales and category movement</h2>
+            <div class="text-muted small">A seven-day snapshot of stock-driven revenue</div>
+          </div>
+        </div>
+        {{ daily_labels_json|json_script:"inventory-daily-labels" }}
+        {{ daily_sales_json|json_script:"inventory-daily-sales" }}
+        {{ category_labels_json|json_script:"inventory-category-labels" }}
+        {{ category_units_json|json_script:"inventory-category-units" }}
+        <div class="row g-3">
+          <div class="col-md-6"><canvas id="inventoryDailyChart" height="180"></canvas></div>
+          <div class="col-md-6"><canvas id="inventoryCategoryChart" height="180"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-5">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Low stock watchlist</div>
+        <div class="d-grid gap-2">
+          {% for item in low_stock_items %}
+            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border">
+              <div>
+                <div class="fw-semibold">{{ item.name }}</div>
+                <div class="text-muted small">{{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
+              </div>
+              <span class="status-pill warning">{{ item.quantity_in_stock }} left</span>
+            </div>
+          {% empty %}
+            <div class="text-muted">No low stock items right now.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Recent sales</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Receipt</th>
+                <th>Customer</th>
+                <th>Total</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sale in recent_sales %}
+                <tr>
+                  <td><a href="{% url 'inventory-sale-detail' sale.pk %}">{{ sale.receipt_number }}</a></td>
+                  <td>{{ sale.customer_name|default:"Walk-in" }}</td>
+                  <td>GHS {{ sale.grand_total }}</td>
+                  <td>{{ sale.created_at|date:"M d, H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No sales recorded yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Recent inventory activity</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Item</th>
+                <th>Type</th>
+                <th>Change</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for transaction in recent_transactions %}
+                <tr>
+                  <td>{{ transaction.item.name }}</td>
+                  <td>{{ transaction.get_transaction_type_display }}</td>
+                  <td>{{ transaction.quantity_changed }}</td>
+                  <td>{{ transaction.created_at|date:"M d, H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No inventory movements yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const inventoryLabels = JSON.parse(document.getElementById("inventory-daily-labels").textContent);
+  const inventorySales = JSON.parse(document.getElementById("inventory-daily-sales").textContent);
+  const inventoryCategoryLabels = JSON.parse(document.getElementById("inventory-category-labels").textContent);
+  const inventoryCategoryUnits = JSON.parse(document.getElementById("inventory-category-units").textContent);
+
+  new Chart(document.getElementById("inventoryDailyChart"), {
+    type: "line",
+    data: {
+      labels: inventoryLabels,
+      datasets: [{
+        label: "Sales",
+        data: inventorySales,
+        borderColor: "#3d7dff",
+        backgroundColor: "rgba(61, 125, 255, 0.18)",
+        tension: 0.35,
+        fill: true
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+
+  new Chart(document.getElementById("inventoryCategoryChart"), {
+    type: "bar",
+    data: {
+      labels: inventoryCategoryLabels,
+      datasets: [{
+        label: "Units sold",
+        data: inventoryCategoryUnits,
+        backgroundColor: ["#1f3b44", "#3d7dff", "#c7ab83", "#167d47", "#9b6b00", "#b32836"]
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

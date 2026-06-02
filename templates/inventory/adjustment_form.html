@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="section-eyebrow mb-2">Stock adjustment</div>
+    <h1 class="page-title mb-2">{{ title }}</h1>
+    <div class="page-subtitle">Adjust {{ item.name }} from {{ item.quantity_in_stock }} and record the reason in the audit trail.</div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Item</div>
+        <div class="metric-value">{{ item.name }}</div>
+        <div class="text-muted small mt-2">{{ item.sku }} · {{ item.category.name }}</div>
+      </div>
+    </div>
+    <div class="col-xl-8">
+      <div class="surface-panel p-4">
+        <form method="post">
+          {% csrf_token %}
+          {% for field in form %}
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+          {% endfor %}
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save adjustment</button>
+            <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

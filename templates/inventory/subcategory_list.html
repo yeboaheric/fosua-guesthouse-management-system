@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Inventory subcategories</div>
+        <h1 class="page-title mb-2">Refine stock groups</h1>
+        <div class="page-subtitle">Break down drinks and foodstuff into operational groups.</div>
+      </div>
+      <a class="topbar-pill" href="{% url 'inventory-categories' %}"><i data-lucide="layers-3"></i> Categories</a>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="post" class="row g-3 align-items-end">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="{% if field.name == 'description' %}col-12{% else %}col-md-4{% endif %}">
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+        </div>
+      {% endfor %}
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" type="submit">Add</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Description</th>
+            <th>Items</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for subcategory in subcategories %}
+            <tr>
+              <td class="fw-semibold">{{ subcategory.name }}</td>
+              <td><span class="status-pill neutral">{{ subcategory.category.name }}</span></td>
+              <td>{{ subcategory.description|default:"-" }}</td>
+              <td>{{ subcategory.item_count }}</td>
+              <td>
+                <div class="d-flex gap-2 flex-wrap">
+                  <a class="status-pill neutral" href="{% url 'inventory-subcategory-update' subcategory.pk %}">Edit</a>
+                  <form method="post" action="{% url 'inventory-subcategory-delete' subcategory.pk %}" onsubmit="return confirm('Delete this subcategory?');">
+                    {% csrf_token %}
+                    <button class="status-pill danger border-0" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-muted">No subcategories yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

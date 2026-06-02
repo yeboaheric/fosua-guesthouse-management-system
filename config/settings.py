@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     "bookings",
     "shifts",
     "receipts",
+    "inventory",
 ]
 
 MIDDLEWARE = [

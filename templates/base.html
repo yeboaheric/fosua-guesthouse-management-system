@@ -32,6 +32,8 @@
             {% if user|can_access_module:'services' %}<a class="sidebar-link {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}" href="{% url 'services-center' %}"><i data-lucide="concierge-bell"></i><span>Services</span></a>{% endif %}
             {% if user|can_access_module:'housekeeping' %}<a class="sidebar-link {{ request|nav_active:'housekeeping-center operations-overview' }}" href="{% url 'housekeeping-center' %}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>{% endif %}
             {% if user|can_access_module:'handovers' %}<a class="sidebar-link {{ request|nav_active:'handover-list handover-create handover-detail' }}" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i><span>Shift Handovers</span></a>{% endif %}
+            {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
+            {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
             {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
             {% if user.is_superuser or user|has_group:'Admin' %}
               <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
@@ -66,6 +68,8 @@
               {% if user|can_access_module:'services' %}<a class="sidebar-link {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}" href="{% url 'services-center' %}"><i data-lucide="concierge-bell"></i><span>Services</span></a>{% endif %}
               {% if user|can_access_module:'housekeeping' %}<a class="sidebar-link {{ request|nav_active:'housekeeping-center operations-overview' }}" href="{% url 'housekeeping-center' %}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>{% endif %}
               {% if user|can_access_module:'handovers' %}<a class="sidebar-link {{ request|nav_active:'handover-list handover-create handover-detail' }}" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i><span>Shift Handovers</span></a>{% endif %}
+              {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
+              {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
               {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
               {% if user.is_superuser or user|has_group:'Admin' %}
                 <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
@@ -143,6 +147,12 @@
             <a href="{% url 'housekeeping-center' %}" class="mobile-bottom-item {{ request|nav_active:'housekeeping-center operations-overview' }}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>
             {% if user|can_access_module:'handovers' %}
               <a href="{% url 'handover-list' %}" class="mobile-bottom-item {{ request|nav_active:'handover-list handover-create handover-detail' }}"><i data-lucide="clipboard-list"></i><span>Handovers</span></a>
+            {% endif %}
+            {% if user|can_access_module:'inventory' %}
+              <a href="{% url 'inventory-dashboard' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}"><i data-lucide="boxes"></i><span>Inventory</span></a>
+            {% endif %}
+            {% if user|can_access_module:'pos' %}
+              <a href="{% url 'inventory-pos' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}"><i data-lucide="receipt"></i><span>POS</span></a>
             {% endif %}
             <a href="{% url 'hr-list' %}" class="mobile-bottom-item {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}"><i data-lucide="badge-check"></i><span>Staff</span></a>
             {% if user.is_superuser or user|has_group:'Admin' %}

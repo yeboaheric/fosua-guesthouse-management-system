@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Receipt detail</div>
+        <h1 class="page-title mb-2">{{ sale.receipt_number }}</h1>
+        <div class="page-subtitle">{{ sale.customer_name|default:"Walk-in customer" }} · {{ sale.created_at|date:"M d, Y H:i" }}</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'inventory-sale-pdf' sale.pk %}"><i data-lucide="download"></i> PDF</a>
+        <a class="topbar-pill" href="{% url 'inventory-sale-email' sale.pk %}"><i data-lucide="mail"></i> Email</a>
+        <button class="topbar-pill" type="button" onclick="window.print()"><i data-lucide="printer"></i> Print</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Subtotal</div><div class="metric-value">GHS {{ sale.subtotal }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Tax</div><div class="metric-value">GHS {{ sale.tax_amount }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Paid</div><div class="metric-value">GHS {{ sale.amount_paid }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Change due</div><div class="metric-value">GHS {{ sale.change_due }}</div></div></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="surface-panel p-4">
+        <div class="section-eyebrow mb-2">Purchased items</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Unit</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for line in items %}
+                <tr>
+                  <td>{{ line.item.name }}<div class="text-muted small">{{ line.item.sku }}</div></td>
+                  <td>{{ line.quantity }}</td>
+                  <td>GHS {{ line.unit_price }}</td>
+                  <td>GHS {{ line.line_total }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No sale lines found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="surface-panel p-4 mb-3">
+        <div class="section-eyebrow mb-2">Receipt details</div>
+        <div class="d-grid gap-2">
+          <div class="d-flex justify-content-between"><span class="text-muted">Cashier</span><strong>{{ sale.cashier.get_full_name|default:sale.cashier.username }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Method</span><strong>{{ sale.get_payment_method_display }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Email</span><strong>{{ sale.customer_email|default:"-" }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Phone</span><strong>{{ sale.customer_phone|default:"-" }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Status</span><strong>{{ sale.get_status_display }}</strong></div>
+        </div>
+      </div>
+
+      <div class="surface-panel p-4">
+        <div class="section-eyebrow mb-2">Receipt summary</div>
+        <div class="d-grid gap-2">
+          <div class="d-flex justify-content-between"><span class="text-muted">Items</span><strong>{{ sale.total_items }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Discount</span><strong>GHS {{ sale.discount_amount }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Grand total</span><strong>GHS {{ sale.grand_total }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Paid at</span><strong>{{ sale.created_at|date:"M d, Y H:i" }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Receipt</span><strong>{{ sale.receipt_number }}</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

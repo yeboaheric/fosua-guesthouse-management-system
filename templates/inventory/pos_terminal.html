@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Point of sale</div>
+        <h1 class="page-title mb-2">Fast checkout terminal</h1>
+        <div class="page-subtitle">Search products, build a cart, and complete sales with automatic stock deduction.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'inventory-sales' %}"><i data-lucide="receipt-text"></i> Sales</a>
+        <a class="topbar-pill" href="{% url 'inventory-reports' %}"><i data-lucide="bar-chart-3"></i> Reports</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-6">
+        <label class="form-label" for="q">Search products</label>
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, SKU, category, subcategory">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="category">Category</label>
+        <select class="form-select" name="category" id="category">
+          <option value="">All categories</option>
+          {% for category in categories %}
+            <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-1">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-lg-2">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-pos' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <form id="checkoutForm" method="post" action="{% url 'inventory-pos-checkout' %}">
+    {% csrf_token %}
+    {{ checkout_form.cart }}
+    <div class="row g-3">
+      <div class="col-xl-8">
+        <div class="surface-panel p-4">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="section-eyebrow">Product browser</div>
+            <span class="status-pill neutral">{{ items|length }} items shown</span>
+          </div>
+          <div class="row g-3">
+            {% for item in items %}
+              <div class="col-md-6 col-xxl-4">
+                <div class="result-card h-100">
+                  <div class="d-flex justify-content-between gap-3">
+                    <div>
+                      <div class="fw-semibold">{{ item.name }}</div>
+                      <div class="text-muted small">{{ item.sku }} · {{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
+                      <div class="mt-2"><strong>GHS {{ item.selling_price }}</strong> <span class="text-muted small">/ {{ item.get_unit_of_measure_display }}</span></div>
+                      <div class="text-muted small">Stock {{ item.quantity_in_stock }}</div>
+                    </div>
+                    {% if item.image %}
+                      <img src="{{ item.image.url }}" alt="{{ item.name }}" class="employee-avatar">
+                    {% else %}
+                      <div class="employee-avatar-placeholder">{{ item.name|slice:":1"|upper }}</div>
+                    {% endif %}
+                  </div>
+                  <button
+                    class="btn btn-primary w-100 mt-3 add-to-cart"
+                    type="button"
+                    data-id="{{ item.pk }}"
+                    data-name="{{ item.name|escape }}"
+                    data-price="{{ item.selling_price }}"
+                    data-stock="{{ item.quantity_in_stock }}"
+                    data-unit="{{ item.get_unit_of_measure_display|escape }}"
+                  >
+                    Add to cart
+                  </button>
+                </div>
+              </div>
+            {% empty %}
+              <div class="col-12 text-muted">No products matched that filter.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-xl-4">
+        <div class="surface-panel p-4 position-sticky" style="top: 1.25rem;">
+          <div class="section-eyebrow mb-2">Current cart</div>
+          {% if checkout_form.non_field_errors %}
+            <div class="alert alert-danger py-2">{{ checkout_form.non_field_errors }}</div>
+          {% endif %}
+          {% if checkout_form.cart.errors %}
+            <div class="alert alert-danger py-2">{{ checkout_form.cart.errors }}</div>
+          {% endif %}
+          <div id="cartEmpty" class="text-muted mb-3">No items added yet.</div>
+          <div class="table-responsive soft-table mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Item</th>
+                  <th class="text-end">Qty</th>
+                  <th class="text-end">Total</th>
+                </tr>
+              </thead>
+              <tbody id="cartBody"></tbody>
+            </table>
+          </div>
+
+          <div class="d-grid gap-2">
+            <div class="row g-2">
+              {% for field in checkout_form %}
+                {% if field.name != "cart" %}
+                  <div class="{% if field.name in 'customer_name customer_phone customer_email' %}col-12{% else %}col-12{% endif %}">
+                    <label class="form-label small" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+
+            <div class="d-flex justify-content-between border-top pt-3 mt-2">
+              <span class="text-muted">Subtotal</span>
+              <strong id="cartSubtotal">GHS 0.00</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Tax</span>
+              <strong id="cartTax">GHS 0.00</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Discount</span>
+              <strong id="cartDiscount">GHS 0.00</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Grand total</span>
+              <strong id="cartGrand">GHS 0.00</strong>
+            </div>
+
+            <button class="btn btn-primary mt-2" type="submit">Complete sale</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  (function () {
+    const cartKey = "fosua-pos-cart";
+    const cartBody = document.getElementById("cartBody");
+    const cartEmpty = document.getElementById("cartEmpty");
+    const subtotalEl = document.getElementById("cartSubtotal");
+    const taxInput = document.getElementById("id_tax_amount");
+    const discountInput = document.getElementById("id_discount_amount");
+    const amountPaidInput = document.getElementById("id_amount_paid");
+    const cartInput = document.getElementById("id_cart");
+    const checkoutForm = document.getElementById("checkoutForm");
+    const addButtons = document.querySelectorAll(".add-to-cart");
+    let cart = JSON.parse(localStorage.getItem(cartKey) || "[]");
+
+    function money(value) {
+      return `GHS ${Number(value || 0).toFixed(2)}`;
+    }
+
+    function syncHiddenCart() {
+      cartInput.value = JSON.stringify(cart.map(function (item) {
+        return { id: item.id, quantity: item.quantity };
+      }));
+    }
+
+    function renderCart() {
+      cartBody.innerHTML = "";
+      let subtotal = 0;
+      cart.forEach(function (item, index) {
+        const total = item.price * item.quantity;
+        subtotal += total;
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>
+            <div class="fw-semibold">${item.name}</div>
+            <div class="text-muted small">${item.unit}</div>
+            <button type="button" class="btn btn-link p-0 small text-danger remove-item" data-index="${index}">Remove</button>
+          </td>
+          <td class="text-end">
+            <div class="d-flex justify-content-end gap-1 align-items-center">
+              <button type="button" class="btn btn-sm btn-outline-secondary qty-change" data-index="${index}" data-delta="-1">-</button>
+              <strong>${item.quantity}</strong>
+              <button type="button" class="btn btn-sm btn-outline-secondary qty-change" data-index="${index}" data-delta="1">+</button>
+            </div>
+          </td>
+          <td class="text-end">${money(total)}</td>
+        `;
+        cartBody.appendChild(row);
+      });
+
+      cartEmpty.style.display = cart.length ? "none" : "block";
+      const tax = Number(taxInput.value || 0);
+      const discount = Number(discountInput.value || 0);
+      const grand = Math.max(subtotal + tax - discount, 0);
+      subtotalEl.textContent = money(subtotal);
+      document.getElementById("cartTax").textContent = money(tax);
+      document.getElementById("cartDiscount").textContent = money(discount);
+      document.getElementById("cartGrand").textContent = money(grand);
+      amountPaidInput.value = grand.toFixed(2);
+      syncHiddenCart();
+      localStorage.setItem(cartKey, JSON.stringify(cart));
+    }
+
+    addButtons.forEach(function (button) {
+      button.addEventListener("click", function () {
+        const id = Number(button.dataset.id);
+        const name = button.dataset.name;
+        const price = Number(button.dataset.price);
+        const stock = Number(button.dataset.stock);
+        const unit = button.dataset.unit;
+        const existing = cart.find(function (item) { return item.id === id; });
+        if (existing) {
+          if (existing.quantity >= stock) return;
+          existing.quantity += 1;
+        } else {
+          cart.push({ id: id, name: name, price: price, quantity: 1, unit: unit, stock: stock });
+        }
+        renderCart();
+      });
+    });
+
+    cartBody.addEventListener("click", function (event) {
+      const target = event.target.closest(".qty-change, .remove-item");
+      if (!target) return;
+      const index = Number(target.dataset.index);
+      if (target.classList.contains("remove-item")) {
+        cart.splice(index, 1);
+      } else {
+        cart[index].quantity += Number(target.dataset.delta);
+        if (cart[index].quantity <= 0) {
+          cart.splice(index, 1);
+        } else if (cart[index].quantity > cart[index].stock) {
+          cart[index].quantity = cart[index].stock;
+        }
+      }
+      renderCart();
+    });
+
+    taxInput.addEventListener("input", renderCart);
+    discountInput.addEventListener("input", renderCart);
+    checkoutForm.addEventListener("submit", function (event) {
+      if (!cart.length) {
+        event.preventDefault();
+        alert("Add at least one product before checkout.");
+      } else {
+        syncHiddenCart();
+      }
+    });
+
+    renderCart();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Inventory reports</div>
+        <h1 class="page-title mb-2">Sales and stock analytics</h1>
+        <div class="page-subtitle">Filter by day, week, month, year, or a custom range for management review.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'inventory-transactions' %}?export=csv"><i data-lucide="download"></i> Transactions CSV</a>
+        <a class="topbar-pill" href="{% url 'inventory-sales' %}?export=csv"><i data-lucide="download"></i> Sales CSV</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-lg-2">
+        <label class="form-label" for="period">Period</label>
+        <select class="form-select" name="period" id="period">
+          <option value="day" {% if period == "day" %}selected{% endif %}>Day</option>
+          <option value="week" {% if period == "week" %}selected{% endif %}>Week</option>
+          <option value="month" {% if period == "month" %}selected{% endif %}>Month</option>
+          <option value="year" {% if period == "year" %}selected{% endif %}>Year</option>
+          <option value="custom" {% if period == "custom" %}selected{% endif %}>Custom</option>
+        </select>
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="start_date">Start date</label>
+        <input class="form-control" type="date" name="start_date" id="start_date" value="{{ start_date|date:'Y-m-d' }}">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="end_date">End date</label>
+        <input class="form-control" type="date" name="end_date" id="end_date" value="{{ end_date|date:'Y-m-d' }}">
+      </div>
+      <div class="col-lg-2">
+        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+      </div>
+      <div class="col-lg-2">
+        <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-reports' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Sales total</div><div class="metric-value">GHS {{ sales_total }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Sales count</div><div class="metric-value">{{ sales_count }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Transactions</div><div class="metric-value">{{ transaction_count }}</div></div></div>
+    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Inventory value</div><div class="metric-value">GHS {{ inventory_value }}</div></div></div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-7">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Sales trend</div>
+        {{ chart_labels_json|json_script:"inventory-report-labels" }}
+        {{ chart_values_json|json_script:"inventory-report-values" }}
+        <canvas id="inventoryReportChart" height="160"></canvas>
+      </div>
+    </div>
+    <div class="col-xl-5">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Fast movers</div>
+        <div class="d-grid gap-2">
+          {% for item in top_items %}
+            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border">
+              <div>
+                <div class="fw-semibold">{{ item.item__name }}</div>
+                <div class="text-muted small">Revenue GHS {{ item.total_revenue }}</div>
+              </div>
+              <span class="status-pill success">{{ item.total_units }} sold</span>
+            </div>
+          {% empty %}
+            <div class="text-muted">No sales in this period.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Low stock items</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Item</th>
+                <th>Category</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in low_stock_items %}
+                <tr>
+                  <td>{{ item.name }}</td>
+                  <td>{{ item.category.name }}</td>
+                  <td><span class="status-pill warning">{{ item.quantity_in_stock }}</span></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="text-muted">No low stock items in this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-6">
+      <div class="surface-panel p-4 h-100">
+        <div class="section-eyebrow mb-2">Out of stock items</div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Item</th>
+                <th>Category</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in out_of_stock_items %}
+                <tr>
+                  <td>{{ item.name }}</td>
+                  <td>{{ item.category.name }}</td>
+                  <td><span class="status-pill danger">0</span></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="text-muted">No out of stock items in this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  const labels = JSON.parse(document.getElementById("inventory-report-labels").textContent);
+  const values = JSON.parse(document.getElementById("inventory-report-values").textContent);
+  new Chart(document.getElementById("inventoryReportChart"), {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Sales",
+        data: values,
+        borderColor: "#1f3b44",
+        backgroundColor: "rgba(31, 59, 68, 0.14)",
+        tension: 0.35,
+        fill: true
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+</script>
+{% endblock %}

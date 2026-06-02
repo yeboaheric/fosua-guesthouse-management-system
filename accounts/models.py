@@ -162,6 +162,8 @@ class UserAccessProfile(models.Model):
     payments_access = models.BooleanField(default=True)
     services_access = models.BooleanField(default=True)
     housekeeping_access = models.BooleanField(default=True)
+    inventory_access = models.BooleanField(default=False)
+    pos_access = models.BooleanField(default=True)
     notifications_access = models.BooleanField(default=True)
     analytics_access = models.BooleanField(default=True)
     reports_access = models.BooleanField(default=False)

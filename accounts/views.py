@@ -22,6 +22,7 @@ from accounts.models import Employee, Rota, UserAccessProfile
 from bookings.models import Booking, EventBooking, Payment
 from bookings.models import EventPayment
 from guests.models import Guest
+from inventory.models import InventoryItem, Sale
 from rooms.models import Room
 
 
@@ -57,6 +58,8 @@ def _user_can_access_module(user, module_name):
             "payments_access": True,
             "services_access": True,
             "housekeeping_access": True,
+            "inventory_access": True,
+            "pos_access": True,
             "notifications_access": True,
             "analytics_access": True,
             "reports_access": False,
@@ -240,6 +243,23 @@ def global_search(request):
                 | Q(status__icontains=query)
             ).order_by("-created_at")[:8]
             if _user_can_access_module(user, "reservations")
+            else [],
+            "inventory_results": InventoryItem.objects.select_related("category", "subcategory", "supplier").filter(
+                Q(name__icontains=query)
+                | Q(sku__icontains=query)
+                | Q(category__name__icontains=query)
+                | Q(subcategory__name__icontains=query)
+                | Q(supplier__name__icontains=query)
+            ).order_by("name")[:8]
+            if _user_can_access_module(user, "inventory")
+            else [],
+            "sale_results": Sale.objects.select_related("cashier").filter(
+                Q(receipt_number__icontains=query)
+                | Q(customer_name__icontains=query)
+                | Q(customer_phone__icontains=query)
+                | Q(customer_email__icontains=query)
+            ).order_by("-created_at")[:8]
+            if _user_can_access_module(user, "pos")
             else [],
             "payment_results": Payment.objects.select_related("booking__guest", "booking__room").filter(
                 Q(reference__icontains=query)

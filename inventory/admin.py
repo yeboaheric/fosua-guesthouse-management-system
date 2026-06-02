@@ -35,15 +35,15 @@ class SupplierAdmin(admin.ModelAdmin):
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "sku", "category", "quantity_in_stock", "unit_of_measure", "is_active")
-    search_fields = ("name", "sku", "category__name", "subcategory__name")
+    list_display = ("name", "category", "quantity_in_stock", "unit_of_measure", "is_active")
+    search_fields = ("name", "category__name", "subcategory__name", "supplier__name")
     list_filter = ("category", "subcategory", "supplier", "unit_of_measure", "is_active")
 
 
 @admin.register(InventoryTransaction)
 class InventoryTransactionAdmin(admin.ModelAdmin):
     list_display = ("item", "transaction_type", "quantity_changed", "quantity_after", "created_at")
-    search_fields = ("item__name", "item__sku", "reference", "notes", "created_by__username")
+    search_fields = ("item__name", "reference", "notes", "created_by__username")
     list_filter = ("transaction_type", "created_at")
 
 

@@ -64,7 +64,7 @@ class InventoryPosWorkflowTests(TestCase):
 
         self.category = InventoryCategory.objects.create(
             name="Soft Drinks",
-            category_group=InventoryCategory.CategoryGroup.DRINKS,
+            category_group=InventoryCategory.CategoryGroup.NON_ALCOHOLIC,
             description="Chilled drinks",
         )
         self.subcategory = InventorySubcategory.objects.create(
@@ -75,7 +75,6 @@ class InventoryPosWorkflowTests(TestCase):
         self.supplier = Supplier.objects.create(name="Fresh Supply Co")
         self.item = InventoryItem.objects.create(
             name="Mango Juice",
-            sku="DRK-001",
             category=self.category,
             subcategory=self.subcategory,
             supplier=self.supplier,
@@ -93,7 +92,6 @@ class InventoryPosWorkflowTests(TestCase):
             reverse("inventory-item-create"),
             {
                 "name": "Coke Bottle",
-                "sku": "DRK-002",
                 "category": self.category.pk,
                 "subcategory": self.subcategory.pk,
                 "supplier": self.supplier.pk,
@@ -107,7 +105,7 @@ class InventoryPosWorkflowTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        created_item = InventoryItem.objects.get(sku="DRK-002")
+        created_item = InventoryItem.objects.get(name="Coke Bottle")
         transactions = InventoryTransaction.objects.filter(
             item=created_item,
             transaction_type=InventoryTransaction.TransactionType.PURCHASE,

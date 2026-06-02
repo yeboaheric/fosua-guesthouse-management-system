@@ -10,10 +10,9 @@ from django.utils import timezone
 
 class InventoryCategory(models.Model):
     class CategoryGroup(models.TextChoices):
-        DRINKS = "drinks", "Drinks"
+        NON_ALCOHOLIC = "non_alcoholic", "Non-alcoholic beverages"
+        ALCOHOLIC = "alcoholic", "Alcoholic beverages"
         FOODSTUFF = "foodstuff", "Foodstuff"
-        HOUSEKEEPING = "housekeeping", "Housekeeping"
-        OTHER = "other", "Other"
 
     name = models.CharField(max_length=120, unique=True)
     category_group = models.CharField(max_length=20, choices=CategoryGroup.choices)
@@ -81,7 +80,6 @@ class InventoryItem(models.Model):
         BAG = "bag", "Bag"
 
     name = models.CharField(max_length=160)
-    sku = models.CharField(max_length=80, unique=True)
     category = models.ForeignKey(
         InventoryCategory,
         on_delete=models.PROTECT,
@@ -115,7 +113,6 @@ class InventoryItem(models.Model):
     class Meta:
         ordering = ["category__name", "subcategory__name", "name"]
         indexes = [
-            models.Index(fields=["sku"]),
             models.Index(fields=["quantity_in_stock"]),
         ]
 

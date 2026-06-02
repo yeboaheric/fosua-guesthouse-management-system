@@ -54,7 +54,6 @@ class InventoryItemForm(forms.ModelForm):
         model = InventoryItem
         fields = [
             "name",
-            "sku",
             "category",
             "subcategory",
             "supplier",
@@ -69,7 +68,6 @@ class InventoryItemForm(forms.ModelForm):
         ]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control"}),
-            "sku": forms.TextInput(attrs={"class": "form-control"}),
             "category": forms.Select(attrs={"class": "form-select"}),
             "subcategory": forms.Select(attrs={"class": "form-select"}),
             "supplier": forms.Select(attrs={"class": "form-select"}),

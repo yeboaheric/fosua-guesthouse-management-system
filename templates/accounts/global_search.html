@@ -114,7 +114,7 @@
               <div class="d-flex justify-content-between gap-3 align-items-start">
                 <div>
                   <strong>{{ item.name }}</strong>
-                  <div class="text-muted small">{{ item.sku }} · {{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
+                  <div class="text-muted small">{{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
                 </div>
                 <span class="status-pill neutral">{{ item.quantity_in_stock }} {{ item.get_unit_of_measure_display }}</span>
               </div>

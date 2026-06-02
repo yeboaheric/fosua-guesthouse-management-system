@@ -26,7 +26,7 @@
     <form method="get" class="row g-3 align-items-end">
       <div class="col-lg-4">
         <label class="form-label" for="q">Search items</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, SKU, supplier, category">
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, supplier, category">
       </div>
       <div class="col-lg-2">
         <label class="form-label" for="category">Category</label>
@@ -99,7 +99,7 @@
                   {% endif %}
                   <div>
                     <div class="fw-semibold">{{ item.name }}</div>
-                    <div class="text-muted small">{{ item.sku }} · {{ item.get_unit_of_measure_display }}</div>
+                    <div class="text-muted small">{{ item.category.name }} · {{ item.get_unit_of_measure_display }}</div>
                   </div>
                 </div>
               </td>

@@ -41,7 +41,7 @@
             <tbody>
               {% for line in items %}
                 <tr>
-                  <td>{{ line.item.name }}<div class="text-muted small">{{ line.item.sku }}</div></td>
+                  <td>{{ line.item.name }}<div class="text-muted small">{{ line.item.category.name }}</div></td>
                   <td>{{ line.quantity }}</td>
                   <td>GHS {{ line.unit_price }}</td>
                   <td>GHS {{ line.line_total }}</td>

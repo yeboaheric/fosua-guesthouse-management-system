@@ -236,7 +236,6 @@ def item_list(request):
     if query:
         items = items.filter(
             Q(name__icontains=query)
-            | Q(sku__icontains=query)
             | Q(description__icontains=query)
             | Q(category__name__icontains=query)
             | Q(subcategory__name__icontains=query)
@@ -297,7 +296,7 @@ def item_update(request, pk):
                 quantity_after=item.quantity_in_stock,
                 transaction_type=InventoryTransaction.TransactionType.ADJUSTMENT,
                 created_by=request.user,
-                reference=item.sku,
+                reference=item.name,
                 notes="Manual stock update from item edit.",
             )
         messages.success(request, "Inventory item updated.")
@@ -342,7 +341,7 @@ def item_adjust_stock(request, pk):
             transaction_type=InventoryTransaction.TransactionType.ADJUSTMENT,
             created_by=request.user,
             stock_adjustment=adjustment,
-            reference=item.sku,
+            reference=item.name,
             notes=form.cleaned_data["notes"] or form.cleaned_data["reason"],
         )
         messages.success(request, "Stock adjusted successfully.")
@@ -360,7 +359,6 @@ def transaction_list(request):
     if query:
         transactions = transactions.filter(
             Q(item__name__icontains=query)
-            | Q(item__sku__icontains=query)
             | Q(reference__icontains=query)
             | Q(notes__icontains=query)
             | Q(created_by__username__icontains=query)
@@ -439,7 +437,6 @@ def pos_terminal(request):
     if query:
         items = items.filter(
             Q(name__icontains=query)
-            | Q(sku__icontains=query)
             | Q(category__name__icontains=query)
             | Q(subcategory__name__icontains=query)
         )
@@ -705,7 +702,7 @@ def _record_opening_stock(item, user):
         quantity_after=item.quantity_in_stock,
         transaction_type=InventoryTransaction.TransactionType.PURCHASE,
         created_by=user,
-        reference=item.sku,
+        reference=item.name,
         notes="Opening stock recorded when item was created.",
     )
 

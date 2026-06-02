@@ -246,7 +246,6 @@ def global_search(request):
             else [],
             "inventory_results": InventoryItem.objects.select_related("category", "subcategory", "supplier").filter(
                 Q(name__icontains=query)
-                | Q(sku__icontains=query)
                 | Q(category__name__icontains=query)
                 | Q(subcategory__name__icontains=query)
                 | Q(supplier__name__icontains=query)

@@ -20,7 +20,7 @@
     <form method="get" class="row g-3 align-items-end">
       <div class="col-lg-6">
         <label class="form-label" for="q">Search products</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, SKU, category, subcategory">
+        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, category, subcategory">
       </div>
       <div class="col-lg-3">
         <label class="form-label" for="category">Category</label>
@@ -57,7 +57,7 @@
                   <div class="d-flex justify-content-between gap-3">
                     <div>
                       <div class="fw-semibold">{{ item.name }}</div>
-                      <div class="text-muted small">{{ item.sku }} · {{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
+                      <div class="text-muted small">{{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
                       <div class="mt-2"><strong>GHS {{ item.selling_price }}</strong> <span class="text-muted small">/ {{ item.get_unit_of_measure_display }}</span></div>
                       <div class="text-muted small">Stock {{ item.quantity_in_stock }}</div>
                     </div>

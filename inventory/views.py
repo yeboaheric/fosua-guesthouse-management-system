@@ -476,7 +476,7 @@ def pos_checkout(request):
             item_ids = [line["id"] for line in cart]
             items_by_id = {
                 item.pk: item
-                for item in InventoryItem.objects.select_for_update().filter(pk__in=item_ids)
+                for item in InventoryItem.objects.filter(pk__in=item_ids)
             }
             missing_ids = [line["id"] for line in cart if line["id"] not in items_by_id]
             if missing_ids:

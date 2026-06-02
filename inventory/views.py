@@ -2,7 +2,7 @@ import csv
 import json
 import logging
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
 
@@ -465,6 +465,8 @@ def pos_checkout(request):
         form.add_error("cart", "Cart data is invalid.")
         return render(request, "inventory/pos_terminal.html", _pos_terminal_context(request, form), status=400)
 
+    logger.debug("POS checkout cart content: %s", cart)
+
     if not cart:
         form.add_error("cart", "Cart is empty.")
         return render(request, "inventory/pos_terminal.html", _pos_terminal_context(request, form), status=400)
@@ -480,13 +482,23 @@ def pos_checkout(request):
             if missing_ids:
                 raise ValidationError("One of the selected items no longer exists.")
 
-            sale = Sale.objects.create(
-                cashier=request.user,
-                payment_method=form.cleaned_data["payment_method"],
-                tax_amount=form.cleaned_data.get("tax_amount") or Decimal("0.00"),
-                discount_amount=form.cleaned_data.get("discount_amount") or Decimal("0.00"),
-                notes=form.cleaned_data.get("notes", ""),
-            )
+            sale = None
+            receipt_number = Sale.generate_receipt_number()
+            for _ in range(5):
+                try:
+                    sale = Sale.objects.create(
+                        cashier=request.user,
+                        receipt_number=receipt_number,
+                        payment_method=form.cleaned_data["payment_method"],
+                        tax_amount=form.cleaned_data.get("tax_amount") or Decimal("0.00"),
+                        discount_amount=form.cleaned_data.get("discount_amount") or Decimal("0.00"),
+                        notes=form.cleaned_data.get("notes", ""),
+                    )
+                    break
+                except IntegrityError:
+                    receipt_number = Sale.generate_receipt_number()
+            if sale is None:
+                raise IntegrityError("Unable to generate a unique receipt number.")
 
             subtotal = Decimal("0.00")
             for line in cart:
@@ -540,12 +552,16 @@ def pos_checkout(request):
                 "updated_at",
                 "receipt_number",
             ])
-    except (ValidationError, IntegrityError, ValueError, KeyError, TypeError) as exc:
-        logger.exception("POS checkout failed")
+    except Exception as exc:
+        logger.exception("POS checkout failed for user %s with cart %s", request.user, cart)
         if isinstance(exc, ValidationError):
             message = "; ".join(exc.messages) if getattr(exc, "messages", None) else "Unable to complete sale."
+        elif isinstance(exc, InvalidOperation):
+            message = "Sale values are invalid. Please check item quantities and amounts."
+        elif isinstance(exc, IntegrityError):
+            message = "A database error occurred while completing the sale. Please try again."
         else:
-            message = str(exc)
+            message = "Unable to complete sale. Please refresh and try again."
         form.add_error(None, message)
         return render(request, "inventory/pos_terminal.html", _pos_terminal_context(request, form), status=400)
 

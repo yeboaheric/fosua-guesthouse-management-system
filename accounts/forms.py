@@ -2,7 +2,22 @@ from django import forms
 from django.contrib.auth.models import Group, User
 from django.core.validators import RegexValidator
 
-from accounts.models import Employee, Rota, RolePermission, StaffProfile, UserAccessProfile
+from accounts.models import (
+    AttendanceRecord,
+    DisciplinaryRecord,
+    Employee,
+    EmployeeDocument,
+    EmployeeQualification,
+    EmploymentHistoryEntry,
+    LeaveRequest,
+    PayrollRecord,
+    PerformanceReview,
+    Rota,
+    RolePermission,
+    StaffProfile,
+    TrainingRecord,
+    UserAccessProfile,
+)
 from accounts.permissions import (
     ACTION_CHOICES,
     ACCESS_MODULE_CHOICES,
@@ -26,6 +41,7 @@ class EmployeeForm(forms.ModelForm):
     class Meta:
         model = Employee
         fields = [
+            "employee_id",
             "title",
             "first_name",
             "last_name",
@@ -36,12 +52,24 @@ class EmployeeForm(forms.ModelForm):
             "ssnit_number",
             "contact_number",
             "email",
+            "residential_address",
+            "department",
+            "job_title",
+            "salary_amount",
+            "supervisor",
             "gps_address",
+            "emergency_contact_name",
             "next_of_kin",
             "next_of_kin_contact",
             "next_of_kin_relationship",
             "start_date",
+            "leave_entitlement_days",
             "termination_date",
+            "termination_reason_choice",
+            "termination_approved_by",
+            "termination_exit_interview_notes",
+            "company_assets_returned",
+            "termination_remarks",
             "termination_reason",
             "emergency_contact_number",
             "position",
@@ -53,6 +81,7 @@ class EmployeeForm(forms.ModelForm):
             "passport_photo",
         ]
         widgets = {
+            "employee_id": forms.TextInput(attrs={"class": "form-control"}),
             "date_of_birth": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
             "termination_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
@@ -71,17 +100,34 @@ class EmployeeForm(forms.ModelForm):
             "title": forms.Select(attrs={"class": "form-select"}),
             "position": forms.Select(attrs={"class": "form-select"}),
             "employment_status": forms.Select(attrs={"class": "form-select"}),
+            "termination_reason_choice": forms.Select(attrs={"class": "form-select"}),
+            "termination_approved_by": forms.Select(attrs={"class": "form-select"}),
             "gender": forms.Select(attrs={"class": "form-select"}),
             "marital_status": forms.Select(attrs={"class": "form-select"}),
             "religion": forms.Select(attrs={"class": "form-select"}),
             "ethnic_origin": forms.TextInput(attrs={"class": "form-control"}),
             "first_name": forms.TextInput(attrs={"class": "form-control"}),
             "last_name": forms.TextInput(attrs={"class": "form-control"}),
+            "residential_address": forms.TextInput(attrs={"class": "form-control"}),
+            "department": forms.TextInput(attrs={"class": "form-control"}),
+            "job_title": forms.TextInput(attrs={"class": "form-control"}),
+            "salary_amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "supervisor": forms.Select(attrs={"class": "form-select"}),
+            "emergency_contact_name": forms.TextInput(attrs={"class": "form-control"}),
+            "leave_entitlement_days": forms.NumberInput(attrs={"class": "form-control"}),
             "termination_reason": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "termination_exit_interview_notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "termination_remarks": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "company_assets_returned": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        supervisor_queryset = Employee.objects.order_by("last_name", "first_name")
+        if self.instance and self.instance.pk:
+            supervisor_queryset = supervisor_queryset.exclude(pk=self.instance.pk)
+        self.fields["supervisor"].queryset = supervisor_queryset
+        self.fields["termination_approved_by"].queryset = User.objects.order_by("username")
         for field_name in self.fields:
             field = self.fields[field_name]
             if field.widget.attrs.get("class") is None:
@@ -99,6 +145,185 @@ class EmployeeForm(forms.ModelForm):
         value = self.cleaned_data.get("gps_address", "").strip().upper()
         GPS_ADDRESS_VALIDATOR(value)
         return value
+
+
+class EmployeeQualificationForm(forms.ModelForm):
+    class Meta:
+        model = EmployeeQualification
+        fields = [
+            "qualification_name",
+            "institution",
+            "certificate_number",
+            "certification_date",
+            "expiry_date",
+            "certificate_copy",
+            "notes",
+        ]
+        widgets = {
+            "qualification_name": forms.TextInput(attrs={"class": "form-control"}),
+            "institution": forms.TextInput(attrs={"class": "form-control"}),
+            "certificate_number": forms.TextInput(attrs={"class": "form-control"}),
+            "certification_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "expiry_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "certificate_copy": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+
+class EmployeeDocumentForm(forms.ModelForm):
+    class Meta:
+        model = EmployeeDocument
+        fields = ["document_type", "title", "file", "description"]
+        widgets = {
+            "document_type": forms.Select(attrs={"class": "form-select"}),
+            "title": forms.TextInput(attrs={"class": "form-control"}),
+            "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+
+class LeaveRequestForm(forms.ModelForm):
+    class Meta:
+        model = LeaveRequest
+        fields = [
+            "leave_type",
+            "start_date",
+            "end_date",
+            "days",
+            "return_to_work_date",
+            "reason",
+            "approval_status",
+            "approving_manager",
+            "supporting_document",
+            "decision_notes",
+        ]
+        widgets = {
+            "leave_type": forms.Select(attrs={"class": "form-select"}),
+            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "days": forms.NumberInput(attrs={"class": "form-control"}),
+            "return_to_work_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "reason": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "approval_status": forms.Select(attrs={"class": "form-select"}),
+            "approving_manager": forms.Select(attrs={"class": "form-select"}),
+            "supporting_document": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "decision_notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["approving_manager"].queryset = User.objects.order_by("username")
+
+
+class AttendanceRecordForm(forms.ModelForm):
+    class Meta:
+        model = AttendanceRecord
+        fields = ["work_date", "shift_type", "check_in", "check_out", "status", "notes"]
+        widgets = {
+            "work_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "shift_type": forms.Select(attrs={"class": "form-select"}),
+            "check_in": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
+            "check_out": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
+            "status": forms.Select(attrs={"class": "form-select"}),
+            "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+
+class PayrollRecordForm(forms.ModelForm):
+    class Meta:
+        model = PayrollRecord
+        fields = [
+            "pay_period_start",
+            "pay_period_end",
+            "basic_salary",
+            "allowances",
+            "deductions",
+            "overtime_pay",
+            "net_pay",
+            "payment_status",
+            "paid_at",
+            "notes",
+        ]
+        widgets = {
+            "pay_period_start": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "pay_period_end": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "basic_salary": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "allowances": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "deductions": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "overtime_pay": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "net_pay": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "payment_status": forms.Select(attrs={"class": "form-select"}),
+            "paid_at": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+
+class PerformanceReviewForm(forms.ModelForm):
+    class Meta:
+        model = PerformanceReview
+        fields = [
+            "review_date",
+            "reviewer",
+            "rating",
+            "summary",
+            "strengths",
+            "improvement_areas",
+            "next_review_date",
+        ]
+        widgets = {
+            "review_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "reviewer": forms.Select(attrs={"class": "form-select"}),
+            "rating": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 5}),
+            "summary": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "strengths": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "improvement_areas": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "next_review_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["reviewer"].queryset = User.objects.order_by("username")
+
+
+class DisciplinaryRecordForm(forms.ModelForm):
+    class Meta:
+        model = DisciplinaryRecord
+        fields = ["incident_date", "record_type", "details", "action_taken", "resolved", "resolved_at", "notes"]
+        widgets = {
+            "incident_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "record_type": forms.Select(attrs={"class": "form-select"}),
+            "details": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "action_taken": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+            "resolved": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "resolved_at": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+
+class TrainingRecordForm(forms.ModelForm):
+    class Meta:
+        model = TrainingRecord
+        fields = ["training_name", "provider", "start_date", "completion_date", "expiry_date", "certificate_file", "notes"]
+        widgets = {
+            "training_name": forms.TextInput(attrs={"class": "form-control"}),
+            "provider": forms.TextInput(attrs={"class": "form-control"}),
+            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "completion_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "expiry_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "certificate_file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "notes": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
+
+
+class EmploymentHistoryForm(forms.ModelForm):
+    class Meta:
+        model = EmploymentHistoryEntry
+        fields = ["change_type", "effective_date", "description"]
+        widgets = {
+            "change_type": forms.Select(attrs={"class": "form-select"}),
+            "effective_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "description": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
+        }
 
 
 class RotaForm(forms.ModelForm):

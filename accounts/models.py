@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.db import models
+from django.db.models import Q, Sum
 
 from accounts.permissions import ACCESS_MODULE_CHOICES, ACTION_CHOICES, user_has_permission
 
@@ -48,6 +51,19 @@ class Employee(models.Model):
         ("terminated", "Terminated"),
     ]
 
+    TERMINATION_REASON_CHOICES = [
+        ("resignation", "Resignation"),
+        ("contract_expired", "Contract Expired"),
+        ("retirement", "Retirement"),
+        ("dismissal", "Dismissal"),
+        ("redundancy", "Redundancy"),
+        ("abscondment", "Abscondment"),
+        ("mutual_separation", "Mutual Separation"),
+        ("death", "Death"),
+        ("other", "Other"),
+    ]
+
+    employee_id = models.CharField(max_length=60, unique=True, blank=True, null=True)
     title = models.CharField(max_length=10, choices=TITLE_CHOICES, blank=True)
     first_name = models.CharField(max_length=120)
     last_name = models.CharField(max_length=120)
@@ -58,12 +74,36 @@ class Employee(models.Model):
     ssnit_number = models.CharField(max_length=100, blank=True)
     contact_number = models.CharField(max_length=40)
     email = models.EmailField(blank=True)
+    residential_address = models.CharField(max_length=255, blank=True)
+    department = models.CharField(max_length=120, blank=True)
+    job_title = models.CharField(max_length=120, blank=True)
+    salary_amount = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    supervisor = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="team_members",
+    )
     gps_address = models.CharField(max_length=255, blank=True)
+    emergency_contact_name = models.CharField(max_length=255, blank=True)
     next_of_kin = models.CharField(max_length=255, blank=True)
     next_of_kin_contact = models.CharField(max_length=40, blank=True)
     next_of_kin_relationship = models.CharField(max_length=120, blank=True)
     start_date = models.DateField()
+    leave_entitlement_days = models.PositiveIntegerField(default=21)
     termination_date = models.DateField(blank=True, null=True)
+    termination_reason_choice = models.CharField(max_length=40, choices=TERMINATION_REASON_CHOICES, blank=True)
+    termination_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_employee_terminations",
+    )
+    termination_exit_interview_notes = models.TextField(blank=True)
+    company_assets_returned = models.BooleanField(default=False)
+    termination_remarks = models.TextField(blank=True)
     termination_reason = models.TextField(blank=True)
     emergency_contact_number = models.CharField(max_length=40, blank=True)
     position = models.CharField(max_length=20, choices=POSITION_CHOICES)
@@ -91,7 +131,35 @@ class Employee(models.Model):
         verbose_name_plural = "Employees"
 
     def __str__(self):
+        if self.employee_id:
+            return f"{self.employee_id} - {self.first_name} {self.last_name}"
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def annual_leave_taken_days(self):
+        return (
+            self.leave_requests.filter(
+                leave_type="annual",
+                approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            ).aggregate(total=Sum("days"))["total"]
+            or 0
+        )
+
+    @property
+    def annual_leave_balance(self):
+        return max(self.leave_entitlement_days - int(self.annual_leave_taken_days or 0), 0)
+
+    @property
+    def expiring_certifications_count(self):
+        from django.utils import timezone
+
+        today = timezone.localdate()
+        cutoff = today + timedelta(days=365)
+        return self.qualifications.filter(expiry_date__lte=cutoff).count()
 
 
 class Rota(models.Model):
@@ -150,6 +218,247 @@ class Rota(models.Model):
         closing_minutes = self.closing_time.hour * 60 + self.closing_time.minute
         shift_minutes = max(closing_minutes - opening_minutes, 0)
         return round(shift_minutes / 60, 2)
+
+
+class EmployeeDocument(models.Model):
+    class DocumentType(models.TextChoices):
+        NATIONAL_ID = "national_id", "National ID"
+        CONTRACT = "contract", "Employment Contract"
+        CV = "cv", "CV"
+        APPOINTMENT = "appointment_letter", "Appointment Letter"
+        CERTIFICATE = "certificate", "Certificate"
+        OTHER = "other", "Other"
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="documents")
+    document_type = models.CharField(max_length=40, choices=DocumentType.choices)
+    title = models.CharField(max_length=160)
+    file = models.FileField(upload_to="employee_documents/")
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} - {self.employee}"
+
+
+class EmployeeQualification(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="qualifications")
+    qualification_name = models.CharField(max_length=160)
+    institution = models.CharField(max_length=160)
+    certificate_number = models.CharField(max_length=120, blank=True)
+    certification_date = models.DateField()
+    expiry_date = models.DateField(blank=True, null=True)
+    certificate_copy = models.FileField(upload_to="employee_certifications/", blank=True, null=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-certification_date"]
+
+    def __str__(self):
+        return f"{self.qualification_name} - {self.employee}"
+
+
+class LeaveRequest(models.Model):
+    class LeaveType(models.TextChoices):
+        ANNUAL = "annual", "Annual Leave"
+        SICK = "sick", "Sick Leave"
+        FAMILY = "family_emergency", "Family Emergency"
+        STUDY = "study", "Study Leave"
+        MATERNITY = "maternity", "Maternity Leave"
+        UNPAID = "unpaid", "Unpaid Leave"
+        OTHER = "other", "Other"
+
+    class ApprovalStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        CANCELLED = "cancelled", "Cancelled"
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="leave_requests")
+    leave_type = models.CharField(max_length=30, choices=LeaveType.choices)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    days = models.PositiveIntegerField(default=1)
+    return_to_work_date = models.DateField()
+    reason = models.TextField()
+    approval_status = models.CharField(max_length=20, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+    approving_manager = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_leave_requests",
+    )
+    supporting_document = models.FileField(upload_to="leave_requests/", blank=True, null=True)
+    decision_notes = models.TextField(blank=True)
+    approved_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.employee} {self.get_leave_type_display()}"
+
+    def save(self, *args, **kwargs):
+        if self.start_date and self.end_date:
+            self.days = max((self.end_date - self.start_date).days + 1, 1)
+            if not self.return_to_work_date:
+                self.return_to_work_date = self.end_date + timedelta(days=1)
+        super().save(*args, **kwargs)
+
+
+class AttendanceRecord(models.Model):
+    class ShiftType(models.TextChoices):
+        MORNING = "morning", "Morning"
+        AFTERNOON = "afternoon", "Afternoon"
+        EVENING = "evening", "Evening"
+        OVERNIGHT = "overnight", "Overnight"
+        CUSTOM = "custom", "Custom"
+
+    class AttendanceStatus(models.TextChoices):
+        PRESENT = "present", "Present"
+        LATE = "late", "Late"
+        ABSENT = "absent", "Absent"
+        ON_LEAVE = "on_leave", "On Leave"
+        OFF_DUTY = "off_duty", "Off Duty"
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="attendance_records")
+    work_date = models.DateField()
+    shift_type = models.CharField(max_length=20, choices=ShiftType.choices, default=ShiftType.MORNING)
+    check_in = models.DateTimeField(blank=True, null=True)
+    check_out = models.DateTimeField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=AttendanceStatus.choices, default=AttendanceStatus.PRESENT)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-work_date", "employee__last_name"]
+
+    def __str__(self):
+        return f"{self.employee} - {self.work_date}"
+
+
+class PayrollRecord(models.Model):
+    class PaymentStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        PAID = "paid", "Paid"
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="payroll_records")
+    pay_period_start = models.DateField()
+    pay_period_end = models.DateField()
+    basic_salary = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    allowances = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    overtime_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_pay = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_status = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
+    paid_at = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-pay_period_start"]
+
+    def __str__(self):
+        return f"{self.employee} payroll {self.pay_period_start} - {self.pay_period_end}"
+
+
+class PerformanceReview(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="performance_reviews")
+    review_date = models.DateField()
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="employee_reviews")
+    rating = models.PositiveSmallIntegerField(default=3)
+    summary = models.TextField(blank=True)
+    strengths = models.TextField(blank=True)
+    improvement_areas = models.TextField(blank=True)
+    next_review_date = models.DateField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-review_date"]
+
+    def __str__(self):
+        return f"{self.employee} review {self.review_date}"
+
+
+class DisciplinaryRecord(models.Model):
+    class RecordType(models.TextChoices):
+        WARNING = "warning", "Warning"
+        SUSPENSION = "suspension", "Suspension"
+        QUERY = "query", "Query"
+        FINAL_WARNING = "final_warning", "Final Warning"
+        OTHER = "other", "Other"
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="disciplinary_records")
+    incident_date = models.DateField()
+    record_type = models.CharField(max_length=20, choices=RecordType.choices)
+    details = models.TextField()
+    action_taken = models.TextField(blank=True)
+    resolved = models.BooleanField(default=False)
+    resolved_at = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-incident_date"]
+
+    def __str__(self):
+        return f"{self.employee} - {self.get_record_type_display()}"
+
+
+class TrainingRecord(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="training_records")
+    training_name = models.CharField(max_length=160)
+    provider = models.CharField(max_length=160, blank=True)
+    start_date = models.DateField(blank=True, null=True)
+    completion_date = models.DateField(blank=True, null=True)
+    expiry_date = models.DateField(blank=True, null=True)
+    certificate_file = models.FileField(upload_to="employee_training/", blank=True, null=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-completion_date", "-created_at"]
+
+    def __str__(self):
+        return f"{self.training_name} - {self.employee}"
+
+
+class EmploymentHistoryEntry(models.Model):
+    class ChangeType(models.TextChoices):
+        HIRED = "hired", "Hired"
+        PROMOTED = "promoted", "Promoted"
+        TRANSFERRED = "transferred", "Transferred"
+        LEAVE = "leave", "Leave"
+        TRAINING = "training", "Training"
+        APPRAISAL = "appraisal", "Appraisal"
+        TERMINATION = "termination", "Termination"
+        OTHER = "other", "Other"
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="history_entries")
+    change_type = models.CharField(max_length=20, choices=ChangeType.choices)
+    effective_date = models.DateField()
+    description = models.TextField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="employee_history_entries")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-effective_date", "-created_at"]
+
+    def __str__(self):
+        return f"{self.employee} - {self.get_change_type_display()}"
 
 
 class UserAccessProfile(models.Model):

@@ -1,76 +1,152 @@
 {% extends "base.html" %}
-{% load static %}
 
 {% block content %}
-<div class="dashboard-background p-4 rounded-4 shadow-sm">
-  <div class="brand-panel p-4 mb-4 d-flex justify-content-between align-items-center flex-column flex-md-row gap-3">
-    <div>
-      <h1 class="h4 mb-1">Search Employees</h1>
-      <div class="brand-badge">Find staff records, leave status, and weekly rosters</div>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-sm btn-light" href="{% url 'hr-rota-list' %}">Duty Roster</a>
-      <a class="btn btn-sm btn-light" href="{% url 'hr-create' %}">Add New Employee</a>
-    </div>
-  </div>
-
-  <div class="card shadow-sm border-0 mb-4">
-    <div class="card-body">
-      <form method="get" class="row g-3 align-items-end">
-        <div class="col-md-9">
-          <label class="form-label" for="q">Search employee</label>
-          <input class="form-control" type="text" id="q" name="q" value="{{ query }}" placeholder="Search by name, position, or Ghana Card number">
-        </div>
-        <div class="col-md-3 d-grid">
-          <button class="btn btn-primary" type="submit">Search</button>
-        </div>
-      </form>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-column flex-md-row gap-3">
+      <div>
+        <div class="section-eyebrow mb-2">Staff management</div>
+        <h1 class="page-title mb-2">Search employees</h1>
+        <div class="page-subtitle">Central employee database with leaves, certifications, rosters, payroll, and termination records.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'hr-rota-list' %}"><i data-lucide="calendar-range"></i> Duty Roster</a>
+        <a class="topbar-pill" href="{% url 'hr-create' %}"><i data-lucide="plus"></i> Add Employee</a>
+      </div>
     </div>
   </div>
 
-  <div class="table-responsive">
-    <table class="table table-hover table-striped align-middle">
-      <thead>
-        <tr>
-          <th>Photo</th>
-          <th>Name</th>
-          <th>Position</th>
-          <th>Contact</th>
-          <th>Status</th>
-          <th>Start Date</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for employee in employees %}
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="q">Search</label>
+        <input class="form-control" type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee ID, Ghana Card, department">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="department">Department</label>
+        <input class="form-control" list="department-list" id="department" name="department" value="{{ department }}" placeholder="All">
+        <datalist id="department-list">
+          {% for dep in departments %}
+            <option value="{{ dep }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="status">Status</label>
+        <select class="form-select" name="status" id="status">
+          <option value="">All</option>
+          {% for value,label in status_choices %}
+            <option value="{{ value }}" {% if employment_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="role">Role</label>
+        <select class="form-select" name="role" id="role">
+          <option value="">All</option>
+          {% for value,label in positions %}
+            <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="leave">Leave</label>
+        <select class="form-select" name="leave" id="leave">
+          <option value="">All</option>
+          <option value="active" {% if leave_status == "active" %}selected{% endif %}>Active</option>
+          <option value="on_leave" {% if leave_status == "on_leave" %}selected{% endif %}>On leave</option>
+          <option value="terminated" {% if leave_status == "terminated" %}selected{% endif %}>Terminated</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="certifications">Certs</label>
+        <select class="form-select" name="certifications" id="certifications">
+          <option value="">All</option>
+          <option value="expiring" {% if certification_status == "expiring" %}selected{% endif %}>Expiring</option>
+          <option value="expired" {% if certification_status == "expired" %}selected{% endif %}>Expired</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="hired_from">Hired from</label>
+        <input class="form-control" type="date" id="hired_from" name="hired_from" value="{{ hired_from }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="hired_to">Hired to</label>
+        <input class="form-control" type="date" id="hired_to" name="hired_to" value="{{ hired_to }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="terminated_from">Terminated from</label>
+        <input class="form-control" type="date" id="terminated_from" name="terminated_from" value="{{ terminated_from }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="terminated_to">Terminated to</label>
+        <input class="form-control" type="date" id="terminated_to" name="terminated_to" value="{{ terminated_to }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="roster">Roster</label>
+        <select class="form-select" id="roster" name="roster">
+          <option value="">Any</option>
+          {% for roster_employee in roster_employees %}
+            <option value="{{ roster_employee.pk }}" {% if selected_roster_employee == roster_employee.pk|stringformat:"s" %}selected{% endif %}>{{ roster_employee.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary" type="submit">Filter</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
           <tr>
-            <td>
-              {% if employee.passport_photo %}
-                <img src="{{ employee.passport_photo.url }}" alt="{{ employee }}" class="employee-avatar">
-              {% else %}
-                <div class="employee-avatar employee-avatar-placeholder">{{ employee.first_name|slice:":1" }}{{ employee.last_name|slice:":1" }}</div>
-              {% endif %}
-            </td>
-            <td>{{ employee.get_title_display }} {{ employee.first_name }} {{ employee.last_name }}</td>
-            <td>{{ employee.get_position_display }}</td>
-            <td>{{ employee.contact_number }}</td>
-            <td>{{ employee.get_employment_status_display }}</td>
-            <td>{{ employee.start_date }}</td>
-            <td>
-              <div class="d-flex gap-2 justify-content-end flex-wrap">
-                <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}">View</a>
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
-                <a class="btn btn-sm btn-outline-danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
-              </div>
-            </td>
+            <th>Photo</th>
+            <th>Employee</th>
+            <th>Department</th>
+            <th>Role</th>
+            <th>Contact</th>
+            <th>Status</th>
+            <th>Hired</th>
+            <th></th>
           </tr>
-        {% empty %}
-          <tr>
-            <td colspan="7" class="text-center text-muted">No employees matched your search.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for employee in employees %}
+            <tr>
+              <td>
+                {% if employee.passport_photo %}
+                  <img src="{{ employee.passport_photo.url }}" alt="{{ employee }}" class="employee-avatar">
+                {% else %}
+                  <div class="employee-avatar employee-avatar-placeholder">{{ employee.first_name|slice:":1" }}{{ employee.last_name|slice:":1" }}</div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="fw-semibold">{{ employee.full_name }}</div>
+                <div class="text-muted small">{{ employee.employee_id|default:"-" }}</div>
+              </td>
+              <td>{{ employee.department|default:"-" }}</td>
+              <td>{{ employee.job_title|default:employee.get_position_display }}</td>
+              <td>{{ employee.contact_number }}</td>
+              <td><span class="status-pill {% if employee.employment_status == 'active' %}success{% else %}neutral{% endif %}">{{ employee.get_employment_status_display }}</span></td>
+              <td>{{ employee.start_date }}</td>
+              <td>
+                <div class="d-flex gap-2 justify-content-end flex-wrap">
+                  <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}">View</a>
+                  <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
+                  <a class="btn btn-sm btn-outline-danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center text-muted">No employees matched your search.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}

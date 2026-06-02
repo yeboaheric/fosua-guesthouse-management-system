@@ -19,8 +19,38 @@ from django.utils import timezone
 
 from accounts.audit import log_audit_event
 from accounts.decorators import group_required
-from accounts.forms import EmployeeForm, RoleCreateForm, RolePermissionForm, RotaForm, StaffRoleForm, StaffUserForm
-from accounts.models import AuditLog, Employee, Rota, RolePermission
+from accounts.forms import (
+    AttendanceRecordForm,
+    DisciplinaryRecordForm,
+    EmployeeDocumentForm,
+    EmployeeForm,
+    EmployeeQualificationForm,
+    EmploymentHistoryForm,
+    LeaveRequestForm,
+    PayrollRecordForm,
+    PerformanceReviewForm,
+    RoleCreateForm,
+    RolePermissionForm,
+    RotaForm,
+    StaffRoleForm,
+    StaffUserForm,
+    TrainingRecordForm,
+)
+from accounts.models import (
+    AttendanceRecord,
+    AuditLog,
+    DisciplinaryRecord,
+    Employee,
+    EmployeeDocument,
+    EmployeeQualification,
+    EmploymentHistoryEntry,
+    LeaveRequest,
+    PayrollRecord,
+    PerformanceReview,
+    Rota,
+    RolePermission,
+    TrainingRecord,
+)
 from accounts.permissions import (
     ACTION_CHOICES,
     ACCESS_MODULE_CHOICES,
@@ -620,25 +650,270 @@ def analytics_center(request):
     )
 
 
-@group_required("Admin")
+def _employee_section_headers(section):
+    return {
+        "leave": ["Type", "Dates", "Days", "Return", "Status", "Manager"],
+        "certifications": ["Qualification", "Institution", "Certificate #", "Issued", "Expires"],
+        "documents": ["Type", "Title", "File", "Created"],
+        "attendance": ["Date", "Shift", "Status", "Check-in", "Check-out"],
+        "payroll": ["Pay period", "Gross", "Net", "Status", "Paid at"],
+        "performance": ["Review date", "Reviewer", "Rating", "Next review", "Summary"],
+        "disciplinary": ["Date", "Type", "Resolved", "Action taken", "Notes"],
+        "training": ["Training", "Provider", "Completed", "Expires", "Notes"],
+        "history": ["Change", "Effective date", "Description", "Created by"],
+    }.get(section, [])
+
+
+def _employee_section_records(employee, section):
+    if section == "leave":
+        return employee.leave_requests.select_related("approving_manager").order_by("-created_at")
+    if section == "certifications":
+        return employee.qualifications.order_by("-certification_date")
+    if section == "documents":
+        return employee.documents.order_by("-created_at")
+    if section == "attendance":
+        return employee.attendance_records.order_by("-work_date")
+    if section == "payroll":
+        return employee.payroll_records.order_by("-pay_period_start")
+    if section == "performance":
+        return employee.performance_reviews.select_related("reviewer").order_by("-review_date")
+    if section == "disciplinary":
+        return employee.disciplinary_records.order_by("-incident_date")
+    if section == "training":
+        return employee.training_records.order_by("-completion_date")
+    if section == "history":
+        return employee.history_entries.select_related("created_by").order_by("-effective_date")
+    return []
+
+
+def _employee_section_form_class(section):
+    return {
+        "leave": LeaveRequestForm,
+        "certifications": EmployeeQualificationForm,
+        "documents": EmployeeDocumentForm,
+        "attendance": AttendanceRecordForm,
+        "payroll": PayrollRecordForm,
+        "performance": PerformanceReviewForm,
+        "disciplinary": DisciplinaryRecordForm,
+        "training": TrainingRecordForm,
+        "history": EmploymentHistoryForm,
+    }.get(section)
+
+
+def _employee_section_title(section):
+    return {
+        "leave": "Annual Leave",
+        "certifications": "Qualifications & Certifications",
+        "documents": "Employee Documents",
+        "attendance": "Attendance History",
+        "payroll": "Payroll Information",
+        "performance": "Performance Reviews",
+        "disciplinary": "Disciplinary Records",
+        "training": "Training Records",
+        "history": "Employment History",
+    }.get(section, "Staff Management")
+
+
+def _employee_section_row(record, section):
+    if section == "leave":
+        return [
+            record.get_leave_type_display(),
+            f"{record.start_date:%Y-%m-%d} to {record.end_date:%Y-%m-%d}",
+            str(record.days),
+            record.return_to_work_date.strftime("%Y-%m-%d") if record.return_to_work_date else "-",
+            record.get_approval_status_display(),
+            record.approving_manager.get_username() if record.approving_manager else "-",
+        ]
+    if section == "certifications":
+        return [
+            record.qualification_name,
+            record.institution,
+            record.certificate_number or "-",
+            record.certification_date.strftime("%Y-%m-%d"),
+            record.expiry_date.strftime("%Y-%m-%d") if record.expiry_date else "-",
+        ]
+    if section == "documents":
+        return [
+            record.get_document_type_display(),
+            record.title,
+            record.file.name.split("/")[-1],
+            record.created_at.strftime("%Y-%m-%d"),
+        ]
+    if section == "attendance":
+        return [
+            record.work_date.strftime("%Y-%m-%d"),
+            record.get_shift_type_display(),
+            record.get_status_display(),
+            record.check_in.strftime("%Y-%m-%d %H:%M") if record.check_in else "-",
+            record.check_out.strftime("%Y-%m-%d %H:%M") if record.check_out else "-",
+        ]
+    if section == "payroll":
+        return [
+            f"{record.pay_period_start:%Y-%m-%d} to {record.pay_period_end:%Y-%m-%d}",
+            f"GHS {record.basic_salary}",
+            f"GHS {record.net_pay}",
+            record.get_payment_status_display(),
+            record.paid_at.strftime("%Y-%m-%d %H:%M") if record.paid_at else "-",
+        ]
+    if section == "performance":
+        return [
+            record.review_date.strftime("%Y-%m-%d"),
+            record.reviewer.get_username() if record.reviewer else "-",
+            str(record.rating),
+            record.next_review_date.strftime("%Y-%m-%d") if record.next_review_date else "-",
+            record.summary[:80] if record.summary else "-",
+        ]
+    if section == "disciplinary":
+        return [
+            record.incident_date.strftime("%Y-%m-%d"),
+            record.get_record_type_display(),
+            "Yes" if record.resolved else "No",
+            record.action_taken[:80] if record.action_taken else "-",
+            record.notes[:80] if record.notes else "-",
+        ]
+    if section == "training":
+        return [
+            record.training_name,
+            record.provider or "-",
+            record.completion_date.strftime("%Y-%m-%d") if record.completion_date else "-",
+            record.expiry_date.strftime("%Y-%m-%d") if record.expiry_date else "-",
+            record.notes[:80] if record.notes else "-",
+        ]
+    if section == "history":
+        return [
+            record.get_change_type_display(),
+            record.effective_date.strftime("%Y-%m-%d"),
+            record.description[:80],
+            record.created_by.get_username() if record.created_by else "-",
+        ]
+    return []
+
+
+@group_required("Admin", "Super Administrator", module="staff_management")
+def hr_employee_section(request, pk, section):
+    employee = get_object_or_404(Employee, pk=pk)
+    form_class = _employee_section_form_class(section)
+    if form_class is None:
+        return redirect("hr-detail", pk=employee.pk)
+
+    form = form_class(request.POST or None, request.FILES or None)
+    records = _employee_section_records(employee, section)
+    if request.method == "POST" and form.is_valid():
+        record = form.save(commit=False)
+        record.employee = employee
+        if hasattr(record, "approving_manager_id") and not record.approving_manager_id and section == "leave":
+            if record.approval_status == LeaveRequest.ApprovalStatus.APPROVED:
+                record.approving_manager = request.user
+                record.approved_at = timezone.now()
+        if hasattr(record, "reviewer_id") and not record.reviewer_id and section == "performance":
+            record.reviewer = request.user
+        if hasattr(record, "created_by_id") and not record.created_by_id and section == "history":
+            record.created_by = request.user
+        if hasattr(record, "paid_at") and record.payment_status == PayrollRecord.PaymentStatus.PAID and not record.paid_at:
+            record.paid_at = timezone.now()
+        record.save()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.CREATE,
+            module="staff_management",
+            object_repr=str(employee),
+            object_id=employee.pk,
+            details={"section": section, "record": str(record)},
+        )
+        messages.success(request, f"{_employee_section_title(section)} saved successfully.")
+        return redirect("hr-employee-section", pk=employee.pk, section=section)
+
+    return render(
+        request,
+        "accounts/hr_employee_section.html",
+        {
+            "employee": employee,
+            "section": section,
+            "section_title": _employee_section_title(section),
+            "headers": _employee_section_headers(section),
+            "rows": [_employee_section_row(record, section) for record in records],
+            "records": records,
+            "form": form,
+        },
+    )
+
+
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_list(request):
     query = request.GET.get("q", "").strip()
-    employees = Employee.objects.all().order_by("last_name", "first_name")
+    department = request.GET.get("department", "").strip()
+    employment_status = request.GET.get("status", "").strip()
+    role = request.GET.get("role", "").strip()
+    leave_status = request.GET.get("leave", "").strip()
+    certification_status = request.GET.get("certifications", "").strip()
+    hired_from = request.GET.get("hired_from", "").strip()
+    hired_to = request.GET.get("hired_to", "").strip()
+    terminated_from = request.GET.get("terminated_from", "").strip()
+    terminated_to = request.GET.get("terminated_to", "").strip()
+    roster_employee = request.GET.get("roster", "").strip()
+
+    employees = Employee.objects.select_related("supervisor").prefetch_related("qualifications", "leave_requests", "rota_entries").all().order_by("last_name", "first_name")
     if query:
         employees = employees.filter(
             Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
+            | Q(employee_id__icontains=query)
             | Q(position__icontains=query)
+            | Q(department__icontains=query)
             | Q(ghana_card_number__icontains=query)
         )
+    if department:
+        employees = employees.filter(department__icontains=department)
+    if employment_status:
+        employees = employees.filter(employment_status=employment_status)
+    if role:
+        employees = employees.filter(position=role)
+    if hired_from:
+        employees = employees.filter(start_date__gte=hired_from)
+    if hired_to:
+        employees = employees.filter(start_date__lte=hired_to)
+    if terminated_from:
+        employees = employees.filter(termination_date__gte=terminated_from)
+    if terminated_to:
+        employees = employees.filter(termination_date__lte=terminated_to)
+    if roster_employee:
+        employees = employees.filter(rota_entries__isnull=False, pk=roster_employee).distinct()
+    if leave_status == "on_leave":
+        employees = employees.filter(employment_status__in=["annual_leave", "sick_leave", "family_emergency"])
+    elif leave_status == "active":
+        employees = employees.filter(employment_status="active")
+    elif leave_status == "terminated":
+        employees = employees.filter(employment_status="terminated")
+    if certification_status == "expiring":
+        employees = employees.filter(qualifications__expiry_date__isnull=False).distinct()
+    elif certification_status == "expired":
+        employees = employees.filter(qualifications__expiry_date__lt=timezone.localdate()).distinct()
     return render(
         request,
         "accounts/hr_employee_list.html",
-        {"employees": employees, "query": query},
+        {
+            "employees": employees,
+            "query": query,
+            "department": department,
+            "employment_status": employment_status,
+            "role": role,
+            "leave_status": leave_status,
+            "certification_status": certification_status,
+            "hired_from": hired_from,
+            "hired_to": hired_to,
+            "terminated_from": terminated_from,
+            "terminated_to": terminated_to,
+            "selected_roster_employee": roster_employee,
+            "departments": Employee.objects.exclude(department="").values_list("department", flat=True).distinct().order_by("department"),
+            "positions": Employee.POSITION_CHOICES,
+            "status_choices": Employee.EMPLOYMENT_STATUS_CHOICES,
+            "roster_employees": Employee.objects.filter(rota_entries__isnull=False).distinct().order_by("last_name", "first_name"),
+        },
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_create(request):
     form = EmployeeForm(request.POST or None, request.FILES or None)
     if form.is_valid():
@@ -652,7 +927,7 @@ def hr_employee_create(request):
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_update(request, pk):
     employee = get_object_or_404(Employee, pk=pk)
     form = EmployeeForm(request.POST or None, request.FILES or None, instance=employee)
@@ -667,18 +942,27 @@ def hr_employee_update(request, pk):
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_detail(request, pk):
-    employee = get_object_or_404(Employee.objects.prefetch_related("rota_entries"), pk=pk)
+    employee = get_object_or_404(
+        Employee.objects.select_related("supervisor", "termination_approved_by")
+        .prefetch_related("rota_entries", "documents", "qualifications", "leave_requests"),
+        pk=pk,
+    )
     rotas = employee.rota_entries.order_by("-period_start", "opening_time")
     return render(
         request,
         "accounts/hr_employee_detail.html",
-        {"employee": employee, "rotas": rotas},
+        {
+            "employee": employee,
+            "rotas": rotas,
+            "leave_balance": employee.annual_leave_balance,
+            "expiring_certifications_count": employee.expiring_certifications_count,
+        },
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_delete(request, pk):
     employee = get_object_or_404(Employee, pk=pk)
     if request.method == "POST":
@@ -687,10 +971,11 @@ def hr_employee_delete(request, pk):
     return render(request, "accounts/hr_employee_confirm_delete.html", {"employee": employee})
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_rota_list(request):
     period, reference_date, start_date, end_date = _parse_rota_range(request)
     query = request.GET.get("q", "").strip()
+    employee_id = request.GET.get("employee", "").strip()
     rotas_qs = (
         Rota.objects.select_related("employee")
         .filter(employee__isnull=False, period_start__lte=end_date, period_end__gte=start_date)
@@ -703,6 +988,8 @@ def hr_rota_list(request):
             | Q(employee__position__icontains=query)
             | Q(period__icontains=query)
         )
+    if employee_id:
+        rotas_qs = rotas_qs.filter(employee_id=employee_id)
     rotas = list(rotas_qs)
 
     summary = {
@@ -722,11 +1009,13 @@ def hr_rota_list(request):
             "end_date": end_date,
             "summary": summary,
             "day_reports": _rota_day_reports(rotas, start_date, end_date),
+            "selected_employee": employee_id,
+            "employees": Employee.objects.order_by("last_name", "first_name"),
         },
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_rota_create(request):
     form = RotaForm(request.POST or None)
     if form.is_valid():
@@ -744,7 +1033,7 @@ def hr_rota_create(request):
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_rota_update(request, pk):
     rota = get_object_or_404(Rota, pk=pk)
     form = RotaForm(request.POST or None, instance=rota)
@@ -761,7 +1050,7 @@ def hr_rota_update(request, pk):
     )
 
 
-@group_required("Admin")
+@group_required("Admin", "Super Administrator", module="staff_management")
 def hr_rota_detail(request, pk):
     rota = get_object_or_404(Rota.objects.select_related("employee"), pk=pk)
     return render(

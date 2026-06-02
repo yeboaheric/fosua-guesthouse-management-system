@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
+      <div>
+        <div class="section-eyebrow mb-2">Staff management</div>
+        <h1 class="page-title mb-2">{{ section_title }}</h1>
+        <div class="page-subtitle">{{ employee.full_name }} · {{ employee.department|default:employee.get_position_display }}</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'hr-detail' employee.pk %}"><i data-lucide="user-round"></i> Employee file</a>
+        <a class="topbar-pill" href="{% url 'hr-rota-list' %}?employee={{ employee.pk }}"><i data-lucide="calendar-range"></i> Roster</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-4">
+      <div class="surface-panel p-4 h-100">
+        <h2 class="h5 mb-3">Create {{ section_title|lower }}</h2>
+        <form method="post" enctype="multipart/form-data" class="d-grid gap-3">
+          {% csrf_token %}
+          {% for field in form.visible_fields %}
+            <div>
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>{% endif %}
+            </div>
+          {% endfor %}
+          {% if form.non_field_errors %}
+            <div class="text-danger small">{{ form.non_field_errors|join:", " }}</div>
+          {% endif %}
+          <button type="submit" class="btn btn-primary">Save</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="surface-panel p-4">
+        <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow mb-1">Records</div>
+            <h2 class="h5 mb-0">{{ records|length }} item(s)</h2>
+          </div>
+        </div>
+        <div class="table-responsive soft-table">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                {% for header in headers %}
+                  <th>{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="{{ headers|length }}" class="text-center text-muted py-4">No records yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

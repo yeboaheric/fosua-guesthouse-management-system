@@ -149,7 +149,7 @@ class BookingWorkflowTests(TestCase):
         self.room.refresh_from_db()
         self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_IN)
         self.assertEqual(self.room.status, Room.RoomStatus.OCCUPIED)
-        self.assertGreater(self.room.status_started_at, original_started)
+        self.assertEqual(self.room.status_started_at, original_started)
         self.assertGreater(self.room.last_status_changed_at, original_changed)
 
     def test_check_out_updates_booking_and_room_status(self):
@@ -168,7 +168,7 @@ class BookingWorkflowTests(TestCase):
         self.room.refresh_from_db()
         self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_OUT)
         self.assertEqual(self.room.status, Room.RoomStatus.AVAILABLE)
-        self.assertGreater(self.room.status_started_at, original_started)
+        self.assertEqual(self.room.status_started_at, original_started)
         self.assertGreater(self.room.last_status_changed_at, original_changed)
 
     def test_record_payment_updates_booking_balance(self):

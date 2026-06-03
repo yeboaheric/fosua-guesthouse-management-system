@@ -123,8 +123,8 @@
               <td>Room {{ room.room_number }}</td>
               <td>{{ room.get_room_type_display }}</td>
               <td><span class="status-pill neutral">{{ room.get_status_display }}</span></td>
-              <td>{{ room.status_started_at|date:"M d, Y H:i" }}</td>
-              <td>{{ room.last_status_changed_at|date:"M d, Y H:i" }}</td>
+              <td>{{ room.status_started_at|date:"M d, Y H:i:s" }}</td>
+              <td>{{ room.last_status_changed_at|date:"M d, Y H:i:s" }}</td>
             </tr>
           {% empty %}
             <tr><td colspan="5" class="text-muted">No status updates yet.</td></tr>

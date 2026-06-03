@@ -160,8 +160,8 @@
               <tr>
                 <td>{{ room.room_number }}</td>
                 <td>{{ room.get_room_type_display }}</td>
-                <td>{{ room.status_started_at|date:"Y-m-d H:i" }}</td>
-                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ room.status_started_at|date:"Y-m-d H:i:s" }}</td>
+                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i:s" }}</td>
               </tr>
             {% empty %}
               <tr><td colspan="4" class="text-center text-muted py-3">No rooms under maintenance.</td></tr>
@@ -183,8 +183,8 @@
               <tr>
                 <td>{{ room.room_number }}</td>
                 <td>{{ room.get_room_type_display }}</td>
-                <td>{{ room.status_started_at|date:"Y-m-d H:i" }}</td>
-                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ room.status_started_at|date:"Y-m-d H:i:s" }}</td>
+                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i:s" }}</td>
               </tr>
             {% empty %}
               <tr><td colspan="4" class="text-center text-muted py-3">No rooms currently cleaning.</td></tr>

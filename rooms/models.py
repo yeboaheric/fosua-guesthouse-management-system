@@ -46,9 +46,7 @@ class Room(StatusTrackingMixin, models.Model):
                 "last_status_changed_at",
             ).first()
             if previous:
-                if previous["status"] != self.status:
-                    self.status_started_at = now
-                elif not self.status_started_at:
+                if not self.status_started_at:
                     self.status_started_at = previous["status_started_at"] or now
 
                 self.last_status_changed_at = now

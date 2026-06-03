@@ -1,7 +1,9 @@
 from django.db import models
 
+from accounts.models import StatusTrackingMixin
 
-class Guest(models.Model):
+
+class Guest(StatusTrackingMixin, models.Model):
     class Title(models.TextChoices):
         MR = "mr", "Mr."
         MRS = "mrs", "Mrs."
@@ -18,6 +20,16 @@ class Guest(models.Model):
     ghana_card_expiry_date = models.DateField(blank=True, null=True)
     digital_address = models.CharField(max_length=50, blank=True)
     address = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("active", "Active"),
+            ("inactive", "Inactive"),
+            ("blacklisted", "Blacklisted"),
+            ("no_show", "No-show"),
+        ],
+        default="active",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

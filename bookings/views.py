@@ -139,6 +139,7 @@ def booking_detail(request, pk):
         "booking": booking,
         "related_bookings": related_bookings,
         "payments": payments,
+        "status_history": booking.status_history.select_related("changed_by").order_by("-changed_at"),
         "group_total": sum(item.total_amount for item in related_bookings),
         "group_paid": sum(item.amount_paid for item in related_bookings),
         "group_balance": sum(item.balance_due for item in related_bookings),

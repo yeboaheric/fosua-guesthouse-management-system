@@ -15,6 +15,7 @@ class GuestForm(forms.ModelForm):
             "ghana_card_number",
             "ghana_card_expiry_date",
             "digital_address",
+            "status",
         ]
         widgets = {
             "ghana_card_expiry_date": forms.DateInput(attrs={"type": "date"}),

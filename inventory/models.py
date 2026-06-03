@@ -3,9 +3,12 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
+
+from accounts.models import StatusTrackingMixin
 
 
 class InventoryCategory(models.Model):
@@ -66,7 +69,13 @@ class Supplier(models.Model):
         return self.name
 
 
-class InventoryItem(models.Model):
+class InventoryItem(StatusTrackingMixin, models.Model):
+    class InventoryStatus(models.TextChoices):
+        ACTIVE = "active", "Active"
+        LOW_STOCK = "low_stock", "Low Stock"
+        OUT_OF_STOCK = "out_of_stock", "Out of Stock"
+        DISCONTINUED = "discontinued", "Discontinued"
+
     class UnitOfMeasure(models.TextChoices):
         PIECE = "piece", "Piece"
         BOTTLE = "bottle", "Bottle"
@@ -99,6 +108,12 @@ class InventoryItem(models.Model):
         blank=True,
         null=True,
     )
+    status = models.CharField(
+        max_length=20,
+        choices=InventoryStatus.choices,
+        default=InventoryStatus.ACTIVE,
+        blank=True,
+    )
     purchase_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     quantity_in_stock = models.DecimalField(max_digits=12, decimal_places=3, default=0)
@@ -128,6 +143,24 @@ class InventoryItem(models.Model):
             raise ValidationError("The selected subcategory does not belong to the selected category.")
 
     def save(self, *args, **kwargs):
+        if self.status != self.InventoryStatus.DISCONTINUED:
+            quantity = None
+            minimum_threshold = None
+            try:
+                quantity = Decimal(self.quantity_in_stock)
+            except (TypeError, ValueError, InvalidOperation):
+                quantity = None
+            try:
+                minimum_threshold = Decimal(self.minimum_stock_threshold)
+            except (TypeError, ValueError, InvalidOperation):
+                minimum_threshold = None
+
+            if quantity is not None and quantity <= 0:
+                self.status = self.InventoryStatus.OUT_OF_STOCK
+            elif quantity is not None and minimum_threshold is not None and quantity <= minimum_threshold:
+                self.status = self.InventoryStatus.LOW_STOCK
+            else:
+                self.status = self.InventoryStatus.ACTIVE
         self.full_clean()
         return super().save(*args, **kwargs)
 

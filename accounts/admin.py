@@ -8,11 +8,14 @@ from accounts.models import (
     EmployeeQualification,
     EmploymentHistoryEntry,
     LeaveRequest,
+    Notification,
     PayrollRecord,
     PerformanceReview,
     Rota,
+    StatusHistory,
     TrainingRecord,
 )
+from rooms.models import MaintenanceRequest
 
 
 @admin.register(Employee)
@@ -101,3 +104,24 @@ class EmploymentHistoryEntryAdmin(admin.ModelAdmin):
     list_display = ["employee", "change_type", "effective_date", "created_by"]
     search_fields = ["employee__first_name", "employee__last_name", "description"]
     list_filter = ["change_type", "effective_date"]
+
+
+@admin.register(StatusHistory)
+class StatusHistoryAdmin(admin.ModelAdmin):
+    list_display = ["object_repr", "previous_status", "new_status", "changed_by", "changed_at"]
+    search_fields = ["object_repr", "previous_status", "new_status", "changed_by__username"]
+    list_filter = ["changed_at"]
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ["title", "user", "level", "read_at", "created_at"]
+    search_fields = ["title", "message"]
+    list_filter = ["level", "read_at", "created_at"]
+
+
+@admin.register(MaintenanceRequest)
+class MaintenanceRequestAdmin(admin.ModelAdmin):
+    list_display = ["room", "status", "requested_by", "assigned_to", "created_at"]
+    search_fields = ["room__room_number", "description", "requested_by__username", "assigned_to__username"]
+    list_filter = ["status", "created_at"]

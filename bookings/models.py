@@ -4,11 +4,12 @@ from django.db import models
 from django.db.models import DecimalField, Sum, Value
 from django.db.models.functions import Coalesce
 
+from accounts.models import StatusTrackingMixin
 from guests.models import Guest
 from rooms.models import Room
 
 
-class Booking(models.Model):
+class Booking(StatusTrackingMixin, models.Model):
     class BookingStatus(models.TextChoices):
         PENDING = "pending", "Pending"
         CONFIRMED = "confirmed", "Confirmed"
@@ -122,7 +123,7 @@ class Payment(models.Model):
         return f"Payment {self.amount} for booking #{self.booking_id}"
 
 
-class EventBooking(models.Model):
+class EventBooking(StatusTrackingMixin, models.Model):
     class EventBookingStatus(models.TextChoices):
         PENDING = "pending", "Pending"
         CONFIRMED = "confirmed", "Confirmed"

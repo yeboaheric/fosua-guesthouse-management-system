@@ -50,6 +50,8 @@ from accounts.models import (
     Rota,
     RolePermission,
     TrainingRecord,
+    Notification,
+    StatusHistory,
 )
 from accounts.permissions import (
     ACTION_CHOICES,
@@ -1351,6 +1353,8 @@ def _recent_activity_feed():
     recent_event_bookings = EventBooking.objects.select_related("guest").order_by("-created_at")[:5]
     recent_event_payments = EventPayment.objects.select_related("event_booking__guest").order_by("-paid_at")[:5]
     recent_rooms = Room.objects.exclude(last_status_changed_at__isnull=True).order_by("-last_status_changed_at")[:5]
+    recent_status_changes = StatusHistory.objects.select_related("changed_by", "content_type").order_by("-changed_at")[:10]
+    recent_notifications = Notification.objects.order_by("-created_at")[:10]
 
     feed = []
     for item in recent_bookings:
@@ -1393,6 +1397,22 @@ def _recent_activity_feed():
                 "meta": f"{item.get_status_display()} · {item.get_room_type_display()}",
             }
         )
+    for history in recent_status_changes:
+        feed.append(
+            {
+                "time": history.changed_at,
+                "title": f"{history.object_repr} status changed",
+                "meta": f"{history.previous_status or 'Unknown'} → {history.new_status}",
+            }
+        )
+    for notification in recent_notifications:
+        feed.append(
+            {
+                "time": notification.created_at,
+                "title": notification.title,
+                "meta": notification.message,
+            }
+        )
 
     feed.sort(key=lambda row: row["time"], reverse=True)
-    return feed[:12]
+    return feed[:20]

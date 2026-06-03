@@ -1,4 +1,4 @@
-from accounts.audit import log_audit_event, module_from_url_name
+from accounts.audit import log_audit_event, module_from_url_name, set_current_request
 from accounts.models import AuditLog
 
 
@@ -7,7 +7,12 @@ class AuditLogMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
+        set_current_request(request)
+        try:
+            response = self.get_response(request)
+        finally:
+            set_current_request(None)
+
         if not getattr(request, "user", None) or not request.user.is_authenticated:
             return response
         if getattr(request, "_audit_logged", False):

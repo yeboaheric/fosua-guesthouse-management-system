@@ -1,8 +1,26 @@
 from __future__ import annotations
 
+import threading
+
 from django.utils import timezone
 
 from accounts.models import AuditLog
+
+_thread_local = threading.local()
+
+def set_current_request(request):
+    setattr(_thread_local, "request", request)
+
+
+def get_current_request():
+    return getattr(_thread_local, "request", None)
+
+
+def get_current_user():
+    request = get_current_request()
+    if request is not None and getattr(request, "user", None) and request.user.is_authenticated:
+        return request.user
+    return None
 
 
 def client_ip(request):

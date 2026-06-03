@@ -62,6 +62,7 @@ class InventoryItemForm(forms.ModelForm):
             "quantity_in_stock",
             "unit_of_measure",
             "minimum_stock_threshold",
+            "status",
             "description",
             "image",
             "is_active",

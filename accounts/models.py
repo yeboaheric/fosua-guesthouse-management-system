@@ -2,13 +2,124 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.models import Group
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Q, Sum
 
 from accounts.permissions import ACCESS_MODULE_CHOICES, ACTION_CHOICES, user_has_permission
 
 
-class Employee(models.Model):
+class StatusTrackingMixin(models.Model):
+    status_history = GenericRelation(
+        "accounts.StatusHistory",
+        content_type_field="content_type",
+        object_id_field="object_id",
+        related_query_name="status_history",
+    )
+    status_field = "status"
+
+    class Meta:
+        abstract = True
+
+    def _get_previous_status(self):
+        if not self.pk:
+            return None
+        previous = self.__class__.objects.filter(pk=self.pk).values(self.status_field).first()
+        if previous is None:
+            return None
+        return previous.get(self.status_field)
+
+    def save(self, *args, **kwargs):
+        changed_by = kwargs.pop("changed_by", None)
+        previous_status = self._get_previous_status()
+        result = super().save(*args, **kwargs)
+        current_status = getattr(self, self.status_field, None)
+        if previous_status is not None and current_status != previous_status:
+            from accounts.audit import get_current_user
+
+            history = StatusHistory.objects.create(
+                content_type=ContentType.objects.get_for_model(self),
+                object_id=self.pk,
+                object_repr=str(self),
+                previous_status=previous_status or "",
+                new_status=current_status or "",
+                changed_by=changed_by or get_current_user(),
+            )
+            Notification.create_from_status_history(history)
+        return result
+
+
+class StatusHistory(models.Model):
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.CharField(max_length=255)
+    content_object = GenericForeignKey("content_type", "object_id")
+    object_repr = models.CharField(max_length=255)
+    previous_status = models.CharField(max_length=120, blank=True)
+    new_status = models.CharField(max_length=120)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="status_history_entries",
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-changed_at"]
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+            models.Index(fields=["changed_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.object_repr}: {self.previous_status} → {self.new_status}"
+
+
+class Notification(models.Model):
+    class Level(models.TextChoices):
+        INFO = "info", "Info"
+        SUCCESS = "success", "Success"
+        WARNING = "warning", "Warning"
+        DANGER = "danger", "Danger"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    title = models.CharField(max_length=160)
+    message = models.TextField(blank=True)
+    link = models.CharField(max_length=255, blank=True)
+    level = models.CharField(max_length=20, choices=Level.choices, default=Level.INFO)
+    read_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["user", "read_at"])]
+
+    def __str__(self):
+        return self.title
+
+    @classmethod
+    def create_from_status_history(cls, history):
+        title = f"{history.object_repr} status updated"
+        message = f"{history.previous_status or 'Unknown'} → {history.new_status}"
+        return cls.objects.create(
+            title=title,
+            message=message,
+            link="",
+            level=cls.Level.INFO,
+            user=history.changed_by,
+        )
+
+
+class Employee(StatusTrackingMixin, models.Model):
     TITLE_CHOICES = [
         ("mr", "Mr."),
         ("mrs", "Mrs."),
@@ -122,6 +233,7 @@ class Employee(models.Model):
         null=True,
         help_text="Upload a passport-style photo.",
     )
+    status_field = "employment_status"
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

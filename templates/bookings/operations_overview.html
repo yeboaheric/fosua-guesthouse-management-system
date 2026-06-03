@@ -82,10 +82,10 @@
       <div class="card-body"><h2 class="h6 mb-0">Check-Ins Today</h2></div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Status</th></tr></thead>
+          <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Time</th><th>Status</th></tr></thead>
           <tbody>
             {% for booking in today_check_ins %}
-              <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.get_status_display }}</td></tr>
+              <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.check_in_time|time:"H:i" }}</td><td>{{ booking.get_status_display }}</td></tr>
             {% empty %}
               <tr><td colspan="3" class="text-center text-muted py-3">No check-ins today.</td></tr>
             {% endfor %}
@@ -100,10 +100,10 @@
       <div class="card-body"><h2 class="h6 mb-0">Check-Outs Today</h2></div>
       <div class="table-responsive">
         <table class="table mb-0">
-          <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Status</th></tr></thead>
+          <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Time</th><th>Status</th></tr></thead>
           <tbody>
             {% for booking in today_check_outs %}
-              <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.get_status_display }}</td></tr>
+              <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.check_out_time|time:"H:i" }}</td><td>{{ booking.get_status_display }}</td></tr>
             {% empty %}
               <tr><td colspan="3" class="text-center text-muted py-3">No check-outs today.</td></tr>
             {% endfor %}

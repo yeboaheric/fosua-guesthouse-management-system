@@ -20,7 +20,11 @@
       </div>
       <div class="col-md-4">
         <div class="text-muted small">Booking Window</div>
-        <div class="h6 mb-0">{{ booking.check_in }} to {{ booking.check_out }}</div>
+        <div class="h6 mb-0">
+          {{ booking.check_in }} {{ booking.check_in_time|time:"H:i" }}
+          to
+          {{ booking.check_out }} {{ booking.check_out_time|time:"H:i" }}
+        </div>
         <div>Created: {{ booking.created_at|date:"Y-m-d H:i" }}</div>
       </div>
       <div class="col-md-4">
@@ -54,7 +58,11 @@
             {% for item in related_bookings %}
               <tr>
                 <td>{{ item.room.room_number }} ({{ item.room.get_room_type_display }})</td>
-                <td>{{ item.check_in }} to {{ item.check_out }}</td>
+                <td>
+                  {{ item.check_in }} {{ item.check_in_time|time:"H:i" }}
+                  to
+                  {{ item.check_out }} {{ item.check_out_time|time:"H:i" }}
+                </td>
                 <td>{{ item.get_status_display }}</td>
                 <td>{{ item.created_at|date:"Y-m-d H:i" }}</td>
                 <td>GHS {{ item.total_amount }}</td>

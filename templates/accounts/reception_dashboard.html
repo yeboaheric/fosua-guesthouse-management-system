@@ -44,6 +44,37 @@
     </div>
   </div>
 
+  <div class="row g-3 mb-3">
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Arrivals next hour</div>
+        <div class="metric-value">{{ upcoming_check_ins|length }}</div>
+        <div class="text-muted small mt-2">Check-ins starting soon</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Departures next hour</div>
+        <div class="metric-value">{{ upcoming_check_outs|length }}</div>
+        <div class="text-muted small mt-2">Check-outs due soon</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Reserved rooms</div>
+        <div class="metric-value">{{ reserved_rooms }}</div>
+        <div class="text-muted small mt-2">Confirmed reservations</div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Unread alerts</div>
+        <div class="metric-value">{{ unread_notifications_count|default:0 }}</div>
+        <div class="text-muted small mt-2">Notifications waiting for review</div>
+      </div>
+    </div>
+  </div>
+
   <div class="row g-3">
     <div class="col-lg-7">
       <div class="surface-panel p-4 h-100">

@@ -1,3 +1,5 @@
+from datetime import time
+
 from django import forms
 
 from bookings.models import Booking
@@ -48,7 +50,9 @@ class BookingForm(forms.ModelForm):
             "room",
             "rooms",
             "check_in",
+            "check_in_time",
             "check_out",
+            "check_out_time",
             "adults",
             "children",
             "status",
@@ -58,7 +62,9 @@ class BookingForm(forms.ModelForm):
         widgets = {
             "room": RoomRateSelect(),
             "check_in": forms.DateInput(attrs={"type": "date"}),
+            "check_in_time": forms.TimeInput(attrs={"type": "time"}),
             "check_out": forms.DateInput(attrs={"type": "date"}),
+            "check_out_time": forms.TimeInput(attrs={"type": "time"}),
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
@@ -84,6 +90,10 @@ class BookingForm(forms.ModelForm):
             self.fields.pop("rooms")
         else:
             self.fields.pop("room")
+
+        if not self.instance or not self.instance.pk:
+            self.initial.setdefault("check_in_time", time(14, 0))
+            self.initial.setdefault("check_out_time", time(11, 0))
 
         self.fields["total_amount"].required = False
         self.fields["total_amount"].widget.attrs["readonly"] = True

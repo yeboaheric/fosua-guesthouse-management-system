@@ -100,7 +100,12 @@
                 <a class="topbar-pill d-none d-xl-inline-flex" href="{% url 'booking-create' %}"><i data-lucide="plus"></i> New booking</a>
               {% endif %}
               {% if user|can_access_module:'notifications' %}
-                <a class="topbar-icon" href="{% url 'notifications-center' %}" aria-label="Notifications"><i data-lucide="bell"></i></a>
+                <a class="topbar-icon position-relative" href="{% url 'notifications-center' %}" aria-label="Notifications">
+                  <i data-lucide="bell"></i>
+                  {% if unread_notifications_count|default:0 > 0 %}
+                    <span class="badge bg-danger rounded-circle position-absolute" style="top:0; right:0; font-size:.55rem; width:1.2rem; height:1.2rem; display:flex; align-items:center; justify-content:center;">{{ unread_notifications_count }}</span>
+                  {% endif %}
+                </a>
               {% endif %}
               <a class="topbar-icon" href="{% url 'dashboard' %}" aria-label="Messages"><i data-lucide="message-circle"></i></a>
               <button class="topbar-icon" type="button" id="themeToggle" aria-label="Toggle dark mode"><i data-lucide="moon-star"></i></button>

@@ -53,8 +53,8 @@
 
     <div class="section">
       <strong>Room:</strong> {{ booking.room.room_number }} ({{ booking.room.get_room_type_display }})<br>
-      <strong>Check-in:</strong> {{ booking.check_in }}<br>
-      <strong>Check-out:</strong> {{ booking.check_out }}<br>
+      <strong>Check-in:</strong> {{ booking.check_in }} {{ booking.check_in_time|time:"H:i" }}<br>
+      <strong>Check-out:</strong> {{ booking.check_out }} {{ booking.check_out_time|time:"H:i" }}<br>
       <strong>Status:</strong> {{ booking.get_status_display }}
     </div>
 

@@ -1,7 +1,7 @@
-from accounts.models import Employee, Rota, RolePermission, UserAccessProfile
+from accounts.models import Employee, Notification, Rota, RolePermission, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
-from datetime import date, time
+from datetime import date, time, timedelta
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
@@ -98,6 +98,54 @@ class DashboardRoutingTests(TestCase):
 
         response = self.client.get(reverse("room-list"))
         self.assertEqual(response.status_code, 200)
+
+    def test_notifications_center_generates_arrival_reminders(self):
+        user = User.objects.create_user(username="notify1", password="pass123456")
+        user.groups.add(self.receptionist_group)
+        UserAccessProfile.objects.create(
+            user=user,
+            dashboard_access=True,
+            reservations_access=True,
+            rooms_access=True,
+            guests_access=True,
+            payments_access=True,
+            services_access=True,
+            housekeeping_access=True,
+            notifications_access=True,
+            analytics_access=True,
+            reports_access=False,
+            settings_access=False,
+            staff_management_access=False,
+            handovers_access=True,
+            users_roles_access=False,
+        )
+        room = Room.objects.create(
+            room_number="501",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=120,
+        )
+        guest = Guest.objects.create(
+            first_name="Nana",
+            last_name="Yeboah",
+            phone_number="0245555555",
+        )
+        now = timezone.localtime()
+        check_in_time = (now + timedelta(minutes=30)).time().replace(second=0, microsecond=0)
+        Booking.objects.create(
+            guest=guest,
+            room=room,
+            check_in=now.date(),
+            check_in_time=check_in_time,
+            check_out=now.date() + timedelta(days=1),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=user,
+        )
+        self.client.force_login(user)
+        response = self.client.get(reverse("notifications-center"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upcoming check-in")
+        self.assertEqual(Notification.objects.filter(user=user).count(), 1)
 
 
 class AdminReportExportTests(TestCase):

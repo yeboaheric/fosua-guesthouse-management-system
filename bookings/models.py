@@ -1,3 +1,5 @@
+from datetime import datetime, time
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -20,7 +22,9 @@ class Booking(StatusTrackingMixin, models.Model):
     guest = models.ForeignKey(Guest, on_delete=models.PROTECT, related_name="bookings")
     room = models.ForeignKey(Room, on_delete=models.PROTECT, related_name="bookings")
     check_in = models.DateField()
+    check_in_time = models.TimeField(default=time(14, 0))
     check_out = models.DateField()
+    check_out_time = models.TimeField(default=time(11, 0))
     adults = models.PositiveSmallIntegerField(default=1)
     children = models.PositiveSmallIntegerField(default=0)
     status = models.CharField(
@@ -48,7 +52,18 @@ class Booking(StatusTrackingMixin, models.Model):
         ]
 
     def __str__(self):
-        return f"{self.guest} - Room {self.room.room_number} ({self.check_in} to {self.check_out})"
+        return (
+            f"{self.guest} - Room {self.room.room_number} "
+            f"({self.check_in} {self.check_in_time.strftime('%H:%M')} to {self.check_out} {self.check_out_time.strftime('%H:%M')})"
+        )
+
+    @property
+    def check_in_at(self):
+        return datetime.combine(self.check_in, self.check_in_time)
+
+    @property
+    def check_out_at(self):
+        return datetime.combine(self.check_out, self.check_out_time)
 
     @property
     def nights(self):

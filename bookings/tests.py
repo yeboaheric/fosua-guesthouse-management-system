@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
@@ -205,7 +205,9 @@ class BookingWorkflowTests(TestCase):
                 "guest": self.guest.pk,
                 "rooms": [self.room.pk, self.room_two.pk],
                 "check_in": "2026-07-10",
+                "check_in_time": "14:00",
                 "check_out": "2026-07-12",
+                "check_out_time": "11:00",
                 "adults": 2,
                 "children": 0,
                 "status": Booking.BookingStatus.PENDING,
@@ -220,6 +222,21 @@ class BookingWorkflowTests(TestCase):
             check_out=date(2026, 7, 12),
         )
         self.assertEqual(created.count(), 2)
+        for booking in created:
+            self.assertEqual(booking.check_in_time, time(14, 0))
+            self.assertEqual(booking.check_out_time, time(11, 0))
+
+    def test_booking_default_check_in_out_times_are_assigned(self):
+        booking = Booking.objects.create(
+            guest=self.guest,
+            room=self.room,
+            check_in=date(2026, 8, 1),
+            check_out=date(2026, 8, 3),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.user,
+        )
+        self.assertEqual(booking.check_in_time, time(14, 0))
+        self.assertEqual(booking.check_out_time, time(11, 0))
 
     def test_booking_list_filters_by_status_and_search(self):
         self.client.force_login(self.user)

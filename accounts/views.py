@@ -15,6 +15,7 @@ from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.audit import log_audit_event
@@ -121,8 +122,9 @@ def _seed_default_roles():
             )
 
 
-def _dashboard_snapshot():
+def _dashboard_snapshot(user=None):
     today = timezone.localdate()
+    now = timezone.localtime()
     month_start = today.replace(day=1)
 
     total_rooms = Room.objects.count()
@@ -197,7 +199,39 @@ def _dashboard_snapshot():
     occupancy_rate = round((occupied_rooms / total_rooms) * 100, 1) if total_rooms else 0
     last_7_rows = _daily_report_rows(today - timedelta(days=6), today, total_rooms or 1)
 
-    return {
+    upcoming_window = now + timedelta(hours=1)
+    today_check_ins = Booking.objects.filter(
+        check_in=today,
+        status__in=[
+            Booking.BookingStatus.PENDING,
+            Booking.BookingStatus.CONFIRMED,
+        ],
+    )
+    today_check_outs = Booking.objects.filter(
+        check_out=today,
+        status__in=[
+            Booking.BookingStatus.CHECKED_IN,
+            Booking.BookingStatus.CONFIRMED,
+        ],
+    )
+    upcoming_check_ins = Booking.objects.filter(
+        check_in=today,
+        check_in_time__gte=now.time(),
+        check_in_time__lte=upcoming_window.time(),
+        status__in=[
+            Booking.BookingStatus.PENDING,
+            Booking.BookingStatus.CONFIRMED,
+        ],
+    )
+    upcoming_check_outs = Booking.objects.filter(
+        check_out=today,
+        check_out_time__gte=now.time(),
+        check_out_time__lte=upcoming_window.time(),
+        status__in=[Booking.BookingStatus.CHECKED_IN],
+    )
+    reserved_rooms = Booking.objects.filter(status=Booking.BookingStatus.CONFIRMED).count()
+
+    snapshot = {
         "today": today,
         "month_start": month_start,
         "total_rooms": total_rooms,
@@ -218,6 +252,11 @@ def _dashboard_snapshot():
         "pending_event_balances": pending_event_balances,
         "pending_payments": pending_room_balances + pending_event_balances,
         "occupancy_rate": occupancy_rate,
+        "reserved_rooms": reserved_rooms,
+        "today_check_ins": today_check_ins,
+        "today_check_outs": today_check_outs,
+        "upcoming_check_ins": upcoming_check_ins,
+        "upcoming_check_outs": upcoming_check_outs,
         "room_status_breakdown": [
             {"label": "Available", "count": available_rooms, "tone": "success"},
             {"label": "Occupied", "count": occupied_rooms, "tone": "primary"},
@@ -233,6 +272,69 @@ def _dashboard_snapshot():
         "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in last_7_rows]),
     }
 
+    if user and _user_can_access_module(user, "notifications"):
+        _generate_booking_reminder_notifications(user)
+        snapshot["unread_notifications_count"] = Notification.objects.filter(
+            user=user,
+            read_at__isnull=True,
+        ).count()
+    else:
+        snapshot["unread_notifications_count"] = 0
+
+    return snapshot
+
+
+def _generate_booking_reminder_notifications(user):
+    if not user:
+        return
+
+    now = timezone.localtime()
+    upcoming_window = now + timedelta(hours=1)
+    today = now.date()
+
+    check_ins = Booking.objects.filter(
+        check_in=today,
+        check_in_time__gte=now.time(),
+        check_in_time__lte=upcoming_window.time(),
+        status__in=[Booking.BookingStatus.PENDING, Booking.BookingStatus.CONFIRMED],
+    )
+    check_outs = Booking.objects.filter(
+        check_out=today,
+        check_out_time__gte=now.time(),
+        check_out_time__lte=upcoming_window.time(),
+        status__in=[Booking.BookingStatus.CHECKED_IN],
+    )
+
+    for booking in check_ins:
+        title = f"Upcoming check-in for {booking.guest} in Room {booking.room.room_number}"
+        if Notification.objects.filter(user=user, title=title).exists():
+            continue
+        Notification.objects.create(
+            user=user,
+            title=title,
+            message=(
+                f"Room {booking.room.room_number} is due at "
+                f"{booking.check_in_time.strftime('%H:%M')} on {booking.check_in}."
+            ),
+            link=reverse("booking-detail", args=[booking.pk]),
+            level=Notification.Level.INFO,
+        )
+
+    for booking in check_outs:
+        title = f"Upcoming check-out for {booking.guest} in Room {booking.room.room_number}"
+        if Notification.objects.filter(user=user, title=title).exists():
+            continue
+        Notification.objects.create(
+            user=user,
+            title=title,
+            message=(
+                f"Room {booking.room.room_number} is due for check-out at "
+                f"{booking.check_out_time.strftime('%H:%M')} on {booking.check_out}."
+            ),
+            link=reverse("booking-detail", args=[booking.pk]),
+            level=Notification.Level.WARNING,
+        )
+
 
 @login_required
 def dashboard(request):
@@ -247,14 +349,14 @@ def dashboard(request):
 
 @group_required("Admin")
 def admin_dashboard(request):
-    context = _dashboard_snapshot()
+    context = _dashboard_snapshot(user=request.user)
     context["role_label"] = "Admin"
     return render(request, "accounts/admin_dashboard.html", context)
 
 
 @group_required("Receptionist", "Admin", module="dashboard")
 def reception_dashboard(request):
-    context = _dashboard_snapshot()
+    context = _dashboard_snapshot(user=request.user)
     context["role_label"] = "Reception"
     return render(request, "accounts/reception_dashboard.html", context)
 
@@ -479,11 +581,27 @@ def housekeeping_center(request):
 
 @group_required("Admin", "Receptionist", module="notifications")
 def notifications_center(request):
+    _generate_booking_reminder_notifications(request.user)
+    notifications = Notification.objects.filter(user=request.user).order_by("-created_at")
+    unread_count = notifications.filter(read_at__isnull=True).count()
     return render(
         request,
         "accounts/notifications_center.html",
-        {"activities": _recent_activity_feed()},
+        {
+            "notifications": notifications,
+            "unread_count": unread_count,
+        },
     )
+
+
+@group_required("Admin", "Receptionist", module="notifications")
+def notification_mark_read(request, pk):
+    notification = get_object_or_404(Notification, pk=pk, user=request.user)
+    if notification.read_at is None:
+        notification.read_at = timezone.now()
+        notification.save(update_fields=["read_at"])
+        messages.success(request, "Notification marked read.")
+    return redirect("notifications-center")
 
 
 @group_required("Admin")

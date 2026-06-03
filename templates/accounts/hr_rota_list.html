@@ -102,7 +102,7 @@
                 <div class="text-muted small">{{ rota.employee.contact_number }}</div>
               </td>
               <td>{{ rota.employee.get_position_display }}</td>
-              <td>{{ rota.period_start|date:"M d, Y" }} to {{ rota.period_end|date:"M d, Y" }}</td>
+              <td>{{ rota.period_start|date:"d/m/Y" }} to {{ rota.period_end|date:"d/m/Y" }}</td>
               <td>{{ rota.opening_time|time:"H:i" }}</td>
               <td>{{ rota.closing_time|time:"H:i" }}</td>
               <td>{{ rota.daily_hours|floatformat:2 }}</td>
@@ -142,7 +142,7 @@
         <div class="result-card">
           <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-2">
             <div>
-              <div class="fw-semibold">{{ day.day_name }} - {{ day.date|date:"M d, Y" }}</div>
+              <div class="fw-semibold">{{ day.day_name }} - {{ day.date|date:"d/m/Y" }}</div>
               <div class="text-muted small">{{ day.employees }} employee(s) scheduled</div>
             </div>
             <span class="status-pill neutral">{{ day.hours|floatformat:2 }} hours</span>

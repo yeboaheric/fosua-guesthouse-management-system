@@ -52,7 +52,7 @@
             <td>{{ event_booking.event_title }}</td>
             <td>{{ event_booking.guest }}</td>
             <td>{{ event_booking.event_space_name }}</td>
-            <td>{{ event_booking.event_start|date:"Y-m-d H:i" }} to {{ event_booking.event_end|date:"Y-m-d H:i" }}</td>
+            <td>{{ event_booking.event_start|date:"d/m/Y H:i" }} to {{ event_booking.event_end|date:"d/m/Y H:i" }}</td>
             <td>{{ event_booking.expected_guests }}</td>
             <td>{{ event_booking.get_status_display }}</td>
             <td>GHS {{ event_booking.balance_due }}</td>

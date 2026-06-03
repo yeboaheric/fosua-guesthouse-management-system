@@ -33,8 +33,8 @@
             <td>{{ room.room_number }}</td>
             <td>{{ room.get_room_type_display }}</td>
             <td>{{ room.get_status_display }}</td>
-            <td>{{ room.status_started_at|date:"Y-m-d H:i:s" }}</td>
-            <td>{{ room.last_status_changed_at|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
+            <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
             <td>GHS {{ room.base_rate }}</td>
             <td class="text-end">
               <a class="btn btn-sm btn-outline-secondary" href="{% url 'room-update' room.pk %}">Edit</a>

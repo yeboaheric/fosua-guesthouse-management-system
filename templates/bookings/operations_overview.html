@@ -160,8 +160,8 @@
               <tr>
                 <td>{{ room.room_number }}</td>
                 <td>{{ room.get_room_type_display }}</td>
-                <td>{{ room.status_started_at|date:"Y-m-d H:i:s" }}</td>
-                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i:s" }}</td>
+                <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
               </tr>
             {% empty %}
               <tr><td colspan="4" class="text-center text-muted py-3">No rooms under maintenance.</td></tr>
@@ -183,8 +183,8 @@
               <tr>
                 <td>{{ room.room_number }}</td>
                 <td>{{ room.get_room_type_display }}</td>
-                <td>{{ room.status_started_at|date:"Y-m-d H:i:s" }}</td>
-                <td>{{ room.last_status_changed_at|date:"Y-m-d H:i:s" }}</td>
+                <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
               </tr>
             {% empty %}
               <tr><td colspan="4" class="text-center text-muted py-3">No rooms currently cleaning.</td></tr>
@@ -206,9 +206,9 @@
               <tr>
                 <td>{{ event_booking.event_title }}</td>
                 <td>{{ event_booking.guest }}</td>
-                <td>{{ event_booking.event_start|date:"Y-m-d H:i" }}</td>
-                <td>{{ event_booking.event_end|date:"Y-m-d H:i" }}</td>
-                <td>{{ event_booking.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ event_booking.event_start|date:"d/m/Y H:i" }}</td>
+                <td>{{ event_booking.event_end|date:"d/m/Y H:i" }}</td>
+                <td>{{ event_booking.created_at|date:"d/m/Y H:i" }}</td>
               </tr>
             {% empty %}
               <tr><td colspan="5" class="text-center text-muted py-3">No events scheduled today.</td></tr>

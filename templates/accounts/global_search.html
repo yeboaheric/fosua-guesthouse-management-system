@@ -76,7 +76,7 @@
               <div class="d-flex justify-content-between gap-3 align-items-start">
                 <div>
                   <strong>{{ booking.guest }}</strong>
-                  <div class="text-muted small">Room {{ booking.room.room_number }} · {{ booking.check_in|date:"M d, Y" }} to {{ booking.check_out|date:"M d, Y" }}</div>
+                  <div class="text-muted small">Room {{ booking.room.room_number }} · {{ booking.check_in|date:"d/m/Y" }} to {{ booking.check_out|date:"d/m/Y" }}</div>
                 </div>
                 <a class="status-pill neutral" href="{% url 'booking-detail' booking.pk %}">Open</a>
               </div>
@@ -95,7 +95,7 @@
               <div class="d-flex justify-content-between gap-3 align-items-start">
                 <div>
                   <strong>{{ payment.booking.guest }}</strong>
-                  <div class="text-muted small">Room {{ payment.booking.room.room_number }} · {{ payment.method|title }} · {{ payment.paid_at|date:"M d, H:i" }}</div>
+                  <div class="text-muted small">Room {{ payment.booking.room.room_number }} · {{ payment.method|title }} · {{ payment.paid_at|date:"d/m/Y H:i" }}</div>
                 </div>
                 <span class="status-pill success">GHS {{ payment.amount }}</span>
               </div>
@@ -133,7 +133,7 @@
               <div class="d-flex justify-content-between gap-3 align-items-start">
                 <div>
                   <strong>{{ sale.receipt_number }}</strong>
-                  <div class="text-muted small">{{ sale.customer_name|default:"Walk-in customer" }} · {{ sale.get_payment_method_display }} · {{ sale.created_at|date:"M d, H:i" }}</div>
+                  <div class="text-muted small">{{ sale.customer_name|default:"Walk-in customer" }} · {{ sale.get_payment_method_display }} · {{ sale.created_at|date:"d/m/Y H:i" }}</div>
                 </div>
                 <a class="status-pill success" href="{% url 'inventory-sale-detail' sale.pk %}">Open</a>
               </div>
@@ -171,7 +171,7 @@
               <div class="d-flex justify-content-between gap-3 align-items-start">
                 <div>
                   <strong>{{ event.event_title }}</strong>
-                  <div class="text-muted small">{{ event.event_space_name }} · {{ event.expected_guests }} guests · {{ event.event_start|date:"M d, Y H:i" }}</div>
+                  <div class="text-muted small">{{ event.event_space_name }} · {{ event.expected_guests }} guests · {{ event.event_start|date:"d/m/Y H:i" }}</div>
                 </div>
                 <a class="status-pill neutral" href="{% url 'event-booking-list' %}">Open</a>
               </div>
@@ -190,7 +190,7 @@
               <div class="d-flex justify-content-between gap-3 align-items-start">
                 <div>
                   <strong>{{ payment.event_booking.event_title }}</strong>
-                  <div class="text-muted small">{{ payment.event_booking.event_space_name }} · {{ payment.paid_at|date:"M d, H:i" }}</div>
+                  <div class="text-muted small">{{ payment.event_booking.event_space_name }} · {{ payment.paid_at|date:"d/m/Y H:i" }}</div>
                 </div>
                 <span class="status-pill success">GHS {{ payment.amount }}</span>
               </div>

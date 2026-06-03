@@ -25,13 +25,13 @@
               {% if notification.link %}<a href="{{ notification.link }}">{{ notification.title }}</a>{% else %}{{ notification.title }}{% endif %}
             </div>
             <div class="text-muted small">{{ notification.message }}</div>
-            <div class="text-muted small">{{ notification.created_at|date:"M d, Y H:i" }}</div>
+            <div class="text-muted small">{{ notification.created_at|date:"d/m/Y H:i" }}</div>
             {% if not notification.read_at %}
               <div class="mt-1">
                 <a class="topbar-pill" href="{% url 'notification-mark-read' notification.pk %}">Mark as read</a>
               </div>
             {% else %}
-              <div class="text-success small mt-1">Read at {{ notification.read_at|date:"M d, Y H:i" }}</div>
+              <div class="text-success small mt-1">Read at {{ notification.read_at|date:"d/m/Y H:i" }}</div>
             {% endif %}
           </div>
         </div>

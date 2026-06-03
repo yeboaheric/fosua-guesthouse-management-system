@@ -88,7 +88,7 @@
               <td>{{ event.guest }}</td>
               <td>{{ event.purpose|truncatechars:60 }}</td>
               <td>{{ event.expected_guests }}</td>
-              <td>{{ event.event_start|date:"M d, Y H:i" }}<br><span class="text-muted">{{ event.event_end|date:"M d, Y H:i" }}</span></td>
+              <td>{{ event.event_start|date:"d/m/Y H:i" }}<br><span class="text-muted">{{ event.event_end|date:"d/m/Y H:i" }}</span></td>
               <td><span class="status-pill neutral">{{ event.get_status_display }}</span></td>
               <td>
                 <div class="d-flex gap-2 flex-wrap">

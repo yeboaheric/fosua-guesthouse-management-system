@@ -398,7 +398,7 @@ def transaction_list(request):
                 transaction_row.get_transaction_type_display(),
                 transaction_row.reference,
                 transaction_row.created_by.get_username() if transaction_row.created_by else "",
-                timezone.localtime(transaction_row.created_at).strftime("%Y-%m-%d %H:%M"),
+                timezone.localtime(transaction_row.created_at).strftime("%d/%m/%Y %H:%M"),
                 transaction_row.notes,
             ])
         return response
@@ -617,7 +617,7 @@ def sale_list(request):
                 sale.amount_paid,
                 sale.change_due,
                 sale.cashier.get_username() if sale.cashier else "",
-                timezone.localtime(sale.created_at).strftime("%Y-%m-%d %H:%M"),
+                timezone.localtime(sale.created_at).strftime("%d/%m/%Y %H:%M"),
             ])
         return response
     return render(

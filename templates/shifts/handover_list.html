@@ -25,8 +25,8 @@
           <tr>
             <td>#{{ handover.id }}</td>
             <td>{{ handover.prepared_by.username }}</td>
-            <td>{{ handover.started_at|date:"Y-m-d H:i" }}</td>
-            <td>{{ handover.ended_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ handover.started_at|date:"d/m/Y H:i" }}</td>
+            <td>{{ handover.ended_at|date:"d/m/Y H:i" }}</td>
             <td>{{ handover.check_ins_count }}</td>
             <td>{{ handover.check_outs_count }}</td>
             <td class="text-end">

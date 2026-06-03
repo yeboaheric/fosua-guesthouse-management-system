@@ -54,7 +54,7 @@ class Booking(StatusTrackingMixin, models.Model):
     def __str__(self):
         return (
             f"{self.guest} - Room {self.room.room_number} "
-            f"({self.check_in} {self.check_in_time.strftime('%H:%M')} to {self.check_out} {self.check_out_time.strftime('%H:%M')})"
+            f"({self.check_in.strftime('%d/%m/%Y')} {self.check_in_time.strftime('%H:%M')} to {self.check_out.strftime('%d/%m/%Y')} {self.check_out_time.strftime('%H:%M')})"
         )
 
     @property

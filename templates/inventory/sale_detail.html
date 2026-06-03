@@ -7,7 +7,7 @@
       <div>
         <div class="section-eyebrow mb-2">Receipt detail</div>
         <h1 class="page-title mb-2">{{ sale.receipt_number }}</h1>
-        <div class="page-subtitle">{{ sale.customer_name|default:"Walk-in customer" }} · {{ sale.created_at|date:"M d, Y H:i" }}</div>
+        <div class="page-subtitle">{{ sale.customer_name|default:"Walk-in customer" }} · {{ sale.created_at|date:"d/m/Y H:i" }}</div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="topbar-pill" href="{% url 'inventory-sale-pdf' sale.pk %}"><i data-lucide="download"></i> PDF</a>
@@ -73,7 +73,7 @@
           <div class="d-flex justify-content-between"><span class="text-muted">Items</span><strong>{{ sale.total_items }}</strong></div>
           <div class="d-flex justify-content-between"><span class="text-muted">Discount</span><strong>GHS {{ sale.discount_amount }}</strong></div>
           <div class="d-flex justify-content-between"><span class="text-muted">Grand total</span><strong>GHS {{ sale.grand_total }}</strong></div>
-          <div class="d-flex justify-content-between"><span class="text-muted">Paid at</span><strong>{{ sale.created_at|date:"M d, Y H:i" }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Paid at</span><strong>{{ sale.created_at|date:"d/m/Y H:i" }}</strong></div>
           <div class="d-flex justify-content-between"><span class="text-muted">Receipt</span><strong>{{ sale.receipt_number }}</strong></div>
         </div>
       </div>

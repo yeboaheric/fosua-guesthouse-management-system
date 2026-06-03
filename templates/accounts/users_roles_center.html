@@ -358,7 +358,7 @@
                   <div class="fw-semibold">{{ log.get_action_display }}</div>
                   <div class="text-muted small">{{ log.user|default:"System" }}{% if log.module %} · {{ log.module|title }}{% endif %}</div>
                 </div>
-                <div class="text-muted small text-end">{{ log.created_at|date:"M d, Y" }}<br>{{ log.created_at|time:"H:i" }}</div>
+                <div class="text-muted small text-end">{{ log.created_at|date:"d/m/Y" }}<br>{{ log.created_at|time:"H:i" }}</div>
               </div>
               {% if log.details %}
                 <div class="text-muted small mt-2">{{ log.details }}</div>

@@ -22,7 +22,7 @@
       </div>
       <div class="text-end">
         <div><strong>Receipt #:</strong> BK-{{ booking.id }}</div>
-        <div><strong>Booked:</strong> {{ booking.created_at|date:"Y-m-d H:i" }}</div>
+        <div><strong>Booked:</strong> {{ booking.created_at|date:"d/m/Y H:i" }}</div>
       </div>
     </div>
 
@@ -56,7 +56,7 @@
         {% for item in related_bookings %}
           <tr>
             <td>{{ item.room.room_number }} ({{ item.room.get_room_type_display }})</td>
-            <td>{{ item.created_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ item.created_at|date:"d/m/Y H:i" }}</td>
             <td>{{ item.get_status_display }}</td>
             <td class="text-end">GHS {{ item.total_amount }}</td>
           </tr>
@@ -92,7 +92,7 @@
       <tbody>
         {% for payment in payments %}
           <tr>
-            <td>{{ payment.paid_at|date:"Y-m-d H:i" }}</td>
+            <td>{{ payment.paid_at|date:"d/m/Y H:i" }}</td>
             <td>{{ payment.booking.room.room_number }}</td>
             <td>{{ payment.get_method_display }}</td>
             <td>{{ payment.reference|default:"-" }}</td>

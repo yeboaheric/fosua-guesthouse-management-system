@@ -840,7 +840,7 @@ def _employee_section_row(record, section):
             record.get_leave_type_display(),
             f"{record.start_date:%Y-%m-%d} to {record.end_date:%Y-%m-%d}",
             str(record.days),
-            record.return_to_work_date.strftime("%Y-%m-%d") if record.return_to_work_date else "-",
+            record.return_to_work_date.strftime("%d/%m/%Y") if record.return_to_work_date else "-",
             record.get_approval_status_display(),
             record.approving_manager.get_username() if record.approving_manager else "-",
         ]
@@ -849,23 +849,23 @@ def _employee_section_row(record, section):
             record.qualification_name,
             record.institution,
             record.certificate_number or "-",
-            record.certification_date.strftime("%Y-%m-%d"),
-            record.expiry_date.strftime("%Y-%m-%d") if record.expiry_date else "-",
+            record.certification_date.strftime("%d/%m/%Y"),
+            record.expiry_date.strftime("%d/%m/%Y") if record.expiry_date else "-",
         ]
     if section == "documents":
         return [
             record.get_document_type_display(),
             record.title,
             record.file.name.split("/")[-1],
-            record.created_at.strftime("%Y-%m-%d"),
+            record.created_at.strftime("%d/%m/%Y"),
         ]
     if section == "attendance":
         return [
-            record.work_date.strftime("%Y-%m-%d"),
+            record.work_date.strftime("%d/%m/%Y"),
             record.get_shift_type_display(),
             record.get_status_display(),
-            record.check_in.strftime("%Y-%m-%d %H:%M") if record.check_in else "-",
-            record.check_out.strftime("%Y-%m-%d %H:%M") if record.check_out else "-",
+            record.check_in.strftime("%d/%m/%Y %H:%M") if record.check_in else "-",
+            record.check_out.strftime("%d/%m/%Y %H:%M") if record.check_out else "-",
         ]
     if section == "payroll":
         return [
@@ -873,19 +873,19 @@ def _employee_section_row(record, section):
             f"GHS {record.basic_salary}",
             f"GHS {record.net_pay}",
             record.get_payment_status_display(),
-            record.paid_at.strftime("%Y-%m-%d %H:%M") if record.paid_at else "-",
+            record.paid_at.strftime("%d/%m/%Y %H:%M") if record.paid_at else "-",
         ]
     if section == "performance":
         return [
-            record.review_date.strftime("%Y-%m-%d"),
+            record.review_date.strftime("%d/%m/%Y"),
             record.reviewer.get_username() if record.reviewer else "-",
             str(record.rating),
-            record.next_review_date.strftime("%Y-%m-%d") if record.next_review_date else "-",
+            record.next_review_date.strftime("%d/%m/%Y") if record.next_review_date else "-",
             record.summary[:80] if record.summary else "-",
         ]
     if section == "disciplinary":
         return [
-            record.incident_date.strftime("%Y-%m-%d"),
+            record.incident_date.strftime("%d/%m/%Y"),
             record.get_record_type_display(),
             "Yes" if record.resolved else "No",
             record.action_taken[:80] if record.action_taken else "-",
@@ -895,14 +895,14 @@ def _employee_section_row(record, section):
         return [
             record.training_name,
             record.provider or "-",
-            record.completion_date.strftime("%Y-%m-%d") if record.completion_date else "-",
-            record.expiry_date.strftime("%Y-%m-%d") if record.expiry_date else "-",
+            record.completion_date.strftime("%d/%m/%Y") if record.completion_date else "-",
+            record.expiry_date.strftime("%d/%m/%Y") if record.expiry_date else "-",
             record.notes[:80] if record.notes else "-",
         ]
     if section == "history":
         return [
             record.get_change_type_display(),
-            record.effective_date.strftime("%Y-%m-%d"),
+            record.effective_date.strftime("%d/%m/%Y"),
             record.description[:80],
             record.created_by.get_username() if record.created_by else "-",
         ]

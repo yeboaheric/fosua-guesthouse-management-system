@@ -21,13 +21,13 @@
     <div class="col-md-3">
       <div class="mini-metric h-100">
         <div class="metric-label">Start date</div>
-        <div class="metric-value">{{ rota.period_start|date:"M d" }}</div>
+        <div class="metric-value">{{ rota.period_start|date:"d/m" }}</div>
       </div>
     </div>
     <div class="col-md-3">
       <div class="mini-metric h-100">
         <div class="metric-label">Finish date</div>
-        <div class="metric-value">{{ rota.period_end|date:"M d" }}</div>
+        <div class="metric-value">{{ rota.period_end|date:"d/m" }}</div>
       </div>
     </div>
     <div class="col-md-3">
@@ -57,7 +57,7 @@
         <div class="result-card">
           <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
-              <div class="fw-semibold">{{ entry.day_name }} - {{ entry.date|date:"M d, Y" }}</div>
+              <div class="fw-semibold">{{ entry.day_name }} - {{ entry.date|date:"d/m/Y" }}</div>
               <div class="text-muted small">
                 Start {{ entry.start_time|time:"H:i"|default:"-" }} · Finish {{ entry.end_time|time:"H:i"|default:"-" }}
               </div>
@@ -96,7 +96,7 @@
             <tbody>
               {% for entry in daily_roster %}
                 <tr>
-                  <td>{{ entry.date|date:"M d, Y" }}</td>
+                  <td>{{ entry.date|date:"d/m/Y" }}</td>
                   <td>{{ entry.day_name }}</td>
                   <td>{{ entry.start_time|time:"H:i" }}</td>
                   <td>{{ entry.end_time|time:"H:i" }}</td>

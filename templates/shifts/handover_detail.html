@@ -10,9 +10,9 @@
   <div class="card-body">
     <div class="row g-3 mb-3">
       <div class="col-md-3"><strong>Prepared By:</strong><br>{{ handover.prepared_by.username }}</div>
-      <div class="col-md-3"><strong>Start:</strong><br>{{ handover.started_at|date:"Y-m-d H:i" }}</div>
-      <div class="col-md-3"><strong>End:</strong><br>{{ handover.ended_at|date:"Y-m-d H:i" }}</div>
-      <div class="col-md-3"><strong>Created:</strong><br>{{ handover.created_at|date:"Y-m-d H:i" }}</div>
+      <div class="col-md-3"><strong>Start:</strong><br>{{ handover.started_at|date:"d/m/Y H:i" }}</div>
+      <div class="col-md-3"><strong>End:</strong><br>{{ handover.ended_at|date:"d/m/Y H:i" }}</div>
+      <div class="col-md-3"><strong>Created:</strong><br>{{ handover.created_at|date:"d/m/Y H:i" }}</div>
     </div>
 
     <div class="row g-3">
@@ -69,7 +69,7 @@
           <tbody>
             {% for update in updates %}
               <tr>
-                <td>{{ update.created_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ update.created_at|date:"d/m/Y H:i" }}</td>
                 <td>{{ update.author.username }}</td>
                 <td>{{ update.note }}</td>
               </tr>

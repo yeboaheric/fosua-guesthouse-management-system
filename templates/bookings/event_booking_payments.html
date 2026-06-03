@@ -55,7 +55,7 @@
           <tbody>
             {% for payment in payments %}
               <tr>
-                <td>{{ payment.paid_at|date:"Y-m-d H:i" }}</td>
+                <td>{{ payment.paid_at|date:"d/m/Y H:i" }}</td>
                 <td>GHS {{ payment.amount }}</td>
                 <td>{{ payment.get_method_display }}</td>
                 <td>{{ payment.reference|default:"-" }}</td>

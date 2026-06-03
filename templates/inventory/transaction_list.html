@@ -69,7 +69,7 @@
               <td>{{ transaction.quantity_changed }}</td>
               <td>{{ transaction.quantity_after }}</td>
               <td>{{ transaction.created_by.get_username|default:"-" }}</td>
-              <td>{{ transaction.created_at|date:"M d, Y H:i" }}</td>
+              <td>{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
               <td>{{ transaction.notes|default:"-" }}</td>
             </tr>
           {% empty %}

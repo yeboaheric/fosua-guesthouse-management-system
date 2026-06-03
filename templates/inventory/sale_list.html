@@ -64,7 +64,7 @@
               <td>GHS {{ sale.amount_paid }}</td>
               <td><span class="status-pill neutral">{{ sale.get_payment_method_display }}</span></td>
               <td>{{ sale.cashier.get_full_name|default:sale.cashier.username }}</td>
-              <td>{{ sale.created_at|date:"M d, Y H:i" }}</td>
+              <td>{{ sale.created_at|date:"d/m/Y H:i" }}</td>
               <td>
                 <div class="d-flex gap-2 flex-wrap">
                   <a class="status-pill neutral" href="{% url 'inventory-sale-detail' sale.pk %}">Open</a>

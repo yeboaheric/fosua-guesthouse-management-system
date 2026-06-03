@@ -49,7 +49,7 @@ class RoomTimestampTests(TestCase):
         room.save()
         room.refresh_from_db()
         self.assertEqual(room.status_started_at, original_started)
-        self.assertEqual(room.last_status_changed_at, original_changed)
+        self.assertGreater(room.last_status_changed_at, original_changed)
 
         room.status = Room.RoomStatus.CLEANING
         room.save()

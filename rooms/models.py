@@ -40,20 +40,26 @@ class Room(StatusTrackingMixin, models.Model):
     def save(self, *args, **kwargs):
         now = timezone.now()
         if self.pk:
-            previous = Room.objects.filter(pk=self.pk).values("status", "status_started_at").first()
-            if previous and previous["status"] != self.status:
-                self.status_started_at = now
+            previous = Room.objects.filter(pk=self.pk).values(
+                "status",
+                "status_started_at",
+                "last_status_changed_at",
+            ).first()
+            if previous:
+                if previous["status"] != self.status:
+                    self.status_started_at = now
+                elif not self.status_started_at:
+                    self.status_started_at = previous["status_started_at"] or now
+
                 self.last_status_changed_at = now
-            elif previous and previous["status_started_at"] and not self.status_started_at:
-                self.status_started_at = previous["status_started_at"]
         else:
             self.status_started_at = self.status_started_at or now
             self.last_status_changed_at = self.last_status_changed_at or now
 
-        if not self.last_status_changed_at:
-            self.last_status_changed_at = now
         if not self.status_started_at:
             self.status_started_at = now
+        if not self.last_status_changed_at:
+            self.last_status_changed_at = now
 
         return super().save(*args, **kwargs)
 

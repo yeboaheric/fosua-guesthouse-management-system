@@ -24,6 +24,21 @@ class Room(StatusTrackingMixin, models.Model):
         choices=RoomStatus.choices,
         default=RoomStatus.AVAILABLE,
     )
+    class HousekeepingStatus(models.TextChoices):
+        CLEAN = "clean", "Clean"
+        DIRTY = "dirty", "Dirty"
+        INSPECTED = "inspected", "Inspected"
+        IN_PROGRESS = "in_progress", "In Progress"
+        OUT_OF_SERVICE = "out_of_service", "Out of Service"
+        MAINTENANCE_REQUIRED = "maintenance_required", "Maintenance Required"
+
+    housekeeping_status = models.CharField(
+        max_length=30,
+        choices=HousekeepingStatus.choices,
+        default=HousekeepingStatus.DIRTY,
+    )
+    housekeeping_status_started_at = models.DateTimeField(blank=True, null=True)
+    housekeeping_last_changed_at = models.DateTimeField(blank=True, null=True)
     status_started_at = models.DateTimeField(blank=True, null=True)
     last_status_changed_at = models.DateTimeField(blank=True, null=True)
     base_rate = models.DecimalField(max_digits=10, decimal_places=2)
@@ -44,20 +59,36 @@ class Room(StatusTrackingMixin, models.Model):
                 "status",
                 "status_started_at",
                 "last_status_changed_at",
+                "housekeeping_status",
+                "housekeeping_status_started_at",
+                "housekeeping_last_changed_at",
             ).first()
             if previous:
                 if not self.status_started_at:
                     self.status_started_at = previous["status_started_at"] or now
 
                 self.last_status_changed_at = now
+                # Preserve housekeeping status history when not explicitly set
+                if not self.housekeeping_status_started_at:
+                    self.housekeeping_status_started_at = previous.get(
+                        "housekeeping_status_started_at"
+                    ) or now
+                self.housekeeping_last_changed_at = now
         else:
             self.status_started_at = self.status_started_at or now
             self.last_status_changed_at = self.last_status_changed_at or now
+            self.housekeeping_status_started_at = self.housekeeping_status_started_at or now
+            self.housekeeping_last_changed_at = self.housekeeping_last_changed_at or now
 
         if not self.status_started_at:
             self.status_started_at = now
         if not self.last_status_changed_at:
             self.last_status_changed_at = now
+
+        if not self.housekeeping_status_started_at:
+            self.housekeeping_status_started_at = now
+        if not self.housekeeping_last_changed_at:
+            self.housekeeping_last_changed_at = now
 
         return super().save(*args, **kwargs)
 
@@ -99,3 +130,101 @@ class MaintenanceRequest(StatusTrackingMixin, models.Model):
 
     def __str__(self):
         return f"Maintenance for Room {self.room.room_number} ({self.get_status_display()})"
+
+
+class HousekeepingHistory(models.Model):
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="housekeeping_history")
+    previous_status = models.CharField(max_length=30)
+    new_status = models.CharField(max_length=30)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="housekeeping_changes",
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.room.room_number}: {self.previous_status} -> {self.new_status} at {self.created_at}"
+
+
+class HousekeepingTask(StatusTrackingMixin, models.Model):
+    class TaskStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        IN_PROGRESS = "in_progress", "In Progress"
+        COMPLETED = "completed", "Completed"
+        OVERDUE = "overdue", "Overdue"
+
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="housekeeping_tasks")
+    title = models.CharField(max_length=160)
+    description = models.TextField(blank=True)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_housekeeping_tasks",
+    )
+    status = models.CharField(max_length=20, choices=TaskStatus.choices, default=TaskStatus.PENDING)
+    due_date = models.DateField(blank=True, null=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_housekeeping_tasks",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Task {self.title} for Room {self.room.room_number} ({self.get_status_display()})"
+
+
+class InspectionRecord(models.Model):
+    room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name="inspections")
+    inspector = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inspections",
+    )
+    passed = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Inspection for Room {self.room.room_number} at {self.created_at} - {'Passed' if self.passed else 'Failed'}"
+
+
+class HousekeepingTaskToiletry(models.Model):
+    task = models.ForeignKey(
+        HousekeepingTask,
+        on_delete=models.CASCADE,
+        related_name="toiletry_requirements",
+    )
+    item = models.ForeignKey(
+        "inventory.ToiletryItem",
+        on_delete=models.PROTECT,
+        related_name="task_requirements",
+    )
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+
+    class Meta:
+        ordering = ["-id"]
+
+    def __str__(self):
+        return f"{self.quantity} x {self.item.name} for {self.task.title}"

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Toiletries stock</div>
+        <h1 class="page-title mb-2">Toiletry items</h1>
+        <div class="page-subtitle">Manage hotel guest amenities and housekeeping consumables.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'inventory-toiletries-item-create' %}"><i data-lucide="plus-circle"></i> Add item</a>
+        <a class="topbar-pill" href="{% url 'inventory-toiletries-issue' %}"><i data-lucide="truck"></i> Issue item</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Search</label>
+        <input class="form-control" name="q" value="{{ query }}" placeholder="Search item name or description">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Stock status</label>
+        <select class="form-select" name="stock">
+          <option value="">All</option>
+          <option value="in" {% if selected_stock == "in" %}selected{% endif %}>In stock</option>
+          <option value="low" {% if selected_stock == "low" %}selected{% endif %}>Low stock</option>
+          <option value="out" {% if selected_stock == "out" %}selected{% endif %}>Out of stock</option>
+        </select>
+      </div>
+      <div class="col-md-4 d-flex gap-2">
+        <button class="btn btn-primary">Filter</button>
+        <a class="btn btn-outline-secondary" href="{% url 'inventory-toiletries-items' %}">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="surface-panel p-4">
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Item</th>
+            <th>Stock</th>
+            <th>Min threshold</th>
+            <th>Status</th>
+            <th>Last updated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            <tr>
+              <td>{{ item.name }}</td>
+              <td>{{ item.quantity_in_stock }} {{ item.get_unit_of_measure_display }}</td>
+              <td>{{ item.minimum_stock_threshold }} {{ item.get_unit_of_measure_display }}</td>
+              <td>
+                {% if item.is_low_stock %}
+                  <span class="status-pill warning">Low stock</span>
+                {% elif item.quantity_in_stock <= 0 %}
+                  <span class="status-pill danger">Out of stock</span>
+                {% else %}
+                  <span class="status-pill success">Active</span>
+                {% endif %}
+              </td>
+              <td>{{ item.updated_at|date:"d/m/Y H:i" }}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'inventory-toiletries-item-update' item.pk %}">Edit</a>
+                <form method="post" action="{% url 'inventory-toiletries-item-delete' item.pk %}" class="d-inline-block">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-muted">No toiletry items found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -13,7 +13,10 @@ from inventory.models import (
     InventoryTransaction,
     Sale,
     Supplier,
+    ToiletryItem,
+    ToiletryIssue,
 )
+from rooms.models import Room
 
 
 class InventoryPermissionTests(TestCase):
@@ -180,3 +183,45 @@ class InventoryPosWorkflowTests(TestCase):
         reports = self.client.get(reverse("inventory-reports"))
         self.assertEqual(reports.status_code, 200)
         self.assertContains(reports, "Sales and stock analytics")
+
+
+class ToiletriesInventoryTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.user = User.objects.create_user(username="toiletry-admin", password="pass123456")
+        self.user.groups.add(self.admin_group)
+        self.room = Room.objects.create(room_number="101", room_type=Room.RoomType.STANDARD, status=Room.RoomStatus.AVAILABLE, base_rate="100.00")
+        self.item = ToiletryItem.objects.create(
+            name="Bath Soap",
+            purchase_price="2.00",
+            quantity_in_stock="50.000",
+            unit_of_measure=ToiletryItem.UnitOfMeasure.PIECE,
+            minimum_stock_threshold="10.000",
+        )
+
+    def test_toiletry_issue_reduces_stock_and_records_history(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("inventory-toiletries-issue"),
+            {
+                "item": self.item.pk,
+                "room": self.room.pk,
+                "quantity": "5.000",
+                "reason": "Restock bathroom",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(str(self.item.quantity_in_stock), "45.000")
+        issue = ToiletryIssue.objects.get(item=self.item)
+        self.assertEqual(issue.room, self.room)
+        self.assertEqual(str(issue.quantity), "5.000")
+        self.assertEqual(issue.reason, "Restock bathroom")
+
+    def test_toiletries_dashboard_shows_recent_issues(self):
+        ToiletryIssue.objects.create(item=self.item, room=self.room, issued_by=self.user, quantity="3.000", reason="Sample")
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("inventory-toiletries-dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Toiletries inventory")
+        self.assertContains(response, "Bath Soap")

@@ -24,6 +24,13 @@ from inventory.views import (
     supplier_list,
     supplier_update,
     transaction_list,
+    toiletries_dashboard,
+    toiletries_item_list,
+    toiletries_item_create,
+    toiletries_item_update,
+    toiletries_item_delete,
+    toiletry_issue,
+    toiletries_movement_log,
 )
 
 urlpatterns = [
@@ -42,6 +49,13 @@ urlpatterns = [
     path("items/<int:pk>/edit/", item_update, name="inventory-item-update"),
     path("items/<int:pk>/delete/", item_delete, name="inventory-item-delete"),
     path("items/<int:pk>/adjust/", item_adjust_stock, name="inventory-item-adjust"),
+    path("toiletries/", toiletries_dashboard, name="inventory-toiletries-dashboard"),
+    path("toiletries/items/", toiletries_item_list, name="inventory-toiletries-items"),
+    path("toiletries/items/new/", toiletries_item_create, name="inventory-toiletries-item-create"),
+    path("toiletries/items/<int:pk>/edit/", toiletries_item_update, name="inventory-toiletries-item-update"),
+    path("toiletries/items/<int:pk>/delete/", toiletries_item_delete, name="inventory-toiletries-item-delete"),
+    path("toiletries/issue/", toiletry_issue, name="inventory-toiletries-issue"),
+    path("toiletries/movements/", toiletries_movement_log, name="inventory-toiletries-movements"),
     path("transactions/", transaction_list, name="inventory-transactions"),
     path("pos/", pos_terminal, name="inventory-pos"),
     path("pos/checkout/", pos_checkout, name="inventory-pos-checkout"),

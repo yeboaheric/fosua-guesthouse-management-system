@@ -72,8 +72,14 @@ class DashboardRoutingTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_receptionist_module_access_can_be_restricted(self):
+        blocked_group = Group.objects.create(name="Blocked Reception")
+        RolePermission.objects.create(
+            role=blocked_group,
+            module="rooms",
+            can_view=True,
+        )
         user = User.objects.create_user(username="reception-blocked", password="pass123456")
-        user.groups.add(self.receptionist_group)
+        user.groups.add(blocked_group)
         UserAccessProfile.objects.create(
             user=user,
             dashboard_access=True,
@@ -92,7 +98,12 @@ class DashboardRoutingTests(TestCase):
             users_roles_access=False,
         )
 
-        self.client.force_login(user)
+        self.assertTrue(
+            self.client.post(
+                reverse("login"),
+                {"username": "reception-blocked", "password": "pass123456"},
+            ).status_code in {200, 302}
+        )
         response = self.client.get(reverse("booking-list"))
         self.assertEqual(response.status_code, 403)
 
@@ -399,3 +410,70 @@ class CenterFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(list(response.context["cleaning_rooms"]), [self.cleaning_room])
         self.assertEqual(list(response.context["available_rooms"]), [])
+
+
+class PermissionSnapshotTests(TestCase):
+    def test_permission_changes_take_effect_after_logout_and_signin(self):
+        role = Group.objects.create(name="Temp Reception")
+        RolePermission.objects.create(
+            role=role,
+            module="reservations",
+            can_view=True,
+            can_create=True,
+        )
+        user = User.objects.create_user(username="temp_reception", password="pass123456")
+        user.groups.add(role)
+
+        self.assertTrue(
+            self.client.post(
+                reverse("login"),
+                {"username": "temp_reception", "password": "pass123456"},
+            ).status_code in {200, 302}
+        )
+        response = self.client.get(reverse("booking-list"))
+        self.assertEqual(response.status_code, 200)
+
+        permission = RolePermission.objects.get(role=role, module="reservations")
+        permission.can_view = False
+        permission.can_create = False
+        permission.save(update_fields=["can_view", "can_create", "updated_at"])
+
+        response = self.client.get(reverse("booking-list"))
+        self.assertEqual(response.status_code, 200)
+
+        self.client.logout()
+        self.assertTrue(
+            self.client.post(
+                reverse("login"),
+                {"username": "temp_reception", "password": "pass123456"},
+            ).status_code in {200, 302}
+        )
+        response = self.client.get(reverse("booking-list"))
+        self.assertEqual(response.status_code, 403)
+
+
+class UserDeletionTests(TestCase):
+    def test_delete_user_removes_account(self):
+        admin_group = Group.objects.create(name="Admin")
+        receptionist_group = Group.objects.create(name="Receptionist")
+        admin = User.objects.create_user(username="delete_admin", password="pass123456")
+        admin.groups.add(admin_group)
+        target = User.objects.create_user(username="delete_target", password="pass123456")
+        target.groups.add(receptionist_group)
+        UserAccessProfile.objects.create(user=target, dashboard_access=True)
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users-roles-center"),
+            {"action": "delete_user", "user_id": target.pk},
+        )
+
+        self.assertRedirects(response, reverse("users-roles-center"))
+        self.assertFalse(User.objects.filter(username="delete_target").exists())
+
+
+class PasswordResetViewsTests(TestCase):
+    def test_password_reset_page_is_available(self):
+        response = self.client.get(reverse("password_reset"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reset your password")

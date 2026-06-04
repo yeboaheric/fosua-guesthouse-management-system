@@ -1,4 +1,12 @@
 from django.urls import path
+from django.contrib.auth.views import (
+    PasswordChangeDoneView,
+    PasswordChangeView,
+    PasswordResetCompleteView,
+    PasswordResetConfirmView,
+    PasswordResetDoneView,
+    PasswordResetView,
+)
 
 from accounts.views import (
     FosuaLoginView,
@@ -31,10 +39,45 @@ from accounts.views import (
     reception_dashboard,
 )
 
+
+class FosuaPasswordResetView(PasswordResetView):
+    template_name = "accounts/password_reset_form.html"
+    email_template_name = "accounts/password_reset_email.html"
+    subject_template_name = "accounts/password_reset_subject.txt"
+    success_url = "/password-reset/done/"
+
+
+class FosuaPasswordResetDoneView(PasswordResetDoneView):
+    template_name = "accounts/password_reset_done.html"
+
+
+class FosuaPasswordResetConfirmView(PasswordResetConfirmView):
+    template_name = "accounts/password_reset_confirm.html"
+    success_url = "/password-reset/complete/"
+
+
+class FosuaPasswordResetCompleteView(PasswordResetCompleteView):
+    template_name = "accounts/password_reset_complete.html"
+
+
+class FosuaPasswordChangeView(PasswordChangeView):
+    template_name = "accounts/password_change_form.html"
+    success_url = "/password-change/done/"
+
+
+class FosuaPasswordChangeDoneView(PasswordChangeDoneView):
+    template_name = "accounts/password_change_done.html"
+
 urlpatterns = [
     path("", home_redirect, name="home"),
     path("login/", FosuaLoginView.as_view(), name="login"),
     path("logout/", FosuaLogoutView.as_view(), name="logout"),
+    path("password-reset/", FosuaPasswordResetView.as_view(), name="password_reset"),
+    path("password-reset/done/", FosuaPasswordResetDoneView.as_view(), name="password_reset_done"),
+    path("password-reset/confirm/<uidb64>/<token>/", FosuaPasswordResetConfirmView.as_view(), name="password_reset_confirm"),
+    path("password-reset/complete/", FosuaPasswordResetCompleteView.as_view(), name="password_reset_complete"),
+    path("password-change/", FosuaPasswordChangeView.as_view(), name="password_change"),
+    path("password-change/done/", FosuaPasswordChangeDoneView.as_view(), name="password_change_done"),
     path("dashboard/", dashboard, name="dashboard"),
     path("dashboard/admin/", admin_dashboard, name="admin-dashboard"),
     path("dashboard/admin/reports/", admin_reports, name="admin-reports"),

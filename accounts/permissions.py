@@ -36,6 +36,8 @@ MODULE_FIELDS = {
     module_name: f"{module_name}_access" for module_name, _ in ACCESS_MODULE_CHOICES
 }
 
+PERMISSION_SNAPSHOT_SESSION_KEY = "fg_permission_snapshot"
+
 DEFAULT_ROLE_PRESETS = {
     "Super Administrator": {module: {action for action, _ in ACTION_CHOICES} for module, _ in ACCESS_MODULE_CHOICES},
     "Hotel Administrator": {module: {action for action, _ in ACTION_CHOICES} for module, _ in ACCESS_MODULE_CHOICES},
@@ -124,6 +126,95 @@ def default_permissions_for_role(role_name: str) -> dict[str, set[str]]:
     return {}
 
 
+def _all_actions() -> set[str]:
+    return {action for action, _ in ACTION_CHOICES}
+
+
+def build_permission_snapshot(user) -> dict:
+    module_access = access_defaults_for_roles(user.groups.values_list("name", flat=True))
+    module_actions = {module_name: set() for module_name, _ in ACCESS_MODULE_CHOICES}
+
+    if not user.is_authenticated:
+        return {
+            "user_id": None,
+            "module_access": module_access,
+            "module_actions": {module: {} for module in module_actions},
+        }
+
+    if user.is_superuser or user.groups.filter(name__in=["Admin", "Super Administrator"]).exists():
+        for module_name in module_actions:
+            module_actions[module_name] = _all_actions()
+            module_access[f"{module_name}_access"] = True
+    else:
+        from accounts.models import RolePermission
+
+        role_permissions = RolePermission.objects.filter(role__in=user.groups.all())
+        if role_permissions.exists():
+            for permission in role_permissions:
+                if permission.can_manage:
+                    module_actions[permission.module].update(_all_actions())
+                    module_access[f"{permission.module}_access"] = True
+                    continue
+                if permission.can_view:
+                    module_actions[permission.module].add("view")
+                    module_access[f"{permission.module}_access"] = True
+                if permission.can_create:
+                    module_actions[permission.module].add("create")
+                if permission.can_edit:
+                    module_actions[permission.module].add("edit")
+                if permission.can_delete:
+                    module_actions[permission.module].add("delete")
+                if permission.can_approve:
+                    module_actions[permission.module].add("approve")
+                if permission.can_export:
+                    module_actions[permission.module].add("export")
+                if permission.can_print:
+                    module_actions[permission.module].add("print")
+                if permission.can_manage:
+                    module_actions[permission.module].add("manage")
+        else:
+            for group_name in user.groups.values_list("name", flat=True):
+                preset = default_permissions_for_role(group_name)
+                for module_name, actions in preset.items():
+                    if actions:
+                        module_actions[module_name].update(actions)
+                        module_access[f"{module_name}_access"] = True
+
+    return {
+        "user_id": user.pk,
+        "module_access": module_access,
+        "module_actions": {module: sorted(actions) for module, actions in module_actions.items()},
+    }
+
+
+def store_permission_snapshot(request, user):
+    if request is None or not hasattr(request, "session"):
+        return None
+    snapshot = build_permission_snapshot(user)
+    request.session[PERMISSION_SNAPSHOT_SESSION_KEY] = snapshot
+    request.session.modified = True
+    return snapshot
+
+
+def clear_permission_snapshot(request):
+    if request is None or not hasattr(request, "session"):
+        return
+    request.session.pop(PERMISSION_SNAPSHOT_SESSION_KEY, None)
+    request.session.modified = True
+
+
+def get_permission_snapshot(user):
+    from accounts.audit import get_current_request
+
+    request = get_current_request()
+    if request is None or not hasattr(request, "session"):
+        return None
+    snapshot = request.session.get(PERMISSION_SNAPSHOT_SESSION_KEY)
+    if not snapshot or snapshot.get("user_id") != getattr(user, "pk", None):
+        return None
+    return snapshot
+
+
 def access_defaults_for_roles(role_names) -> dict[str, bool]:
     permissions = {module_name: False for module_name, _ in ACCESS_MODULE_CHOICES}
     role_name_set = {str(name) for name in role_names}
@@ -157,25 +248,26 @@ def user_has_permission(user, module_name: str, action: str = "view") -> bool:
         return True
 
     access_profile = getattr(user, "access_profile", None)
-    if action == "view" and access_profile is not None:
-        if not getattr(access_profile, MODULE_FIELDS.get(module_name, ""), False):
-            return False
+    snapshot = get_permission_snapshot(user)
+    if snapshot is None:
+        if action == "view" and access_profile is not None:
+            if not getattr(access_profile, MODULE_FIELDS.get(module_name, ""), False):
+                return False
+        snapshot = build_permission_snapshot(user)
+        from accounts.audit import get_current_request
 
-    from accounts.models import RolePermission
+        request = get_current_request()
+        if request is not None and hasattr(request, "session"):
+            request.session[PERMISSION_SNAPSHOT_SESSION_KEY] = snapshot
+            request.session.modified = True
 
-    role_permissions = RolePermission.objects.filter(role__in=user.groups.all(), module=module_name)
-    if role_permissions.exists():
-        return any(permission.allows(action) for permission in role_permissions)
+    module_access = snapshot.get("module_access", {})
+    module_actions = snapshot.get("module_actions", {})
+    action_set = set(module_actions.get(module_name, []))
 
-    for group in user.groups.all():
-        preset_permissions = default_permissions_for_role(group.name)
-        if action in preset_permissions.get(module_name, set()):
-            return True
-
-    if access_profile is not None and action == "view":
-        return getattr(access_profile, MODULE_FIELDS.get(module_name, ""), False)
-
-    return False
+    if action == "view":
+        return bool(module_access.get(MODULE_FIELDS.get(module_name, ""), False) or "view" in action_set)
+    return action in action_set
 
 
 def seed_default_role_names():

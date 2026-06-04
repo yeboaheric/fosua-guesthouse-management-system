@@ -9,7 +9,9 @@ from django.contrib.auth.models import Group
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
+from django.db import IntegrityError, transaction
 from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum, Value
+from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse
@@ -679,18 +681,28 @@ def users_roles_center(request):
             else:
                 username = user.username
                 user_id = user.pk
-                user.delete()
-                log_audit_event(
-                    request=request,
-                    user=request.user,
-                    action=AuditLog.ActionType.DELETE,
-                    module="users_roles",
-                    object_repr=username,
-                    object_id=user_id,
-                    details={"event": "user_deleted"},
-                )
-                messages.success(request, f"User '{username}' deleted successfully.")
-                return redirect("users-roles-center")
+                try:
+                    with transaction.atomic():
+                        user.delete()
+                except ProtectedError:
+                    messages.error(request, f"User '{username}' could not be deleted because the account is linked to other records.")
+                except IntegrityError:
+                    messages.error(request, f"User '{username}' could not be deleted because the database rejected the operation.")
+                else:
+                    try:
+                        log_audit_event(
+                            request=request,
+                            user=request.user,
+                            action=AuditLog.ActionType.DELETE,
+                            module="users_roles",
+                            object_repr=username,
+                            object_id=user_id,
+                            details={"event": "user_deleted"},
+                        )
+                    except Exception:
+                        pass
+                    messages.success(request, f"User '{username}' deleted successfully.")
+                    return redirect("users-roles-center")
         elif action == "create_role":
             role_create_form = RoleCreateForm(request.POST)
             if role_create_form.is_valid():

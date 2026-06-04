@@ -9,7 +9,13 @@
         <h1 class="page-title mb-2">Room status and maintenance</h1>
         <div class="page-subtitle">A live view of available, occupied, cleaning, and maintenance rooms.</div>
       </div>
-      <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations overview</a>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}"><i data-lucide="layout-dashboard"></i> Housekeeping dashboard</a>
+        <a class="topbar-pill" href="{% url 'housekeeping-tasks' %}"><i data-lucide="check-square"></i> Tasks</a>
+        <a class="topbar-pill" href="{% url 'housekeeping-history' %}"><i data-lucide="clock2"></i> History</a>
+        <a class="topbar-pill" href="{% url 'housekeeping-update-status' %}"><i data-lucide="refresh-cw"></i> Update status</a>
+        <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations overview</a>
+      </div>
     </div>
   </div>
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -191,6 +191,24 @@
           <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i> Users & Roles</a></div>
           <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i> Inventory</a></div>
           <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a></div>
+        </div>
+      </div>
+
+      <div class="surface-panel p-4 mb-3">
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div class="section-eyebrow">Workforce planning</div>
+            <h2 class="h5 mb-1">Rosters and shift control</h2>
+          </div>
+        </div>
+        <div class="d-grid gap-2">
+          {% if user|can_access_module:'staff_management' %}
+            <a class="topbar-pill justify-content-center" href="{% url 'hr-rota-list' %}"><i data-lucide="calendar-range"></i> Weekly duty roster</a>
+          {% endif %}
+          {% if user|can_access_module:'handovers' %}
+            <a class="topbar-pill justify-content-center" href="{% url 'roster-report' %}"><i data-lucide="clipboard-check"></i> Duty roster report</a>
+            <a class="topbar-pill justify-content-center" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i> Shift handovers</a>
+          {% endif %}
         </div>
       </div>
 

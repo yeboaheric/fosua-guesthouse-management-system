@@ -130,7 +130,10 @@
                 <i data-lucide="clipboard-list"></i>
               </div>
               <p class="text-muted small mb-3">Review the handover log before starting the next shift.</p>
-              <a class="topbar-pill w-100 justify-content-center" href="{% url 'handover-list' %}">Open handover log</a>
+              <div class="d-grid gap-2">
+                <a class="topbar-pill w-100 justify-content-center" href="{% url 'handover-list' %}">Open handover log</a>
+                <a class="btn btn-outline-secondary btn-sm" href="{% url 'roster-report' %}">View duty rosters</a>
+              </div>
             </div>
           </div>
           {% endif %}

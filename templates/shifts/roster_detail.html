@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+      <div>
+        <div class="section-eyebrow mb-2">Duty Roster</div>
+        <h1 class="page-title mb-2">{{ roster.roster_date|date:"d/m/Y" }}</h1>
+        <div class="page-subtitle">Complete roster assignments for this date.</div>
+      </div>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'roster-report' %}" class="btn btn-outline-secondary">Back to rosters</a>
+        <button onclick="window.print()" class="btn btn-primary"><i data-lucide="printer"></i> Print</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roster Info -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Status</div>
+        <div class="metric-value">
+          {% if roster.status == 'draft' %}
+            <span class="badge bg-secondary">Draft</span>
+          {% elif roster.status == 'published' %}
+            <span class="badge bg-success">Published</span>
+          {% else %}
+            <span class="badge bg-warning">Archived</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total Assignments</div>
+        <div class="metric-value">{{ entries.count }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Departments</div>
+        <div class="metric-value">{{ departments|length }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Shifts</div>
+        <div class="metric-value">{{ shifts|length }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% for shift, shift_entries in grouped_entries %}
+    <div class="surface-panel p-4 mb-3">
+      <div class="section-eyebrow mb-3">{{ shift.name }} ({{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }})</div>
+      <div class="table-responsive soft-table">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Employee</th>
+              <th>Department</th>
+              <th>Role</th>
+              <th>Assigned Duties</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in shift_entries %}
+              <tr>
+                <td>{{ entry.employee.get_full_name }}</td>
+                <td>{{ entry.department.name }}</td>
+                <td>{{ entry.role }}</td>
+                <td>
+                  {% if entry.assigned_duties %}
+                    <small class="text-muted">{{ entry.assigned_duties }}</small>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if entry.status == 'assigned' %}
+                    <span class="badge bg-info">Assigned</span>
+                  {% elif entry.status == 'confirmed' %}
+                    <span class="badge bg-success">Confirmed</span>
+                  {% elif entry.status == 'completed' %}
+                    <span class="badge bg-primary">Completed</span>
+                  {% elif entry.status == 'absent' %}
+                    <span class="badge bg-danger">Absent</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Cancelled</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if entry.notes %}
+                    <small class="text-muted">{{ entry.notes }}</small>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% empty %}
+    <div class="surface-panel p-4 mb-3 text-muted">No assignments found for this roster.</div>
+  {% endfor %}
+
+  <!-- Roster Details -->
+  <div class="surface-panel p-4 no-print">
+    <div class="section-eyebrow mb-3">Roster Details</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div>
+          <strong>Created by:</strong> {{ roster.created_by.get_full_name|default:roster.created_by.username }}
+        </div>
+        <div>
+          <strong>Created at:</strong> {{ roster.created_at|date:"d/m/Y H:i" }}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div>
+          <strong>Last updated:</strong> {{ roster.updated_at|date:"d/m/Y H:i" }}
+        </div>
+        {% if roster.notes %}
+          <div>
+            <strong>Notes:</strong>
+            <div class="text-muted">{{ roster.notes }}</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print,
+    .btn,
+    .sidebar-link,
+    .offcanvas {
+      display: none !important;
+    }
+    body {
+      background: white;
+    }
+    .surface-panel {
+      box-shadow: none;
+      border: 1px solid #ddd;
+    }
+  }
+</style>
+{% endblock %}

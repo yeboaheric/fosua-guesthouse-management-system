@@ -1,6 +1,6 @@
 from django import forms
 
-from shifts.models import ShiftHandover, ShiftHandoverUpdate
+from shifts.models import ShiftHandover, ShiftHandoverUpdate, DutyRosterEntry
 
 
 class ShiftHandoverForm(forms.ModelForm):
@@ -46,3 +46,50 @@ class ShiftHandoverUpdateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["note"].widget.attrs["class"] = "form-control"
+
+
+class RosterFilterForm(forms.Form):
+    """Form for filtering rosters by date range, department, role, employee, shift."""
+
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        label="Start date",
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        label="End date",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from shifts.models import Department, Shift
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        self.fields["department"] = forms.ModelChoiceField(
+            queryset=Department.objects.filter(is_active=True),
+            required=False,
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
+        self.fields["shift"] = forms.ModelChoiceField(
+            queryset=Shift.objects.filter(is_active=True),
+            required=False,
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
+        self.fields["employee"] = forms.ModelChoiceField(
+            queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name"),
+            required=False,
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
+        self.fields["role"] = forms.CharField(
+            required=False,
+            widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g., Manager, Supervisor"}),
+        )
+        self.fields["status"] = forms.ChoiceField(
+            choices=[("", "All statuses")] + list(DutyRosterEntry.EntryStatus.choices),
+            required=False,
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )

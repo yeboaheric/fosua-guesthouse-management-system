@@ -7,7 +7,7 @@
       <div>
         <div class="section-eyebrow mb-2">Duty Roster</div>
         <h1 class="page-title mb-2">Roster reporting & export</h1>
-        <div class="page-subtitle">View, filter, and export duty rosters for any date range with full employee assignments and shifts.</div>
+        <div class="page-subtitle">This report now reads from the same weekly duty roster records used in staff management.</div>
       </div>
     </div>
   </div>
@@ -62,31 +62,28 @@
       <div class="table-responsive soft-table">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
-            <tr>
-              <th>Date</th>
-              <th>Status</th>
-              <th>Entries</th>
-              <th>Created by</th>
-              <th>Created at</th>
-              <th></th>
-            </tr>
-          </thead>
+              <tr>
+                <th>Employee</th>
+                <th>Department</th>
+                <th>Role</th>
+                <th>Period</th>
+                <th>Daily hours</th>
+                <th>Total hours</th>
+                <th></th>
+              </tr>
+            </thead>
           <tbody>
             {% for roster in rosters %}
               <tr>
-                <td><strong>{{ roster.roster_date|date:"d/m/Y" }}</strong></td>
                 <td>
-                  {% if roster.status == 'draft' %}
-                    <span class="badge bg-secondary">Draft</span>
-                  {% elif roster.status == 'published' %}
-                    <span class="badge bg-success">Published</span>
-                  {% else %}
-                    <span class="badge bg-warning">Archived</span>
-                  {% endif %}
+                  <strong>{{ roster.employee.full_name }}</strong>
+                  <div class="text-muted small">{{ roster.employee.contact_number }}</div>
                 </td>
-                <td>{{ roster.entries.count }} assignments</td>
-                <td>{{ roster.created_by.get_full_name|default:roster.created_by.username }}</td>
-                <td>{{ roster.created_at|date:"d/m/Y H:i" }}</td>
+                <td>{{ roster.employee.department|default:"-" }}</td>
+                <td>{{ roster.employee.job_title|default:roster.employee.get_position_display }}</td>
+                <td>{{ roster.period_start|date:"d/m/Y" }} to {{ roster.period_end|date:"d/m/Y" }}</td>
+                <td>{{ roster.daily_hours|floatformat:2 }}</td>
+                <td>{{ roster.total_hours|floatformat:2 }}</td>
                 <td class="text-end">
                   <a href="{% url 'roster-detail' roster.pk %}" class="btn btn-sm btn-outline-primary">View</a>
                 </td>

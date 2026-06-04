@@ -1,6 +1,7 @@
 from django import forms
 
-from shifts.models import ShiftHandover, ShiftHandoverUpdate, DutyRosterEntry
+from accounts.models import Employee, Rota
+from shifts.models import ShiftHandover, ShiftHandoverUpdate
 
 
 class ShiftHandoverForm(forms.ModelForm):
@@ -49,7 +50,7 @@ class ShiftHandoverUpdateForm(forms.ModelForm):
 
 
 class RosterFilterForm(forms.Form):
-    """Form for filtering rosters by date range, department, role, employee, shift."""
+    """Form for filtering synced weekly rosters by date range and staff details."""
 
     start_date = forms.DateField(
         required=False,
@@ -64,23 +65,35 @@ class RosterFilterForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from shifts.models import Department, Shift
-        from django.contrib.auth import get_user_model
+        departments = sorted(
+            {
+                department
+                for department in Employee.objects.exclude(department="").values_list("department", flat=True)
+                if department
+            }
+        )
+        shift_ranges = sorted(
+            {
+                (
+                    f"{rota.opening_time.strftime('%H:%M')}-{rota.closing_time.strftime('%H:%M')}",
+                    f"{rota.opening_time.strftime('%H:%M')} - {rota.closing_time.strftime('%H:%M')}",
+                )
+                for rota in Rota.objects.exclude(opening_time__isnull=True).exclude(closing_time__isnull=True)
+            }
+        )
 
-        User = get_user_model()
-
-        self.fields["department"] = forms.ModelChoiceField(
-            queryset=Department.objects.filter(is_active=True),
+        self.fields["department"] = forms.ChoiceField(
+            choices=[("", "All departments")] + [(department, department) for department in departments],
             required=False,
             widget=forms.Select(attrs={"class": "form-select"}),
         )
-        self.fields["shift"] = forms.ModelChoiceField(
-            queryset=Shift.objects.filter(is_active=True),
+        self.fields["shift"] = forms.ChoiceField(
+            choices=[("", "All shifts")] + list(shift_ranges),
             required=False,
             widget=forms.Select(attrs={"class": "form-select"}),
         )
         self.fields["employee"] = forms.ModelChoiceField(
-            queryset=User.objects.filter(is_active=True).order_by("first_name", "last_name"),
+            queryset=Employee.objects.filter(employment_status="active").order_by("last_name", "first_name"),
             required=False,
             widget=forms.Select(attrs={"class": "form-select"}),
         )
@@ -89,7 +102,7 @@ class RosterFilterForm(forms.Form):
             widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g., Manager, Supervisor"}),
         )
         self.fields["status"] = forms.ChoiceField(
-            choices=[("", "All statuses")] + list(DutyRosterEntry.EntryStatus.choices),
+            choices=[("", "All statuses")] + list(Employee.EMPLOYMENT_STATUS_CHOICES),
             required=False,
             widget=forms.Select(attrs={"class": "form-select"}),
         )

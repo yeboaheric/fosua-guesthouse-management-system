@@ -1,5 +1,4 @@
-from collections import OrderedDict
-from datetime import timedelta
+from datetime import time, timedelta
 
 from django.contrib import messages
 from django.http import HttpResponse
@@ -7,14 +6,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.db.models import Q
 
+from accounts.models import Rota
 from accounts.decorators import group_required
 from bookings.models import Booking
 from rooms.models import Room
 from shifts.forms import ShiftHandoverForm, ShiftHandoverUpdateForm, RosterFilterForm
-from shifts.models import ShiftHandover, ShiftHandoverUpdate, DutyRoster, DutyRosterEntry, Shift, Department
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
+from shifts.models import ShiftHandover, ShiftHandoverUpdate
 
 
 @group_required("Admin", "Receptionist", module="handovers")
@@ -85,7 +82,11 @@ def handover_detail(request, pk):
 def roster_report(request):
     """List and filter duty rosters for reporting and export."""
     form = RosterFilterForm(request.GET)
-    rosters = DutyRoster.objects.select_related("created_by").prefetch_related("entries__employee", "entries__department", "entries__shift")
+    rosters = (
+        Rota.objects.select_related("employee")
+        .filter(employee__isnull=False)
+        .order_by("-period_start", "employee__last_name", "employee__first_name")
+    )
 
     if form.is_valid():
         start_date = form.cleaned_data.get("start_date")
@@ -97,26 +98,27 @@ def roster_report(request):
         status = form.cleaned_data.get("status")
 
         if start_date:
-            rosters = rosters.filter(roster_date__gte=start_date)
+            rosters = rosters.filter(period_end__gte=start_date)
         if end_date:
-            rosters = rosters.filter(roster_date__lte=end_date)
-
-        if department or shift or employee or role or status:
-            entries = DutyRosterEntry.objects.select_related("roster")
-            if department:
-                entries = entries.filter(department=department)
-            if shift:
-                entries = entries.filter(shift=shift)
-            if employee:
-                entries = entries.filter(employee=employee)
-            if role:
-                entries = entries.filter(role__icontains=role)
-            if status:
-                entries = entries.filter(status=status)
-            roster_ids = entries.values_list("roster_id", flat=True).distinct()
-            rosters = rosters.filter(id__in=roster_ids)
-
-    rosters = rosters.order_by("-roster_date")
+            rosters = rosters.filter(period_start__lte=end_date)
+        if department:
+            rosters = rosters.filter(employee__department__iexact=department)
+        if shift:
+            start_value, _, end_value = shift.partition("-")
+            rosters = rosters.filter(
+                opening_time=time.fromisoformat(start_value),
+                closing_time=time.fromisoformat(end_value),
+            )
+        if employee:
+            rosters = rosters.filter(employee=employee)
+        if role:
+            rosters = rosters.filter(
+                Q(employee__job_title__icontains=role)
+                | Q(employee__position__icontains=role)
+                | Q(period__icontains=role)
+            )
+        if status:
+            rosters = rosters.filter(employee__employment_status=status)
 
     context = {
         "form": form,
@@ -128,37 +130,13 @@ def roster_report(request):
 
 @group_required("Admin", "Manager", module="handovers")
 def roster_detail(request, pk):
-    """Display a detailed roster with all assignments."""
-    roster = get_object_or_404(
-        DutyRoster.objects.prefetch_related(
-            "entries__employee",
-            "entries__department",
-            "entries__shift",
-            "entries__assigned_by",
-        ),
-        pk=pk,
-    )
-    entries = roster.entries.select_related("employee", "department", "shift").order_by(
-        "shift__start_time",
-        "employee__first_name",
-        "employee__last_name",
-    )
-    grouped_entries = OrderedDict()
-    for entry in entries:
-        grouped_entries.setdefault(entry.shift, []).append(entry)
+    """Display a detailed account for a weekly duty roster."""
+    rota = get_object_or_404(Rota.objects.select_related("employee"), pk=pk)
+    daily_roster = _weekly_rota_daily_breakdown(rota)
 
     context = {
-        "roster": roster,
-        "entries": entries,
-        "grouped_entries": grouped_entries.items(),
-        "departments": Department.objects.filter(
-            roster_entries__roster=roster,
-            is_active=True,
-        ).distinct().order_by("name"),
-        "shifts": Shift.objects.filter(
-            roster_entries__roster=roster,
-            is_active=True,
-        ).distinct().order_by("start_time"),
+        "rota": rota,
+        "daily_roster": daily_roster,
     }
     return render(request, "shifts/roster_detail.html", context)
 
@@ -173,33 +151,44 @@ def roster_export_excel(request):
         messages.error(request, "openpyxl is not installed. Please install it to export to Excel.")
         return redirect("roster-report")
 
-    start_date = request.GET.get("start_date")
-    end_date = request.GET.get("end_date")
-    department_id = request.GET.get("department")
-    shift_id = request.GET.get("shift")
-    employee_id = request.GET.get("employee")
-
-    rosters = DutyRoster.objects.prefetch_related(
-        "entries__employee",
-        "entries__department",
-        "entries__shift",
+    form = RosterFilterForm(request.GET)
+    rosters = (
+        Rota.objects.select_related("employee")
+        .filter(employee__isnull=False)
+        .order_by("period_start", "employee__last_name", "employee__first_name")
     )
 
-    if start_date:
-        from datetime import datetime
-        rosters = rosters.filter(roster_date__gte=start_date)
-    if end_date:
-        from datetime import datetime
-        rosters = rosters.filter(roster_date__lte=end_date)
+    if form.is_valid():
+        start_date = form.cleaned_data.get("start_date")
+        end_date = form.cleaned_data.get("end_date")
+        department = form.cleaned_data.get("department")
+        shift = form.cleaned_data.get("shift")
+        employee = form.cleaned_data.get("employee")
+        role = form.cleaned_data.get("role")
+        status = form.cleaned_data.get("status")
 
-    if department_id:
-        rosters = rosters.filter(entries__department_id=department_id).distinct()
-    if shift_id:
-        rosters = rosters.filter(entries__shift_id=shift_id).distinct()
-    if employee_id:
-        rosters = rosters.filter(entries__employee_id=employee_id).distinct()
-
-    rosters = rosters.order_by("roster_date")
+        if start_date:
+            rosters = rosters.filter(period_end__gte=start_date)
+        if end_date:
+            rosters = rosters.filter(period_start__lte=end_date)
+        if department:
+            rosters = rosters.filter(employee__department__iexact=department)
+        if shift:
+            start_value, _, end_value = shift.partition("-")
+            rosters = rosters.filter(
+                opening_time=time.fromisoformat(start_value),
+                closing_time=time.fromisoformat(end_value),
+            )
+        if employee:
+            rosters = rosters.filter(employee=employee)
+        if role:
+            rosters = rosters.filter(
+                Q(employee__job_title__icontains=role)
+                | Q(employee__position__icontains=role)
+                | Q(period__icontains=role)
+            )
+        if status:
+            rosters = rosters.filter(employee__employment_status=status)
 
     # Create workbook
     wb = openpyxl.Workbook()
@@ -219,7 +208,7 @@ def roster_export_excel(request):
 
     # Headers begin on the first row so exports are straightforward to consume.
     row = 1
-    headers = ["Date", "Shift", "Department", "Employee", "Role", "Assigned Duties", "Status"]
+    headers = ["Date", "Employee", "Department", "Role", "Start", "Finish", "Hours"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=row, column=col)
         cell.value = header
@@ -230,15 +219,15 @@ def roster_export_excel(request):
 
     # Data
     row = 2
-    for roster in rosters:
-        for entry in roster.entries.select_related("employee", "department", "shift").order_by("shift__start_time"):
-            ws.cell(row=row, column=1).value = roster.roster_date.strftime("%d/%m/%Y")
-            ws.cell(row=row, column=2).value = entry.shift.name
-            ws.cell(row=row, column=3).value = entry.department.name
-            ws.cell(row=row, column=4).value = entry.employee.get_full_name()
-            ws.cell(row=row, column=5).value = entry.role
-            ws.cell(row=row, column=6).value = entry.assigned_duties
-            ws.cell(row=row, column=7).value = entry.get_status_display()
+    for rota in rosters:
+        for day in _weekly_rota_daily_breakdown(rota):
+            ws.cell(row=row, column=1).value = day["date"].strftime("%d/%m/%Y")
+            ws.cell(row=row, column=2).value = rota.employee.full_name
+            ws.cell(row=row, column=3).value = rota.employee.department or "-"
+            ws.cell(row=row, column=4).value = rota.employee.job_title or rota.employee.get_position_display()
+            ws.cell(row=row, column=5).value = day["start_time"].strftime("%H:%M") if day["start_time"] else "-"
+            ws.cell(row=row, column=6).value = day["end_time"].strftime("%H:%M") if day["end_time"] else "-"
+            ws.cell(row=row, column=7).value = day["hours"]
 
             for col in range(1, 8):
                 cell = ws.cell(row=row, column=col)
@@ -286,3 +275,24 @@ def _populate_shift_metrics(handover):
         status=Room.RoomStatus.MAINTENANCE
     ).count()
     handover.cleaning_rooms_count = Room.objects.filter(status=Room.RoomStatus.CLEANING).count()
+
+
+def _weekly_rota_daily_breakdown(rota):
+    if not rota.period_start or not rota.period_end:
+        return []
+
+    day_count = (rota.period_end - rota.period_start).days + 1
+    daily_hours = rota.daily_hours if rota.opening_time and rota.closing_time else 0
+    rows = []
+    for day_index in range(day_count):
+        current_day = rota.period_start + timedelta(days=day_index)
+        rows.append(
+            {
+                "date": current_day,
+                "day_name": current_day.strftime("%A"),
+                "start_time": rota.opening_time,
+                "end_time": rota.closing_time,
+                "hours": daily_hours,
+            }
+        )
+    return rows

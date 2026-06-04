@@ -7,14 +7,8 @@ from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
 
-from shifts.models import (
-    ShiftHandover,
-    ShiftHandoverUpdate,
-    Shift,
-    Department,
-    DutyRoster,
-    DutyRosterEntry,
-)
+from accounts.models import Employee, Rota
+from shifts.models import ShiftHandover, ShiftHandoverUpdate
 
 
 class ShiftHandoverWorkflowTests(TestCase):
@@ -70,91 +64,74 @@ class RosterReportFilterTests(TestCase):
     def setUp(self):
         """Create test fixtures for roster testing."""
         self.admin_group = Group.objects.create(name="Admin")
-        # Create departments
-        self.dept_reception = Department.objects.create(
-            name="Reception", description="Front desk staff", is_active=True
-        )
-        self.dept_housekeeping = Department.objects.create(
-            name="Housekeeping", description="Room maintenance", is_active=True
-        )
-
-        # Create shifts
-        self.morning_shift = Shift.objects.create(
-            name="Morning",
-            start_time=time(6, 0),
-            end_time=time(14, 0),
-            is_active=True,
-        )
-        self.evening_shift = Shift.objects.create(
-            name="Evening",
-            start_time=time(14, 0),
-            end_time=time(22, 0),
-            is_active=True,
-        )
-
-        # Create users
-        self.user1 = User.objects.create_user(
-            username="john_doe", first_name="John", last_name="Doe", password="pass123"
-        )
+        self.user1 = User.objects.create_user(username="john_doe", first_name="John", last_name="Doe", password="pass123")
         self.user1.groups.add(self.admin_group)
-        self.user2 = User.objects.create_user(
-            username="jane_smith",
+        today = timezone.now().date()
+        self.employee1 = Employee.objects.create(
+            title="mr",
+            first_name="John",
+            last_name="Doe",
+            date_of_birth=today - timedelta(days=10000),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-100000000-1",
+            contact_number="0200000001",
+            department="Reception",
+            job_title="Receptionist",
+            start_date=today - timedelta(days=365),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        self.employee2 = Employee.objects.create(
+            title="mrs",
             first_name="Jane",
             last_name="Smith",
-            password="pass123",
+            date_of_birth=today - timedelta(days=11000),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-100000000-2",
+            contact_number="0200000002",
+            department="Housekeeping",
+            job_title="Housekeeper",
+            start_date=today - timedelta(days=400),
+            position="cleaner",
+            employment_status="active",
+            gender="female",
+            marital_status="single",
         )
-        self.user3 = User.objects.create_user(
-            username="bob_wilson",
+        self.employee3 = Employee.objects.create(
+            title="mr",
             first_name="Bob",
             last_name="Wilson",
-            password="pass123",
+            date_of_birth=today - timedelta(days=12000),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-100000000-3",
+            contact_number="0200000003",
+            department="Reception",
+            job_title="Night Manager",
+            start_date=today - timedelta(days=500),
+            position="hotel_manager",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
         )
-
-        # Create rosters
-        today = timezone.now().date()
-        self.roster1 = DutyRoster.objects.create(
-            roster_date=today,
-            status="published",
-            created_by=self.user1,
-            notes="Regular schedule",
+        self.roster1 = Rota.objects.create(
+            employee=self.employee1,
+            period="John Doe weekly duty roster",
+            period_start=today,
+            period_end=today + timedelta(days=6),
+            opening_time=time(6, 0),
+            closing_time=time(14, 0),
+            shift_rules="Front desk coverage",
         )
-        self.roster2 = DutyRoster.objects.create(
-            roster_date=today + timedelta(days=1),
-            status="draft",
-            created_by=self.user1,
-            notes="Special event",
-        )
-
-        # Create roster entries
-        DutyRosterEntry.objects.create(
-            roster=self.roster1,
-            employee=self.user1,
-            department=self.dept_reception,
-            shift=self.morning_shift,
-            role="Receptionist",
-            assigned_duties="Check-in/check-out, phone duty",
-            status="confirmed",
-            assigned_by=self.user1,
-        )
-        DutyRosterEntry.objects.create(
-            roster=self.roster1,
-            employee=self.user2,
-            department=self.dept_housekeeping,
-            shift=self.morning_shift,
-            role="Housekeeper",
-            assigned_duties="Room cleaning",
-            status="confirmed",
-            assigned_by=self.user1,
-        )
-        DutyRosterEntry.objects.create(
-            roster=self.roster2,
-            employee=self.user3,
-            department=self.dept_reception,
-            shift=self.evening_shift,
-            role="Night Manager",
-            assigned_duties="Overnight supervision",
-            status="assigned",
-            assigned_by=self.user1,
+        self.roster2 = Rota.objects.create(
+            employee=self.employee3,
+            period="Bob Wilson weekly duty roster",
+            period_start=today + timedelta(days=1),
+            period_end=today + timedelta(days=7),
+            opening_time=time(14, 0),
+            closing_time=time(22, 0),
+            shift_rules="Overnight supervision",
         )
         self.client.force_login(self.user1)
 
@@ -178,14 +155,16 @@ class RosterReportFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         rosters = response.context.get("rosters", [])
         self.assertEqual(len(rosters), 1)
-        self.assertEqual(rosters[0].roster_date, today)
+        self.assertEqual(rosters[0].period_start, today)
 
     def test_roster_filtering_by_department(self):
         """Test filtering entries by department."""
         response = self.client.get(
-            reverse("roster-report"), {"department": self.dept_reception.pk}
+            reverse("roster-report"), {"department": "Reception"}
         )
         self.assertEqual(response.status_code, 200)
+        rosters = list(response.context.get("rosters", []))
+        self.assertEqual({rota.employee.department for rota in rosters}, {"Reception"})
 
     def test_roster_detail_displays_all_entries(self):
         """Test that roster detail page displays all entries for a roster."""
@@ -194,9 +173,9 @@ class RosterReportFilterTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "shifts/roster_detail.html")
-        self.assertEqual(response.context["roster"], self.roster1)
-        entries = response.context.get("entries", [])
-        self.assertEqual(len(entries), 2)
+        self.assertEqual(response.context["rota"], self.roster1)
+        entries = response.context.get("daily_roster", [])
+        self.assertEqual(len(entries), 7)
 
     def test_roster_detail_groups_by_shift(self):
         """Test that roster detail groups entries by shift."""
@@ -204,8 +183,8 @@ class RosterReportFilterTests(TestCase):
             reverse("roster-detail", args=[self.roster1.pk])
         )
         self.assertEqual(response.status_code, 200)
-        shifts = response.context.get("shifts", [])
-        self.assertIn(self.morning_shift, shifts)
+        self.assertContains(response, "06:00")
+        self.assertContains(response, "14:00")
 
 
 class RosterExcelExportTests(TestCase):
@@ -214,65 +193,43 @@ class RosterExcelExportTests(TestCase):
     def setUp(self):
         """Create test fixtures for Excel export testing."""
         self.admin_group = Group.objects.create(name="Admin")
-        # Create departments
-        self.dept_reception = Department.objects.create(
-            name="Reception", description="Front desk staff", is_active=True
-        )
-        self.dept_housekeeping = Department.objects.create(
-            name="Housekeeping", description="Room maintenance", is_active=True
-        )
-
-        # Create shifts
-        self.morning_shift = Shift.objects.create(
-            name="Morning",
-            start_time=time(6, 0),
-            end_time=time(14, 0),
-            is_active=True,
-        )
-        self.evening_shift = Shift.objects.create(
-            name="Evening",
-            start_time=time(14, 0),
-            end_time=time(22, 0),
-            is_active=True,
-        )
-
-        # Create users
         self.user1 = User.objects.create_user(
             username="manager1", first_name="Alice", last_name="Manager", password="pass123"
         )
         self.user1.groups.add(self.admin_group)
-        self.staff_users = []
-        for i in range(5):
-            user = User.objects.create_user(
-                username=f"staff{i}",
-                first_name=f"Staff",
-                last_name=f"Member{i}",
-                password="pass123",
-            )
-            self.staff_users.append(user)
-
-        # Create rosters
+        self.staff_employees = []
         today = timezone.now().date()
-        self.roster = DutyRoster.objects.create(
-            roster_date=today,
-            status="published",
-            created_by=self.user1,
-            notes="Test roster for export",
-        )
-
-        # Create diverse roster entries - use different employees and shifts
-        shifts = [self.morning_shift, self.evening_shift]
-        for i, user in enumerate(self.staff_users):
-            DutyRosterEntry.objects.create(
-                roster=self.roster,
-                employee=user,
-                department=self.dept_reception if i % 2 == 0 else self.dept_housekeeping,
-                shift=shifts[i % 2],
-                role=f"Role {i}",
-                assigned_duties=f"Duty {i}",
-                status="confirmed" if i % 2 == 0 else "assigned",
-                assigned_by=self.user1,
-                notes=f"Note {i}" if i % 3 == 0 else "",
+        departments = ["Reception", "Housekeeping"]
+        positions = ["receptionist", "cleaner"]
+        job_titles = ["Receptionist", "Housekeeper"]
+        opening_times = [time(6, 0), time(14, 0)]
+        closing_times = [time(14, 0), time(22, 0)]
+        for i in range(5):
+            employee = Employee.objects.create(
+                title="mr" if i % 2 == 0 else "mrs",
+                first_name="Staff",
+                last_name=f"Member{i}",
+                date_of_birth=today - timedelta(days=9000 + i),
+                nationality="Ghanaian",
+                ghana_card_number=f"GHA-200000000-{i}",
+                contact_number=f"020100000{i}",
+                department=departments[i % 2],
+                job_title=job_titles[i % 2],
+                start_date=today - timedelta(days=365 + i),
+                position=positions[i % 2],
+                employment_status="active",
+                gender="male" if i % 2 == 0 else "female",
+                marital_status="single",
+            )
+            self.staff_employees.append(employee)
+            Rota.objects.create(
+                employee=employee,
+                period=f"Staff Member{i} weekly duty roster",
+                period_start=today,
+                period_end=today + timedelta(days=6),
+                opening_time=opening_times[i % 2],
+                closing_time=closing_times[i % 2],
+                shift_rules=f"Duty {i}",
             )
         self.client.force_login(self.user1)
 
@@ -302,12 +259,12 @@ class RosterExcelExportTests(TestCase):
         headers = [cell.value for cell in worksheet[1]]
         expected_headers = [
             "Date",
-            "Shift",
-            "Department",
             "Employee",
+            "Department",
             "Role",
-            "Assigned Duties",
-            "Status",
+            "Start",
+            "Finish",
+            "Hours",
         ]
         for expected in expected_headers:
             self.assertIn(expected, headers)
@@ -323,10 +280,7 @@ class RosterExcelExportTests(TestCase):
 
         # Count data rows (excluding header)
         data_rows = worksheet.max_row - 1
-        entries = DutyRosterEntry.objects.filter(
-            roster__roster_date=timezone.now().date()
-        )
-        self.assertGreaterEqual(data_rows, entries.count())
+        self.assertGreaterEqual(data_rows, len(self.staff_employees) * 7)
 
     def test_excel_export_file_formatting(self):
         """Test that Excel file has proper formatting."""

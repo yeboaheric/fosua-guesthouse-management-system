@@ -34,6 +34,9 @@
           {% endif %}
           <button type="submit" class="btn btn-primary">Save</button>
         </form>
+        {% if section == "leave" %}
+          <div class="form-text mt-3" id="leave-days-helper">Leave days are calculated automatically from the selected start and end dates using the current calendar-day logic.</div>
+        {% endif %}
       </div>
     </div>
 
@@ -73,4 +76,58 @@
     </div>
   </div>
 </div>
+{% if section == "leave" %}
+<script>
+  (function () {
+    const startInput = document.getElementById("id_start_date");
+    const endInput = document.getElementById("id_end_date");
+    const daysInput = document.getElementById("id_days");
+    const helper = document.getElementById("leave-days-helper");
+    if (!startInput || !endInput || !daysInput) {
+      return;
+    }
+
+    function parseDate(value) {
+      if (!value) {
+        return null;
+      }
+      const parts = value.split("-");
+      if (parts.length !== 3) {
+        return null;
+      }
+      return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    }
+
+    function updateLeaveDays() {
+      const startDate = parseDate(startInput.value);
+      const endDate = parseDate(endInput.value);
+      if (!startDate || !endDate) {
+        daysInput.value = "";
+        return;
+      }
+
+      const millisPerDay = 24 * 60 * 60 * 1000;
+      const dayDiff = Math.floor((endDate - startDate) / millisPerDay) + 1;
+      if (dayDiff < 1) {
+        daysInput.value = "";
+        if (helper) {
+          helper.textContent = "End date must be on or after the start date.";
+          helper.classList.add("text-danger");
+        }
+        return;
+      }
+
+      daysInput.value = dayDiff;
+      if (helper) {
+        helper.textContent = "Leave days are calculated automatically from the selected start and end dates using the current calendar-day logic.";
+        helper.classList.remove("text-danger");
+      }
+    }
+
+    startInput.addEventListener("input", updateLeaveDays);
+    endInput.addEventListener("input", updateLeaveDays);
+    updateLeaveDays();
+  })();
+</script>
+{% endif %}
 {% endblock %}

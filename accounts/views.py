@@ -825,7 +825,7 @@ def _employee_section_row(record, section):
             str(record.days),
             record.return_to_work_date.strftime("%d/%m/%Y") if record.return_to_work_date else "-",
             record.get_approval_status_display(),
-            record.approving_manager.get_username() if record.approving_manager else "-",
+            record.approving_manager.full_name if record.approving_manager else "-",
         ]
     if section == "certifications":
         return [
@@ -899,10 +899,6 @@ def _staff_management_queryset(request):
     role = request.GET.get("role", "").strip()
     leave_status = request.GET.get("leave", "").strip()
     certification_status = request.GET.get("certifications", "").strip()
-    hired_from = request.GET.get("hired_from", "").strip()
-    hired_to = request.GET.get("hired_to", "").strip()
-    terminated_from = request.GET.get("terminated_from", "").strip()
-    terminated_to = request.GET.get("terminated_to", "").strip()
     roster_employee = request.GET.get("roster", "").strip()
     staff_view = request.GET.get("staff_view", "active").strip() or "active"
     if staff_view not in {"active", "terminated"}:
@@ -914,7 +910,13 @@ def _staff_management_queryset(request):
         .order_by("last_name", "first_name")
     )
 
-    if staff_view == "terminated":
+    show_terminated_only = (
+        staff_view == "terminated"
+        or employment_status == "terminated"
+        or leave_status == "terminated"
+    )
+
+    if show_terminated_only:
         employees = employees.filter(employment_status="terminated")
     else:
         employees = employees.exclude(employment_status="terminated")
@@ -935,14 +937,6 @@ def _staff_management_queryset(request):
         employees = employees.filter(employment_status=employment_status)
     if role:
         employees = employees.filter(position=role)
-    if hired_from:
-        employees = employees.filter(start_date__gte=hired_from)
-    if hired_to:
-        employees = employees.filter(start_date__lte=hired_to)
-    if terminated_from:
-        employees = employees.filter(termination_date__isnull=False, termination_date__gte=terminated_from)
-    if terminated_to:
-        employees = employees.filter(termination_date__isnull=False, termination_date__lte=terminated_to)
     if roster_employee:
         employees = employees.filter(rota_entries__isnull=False, pk=roster_employee)
     if leave_status == "on_leave":
@@ -974,10 +968,6 @@ def _staff_management_queryset(request):
         "role": role,
         "leave_status": leave_status,
         "certification_status": certification_status,
-        "hired_from": hired_from,
-        "hired_to": hired_to,
-        "terminated_from": terminated_from,
-        "terminated_to": terminated_to,
         "selected_roster_employee": roster_employee,
         "staff_view": staff_view,
     }
@@ -996,9 +986,13 @@ def hr_employee_section(request, pk, section):
         record = form.save(commit=False)
         record.employee = employee
         if hasattr(record, "approving_manager_id") and not record.approving_manager_id and section == "leave":
-            if record.approval_status == LeaveRequest.ApprovalStatus.APPROVED:
-                record.approving_manager = request.user
+            if record.approval_status == LeaveRequest.ApprovalStatus.APPROVED and employee.supervisor_id:
+                record.approving_manager = employee.supervisor
+        if hasattr(record, "approved_at") and section == "leave":
+            if record.approval_status == LeaveRequest.ApprovalStatus.APPROVED and not record.approved_at:
                 record.approved_at = timezone.now()
+            elif record.approval_status != LeaveRequest.ApprovalStatus.APPROVED:
+                record.approved_at = None
         if hasattr(record, "reviewer_id") and not record.reviewer_id and section == "performance":
             record.reviewer = request.user
         if hasattr(record, "created_by_id") and not record.created_by_id and section == "history":

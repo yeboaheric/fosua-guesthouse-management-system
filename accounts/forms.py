@@ -1,4 +1,6 @@
 from django import forms
+from datetime import timedelta
+
 from django.contrib.auth.models import Group, User
 from django.core.validators import RegexValidator
 
@@ -214,7 +216,22 @@ class LeaveRequestForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["approving_manager"].queryset = User.objects.order_by("username")
+        self.fields["approving_manager"].queryset = Employee.objects.filter(
+            employment_status="active"
+        ).order_by("last_name", "first_name")
+        self.fields["days"].required = False
+        self.fields["days"].widget.attrs["readonly"] = "readonly"
+        self.fields["return_to_work_date"].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get("start_date")
+        end_date = cleaned_data.get("end_date")
+        if start_date and end_date:
+            cleaned_data["days"] = max((end_date - start_date).days + 1, 1)
+            if not cleaned_data.get("return_to_work_date"):
+                cleaned_data["return_to_work_date"] = end_date + timedelta(days=1)
+        return cleaned_data
 
 
 class AttendanceRecordForm(forms.ModelForm):

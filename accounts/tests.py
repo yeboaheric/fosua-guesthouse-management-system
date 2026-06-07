@@ -1,4 +1,5 @@
-from accounts.models import Employee, EmployeeQualification, Notification, Rota, RolePermission, UserAccessProfile
+from accounts.forms import LeaveRequestForm
+from accounts.models import Employee, EmployeeQualification, LeaveRequest, Notification, Rota, RolePermission, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
@@ -477,6 +478,21 @@ class StaffManagementTests(TestCase):
             closing_time=time(16, 0),
         )
         self.rota.staff_members.set([self.active_employee])
+        self.approver_employee = Employee.objects.create(
+            title="mrs",
+            first_name="Adwoa",
+            last_name="Approver",
+            date_of_birth=date(1985, 4, 4),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-444444444-4",
+            contact_number="0244444444",
+            department="Management",
+            start_date=date(2022, 1, 1),
+            position="hotel_manager",
+            employment_status="active",
+            gender="female",
+            marital_status="married",
+        )
         EmployeeQualification.objects.create(
             employee=self.active_employee,
             qualification_name="Fire Safety",
@@ -541,15 +557,54 @@ class StaffManagementTests(TestCase):
         self.assertEqual(self.active_employee.first_name, "Kofi")
         self.assertEqual(self.active_employee.gps_address, "")
 
+    def test_leave_request_form_uses_active_employees_as_approvers(self):
+        form = LeaveRequestForm()
+        approvers = list(form.fields["approving_manager"].queryset)
+        self.assertIn(self.active_employee, approvers)
+        self.assertIn(self.approver_employee, approvers)
+        self.assertNotIn(self.terminated_employee, approvers)
+        self.assertFalse(form.fields["days"].required)
+        self.assertFalse(form.fields["return_to_work_date"].required)
+
+    def test_leave_request_days_auto_calculate_on_save(self):
+        response = self.client.post(
+            reverse("hr-employee-section", args=[self.active_employee.pk, "leave"]),
+            {
+                "leave_type": LeaveRequest.LeaveType.ANNUAL,
+                "start_date": "2026-06-10",
+                "end_date": "2026-06-12",
+                "days": "",
+                "return_to_work_date": "",
+                "reason": "Annual break",
+                "approval_status": LeaveRequest.ApprovalStatus.APPROVED,
+                "approving_manager": self.approver_employee.pk,
+                "decision_notes": "Approved",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("hr-employee-section", args=[self.active_employee.pk, "leave"]),
+        )
+        leave_request = LeaveRequest.objects.get(employee=self.active_employee)
+        self.assertEqual(leave_request.days, 3)
+        self.assertEqual(leave_request.return_to_work_date, date(2026, 6, 13))
+        self.assertEqual(leave_request.approving_manager, self.approver_employee)
+
     def test_staff_page_defaults_to_active_staff_and_has_terminated_tab(self):
         response = self.client.get(reverse("hr-list"))
         self.assertEqual(response.status_code, 200)
         employees = list(response.context["employees"])
         self.assertIn(self.active_employee, employees)
         self.assertIn(self.leave_employee, employees)
+        self.assertIn(self.approver_employee, employees)
         self.assertNotIn(self.terminated_employee, employees)
         self.assertContains(response, "Terminated Employees")
         self.assertEqual(response.context["staff_view"], "active")
+        self.assertNotContains(response, 'name="hired_from"', html=False)
+        self.assertNotContains(response, 'name="hired_to"', html=False)
+        self.assertNotContains(response, 'name="terminated_from"', html=False)
+        self.assertNotContains(response, 'name="terminated_to"', html=False)
 
     def test_terminated_tab_returns_only_terminated_staff(self):
         response = self.client.get(reverse("hr-list"), {"staff_view": "terminated"})
@@ -582,10 +637,10 @@ class StaffManagementTests(TestCase):
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "roster": str(self.active_employee.pk)})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
 
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "hired_from": "2024-01-01", "hired_to": "2024-01-31"})
-        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "terminated"})
+        self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
 
-        response = self.client.get(reverse("hr-list"), {"staff_view": "terminated", "terminated_from": "2026-05-01", "terminated_to": "2026-05-31"})
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "terminated"})
         self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
 
 

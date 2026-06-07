@@ -7,13 +7,71 @@
       <div>
         <div class="section-eyebrow mb-2">Housekeeping</div>
         <h1 class="page-title mb-2">Hotel items usage logger</h1>
-        <div class="page-subtitle">Record supplies used during housekeeping and review the current reporting period from one place.</div>
+        <div class="page-subtitle">Record supply usage, track remaining stock, and review item reports from one workspace.</div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}"><i data-lucide="clipboard-plus"></i> New log</a>
         <a class="topbar-pill" href="{% url 'housekeeping-report-export' report_range %}"><i data-lucide="file-spreadsheet"></i> Export {{ report_range|title }}</a>
-        <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations overview</a>
       </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3" id="housekeeping-summary"
+       data-total-initial-stock="{{ summary_total_initial_stock }}"
+       data-total-items-used="{{ summary_total_items_used }}"
+       data-total-items-in-stock="{{ summary_total_items_in_stock }}">
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total initial stock</div>
+        <div class="metric-value" id="summary-total-initial">{{ summary_total_initial_stock }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total items used</div>
+        <div class="metric-value" id="summary-total-used">{{ summary_total_items_used }}</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="mini-metric h-100">
+        <div class="metric-label">Total items currently in stock</div>
+        <div class="metric-value" id="summary-total-stock">{{ summary_total_items_in_stock }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <div class="section-eyebrow mb-2">Low stock alerts</div>
+        <h2 class="h5 mb-0">{{ low_stock_count }} item{{ low_stock_count|pluralize }} currently flagged</h2>
+      </div>
+    </div>
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Item Name</th>
+            <th>Qty in Stock</th>
+            <th>Threshold</th>
+            <th>Unit</th>
+            <th>Last Logged</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in low_stock_entries %}
+            <tr>
+              <td>{{ entry.item_name }}</td>
+              <td><span class="status-pill danger">{{ entry.quantity_in_stock }}</span></td>
+              <td>{{ entry.effective_low_stock_threshold }}</td>
+              <td>{{ entry.unit }}</td>
+              <td>{{ entry.used_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-muted">No low stock items right now.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 
@@ -29,15 +87,36 @@
             <a class="btn btn-outline-secondary btn-sm" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}">Cancel edit</a>
           {% endif %}
         </div>
-        <form method="post" action="{% if editing_entry %}{% url 'housekeeping-log-edit' editing_entry.pk %}?report={{ report_range }}{% else %}{% url 'housekeeping-dashboard' %}?report={{ report_range }}{% endif %}" class="row g-3">
+        <form method="post"
+              id="housekeeping-log-form"
+              data-mode="{% if editing_entry %}edit{% else %}create{% endif %}"
+              data-edit-initial="{% if editing_entry %}{{ editing_entry.initial_quantity }}{% else %}0{% endif %}"
+              data-edit-used="{% if editing_entry %}{{ editing_entry.quantity_used }}{% else %}0{% endif %}"
+              data-edit-stock="{% if editing_entry %}{{ editing_entry.quantity_in_stock }}{% else %}0{% endif %}"
+              action="{% if editing_entry %}{% url 'housekeeping-log-edit' editing_entry.pk %}?report={{ report_range }}{% else %}{% url 'housekeeping-dashboard' %}?report={{ report_range }}{% endif %}"
+              class="row g-3">
           {% csrf_token %}
           <div class="col-12">
             <label class="form-label" for="{{ form.item_name.id_for_label }}">Item name</label>
             {{ form.item_name }}
           </div>
           <div class="col-md-6">
+            <label class="form-label" for="{{ form.initial_quantity.id_for_label }}">Initial quantity</label>
+            {{ form.initial_quantity }}
+          </div>
+          <div class="col-md-6">
             <label class="form-label" for="{{ form.quantity_used.id_for_label }}">Quantity used</label>
             {{ form.quantity_used }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.quantity_in_stock.id_for_label }}">Quantity in stock</label>
+            {{ form.quantity_in_stock }}
+            <div class="form-text" id="stock-status-text">Calculated automatically from initial quantity minus quantity used.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.low_stock_threshold.id_for_label }}">Custom alert threshold</label>
+            {{ form.low_stock_threshold }}
+            <div class="form-text">Leave blank to alert at 20% of the initial quantity.</div>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="{{ form.unit.id_for_label }}">Unit</label>
@@ -104,8 +183,20 @@
           </div>
           <div class="col-md-6">
             <div class="mini-metric h-100">
-              <div class="metric-label">Total items consumed</div>
+              <div class="metric-label">Total items used</div>
               <div class="metric-value">{{ report_total_items_consumed }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mini-metric h-100">
+              <div class="metric-label">Total initial quantity</div>
+              <div class="metric-value">{{ report_total_initial_quantity }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mini-metric h-100">
+              <div class="metric-label">Total quantity in stock</div>
+              <div class="metric-value">{{ report_total_items_in_stock }}</div>
             </div>
           </div>
         </div>
@@ -115,7 +206,9 @@
             <thead class="table-light">
               <tr>
                 <th>Item Name</th>
-                <th>Total Quantity Used</th>
+                <th>Total Initial Qty</th>
+                <th>Total Qty Used</th>
+                <th>Total Qty in Stock</th>
                 <th>Unit</th>
                 <th>Number of Entries</th>
               </tr>
@@ -124,12 +217,14 @@
               {% for row in report_summary_rows %}
                 <tr>
                   <td>{{ row.item_name }}</td>
+                  <td>{{ row.total_initial_quantity }}</td>
                   <td>{{ row.total_quantity }}</td>
+                  <td>{{ row.total_quantity_in_stock }}</td>
                   <td>{{ row.unit }}</td>
                   <td>{{ row.entry_count }}</td>
                 </tr>
               {% empty %}
-                <tr><td colspan="4" class="text-muted">No usage entries in this period.</td></tr>
+                <tr><td colspan="6" class="text-muted">No usage entries in this period.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -150,20 +245,38 @@
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
-            <th>Item</th>
-            <th>Quantity</th>
+            <th>Item Name</th>
+            <th>Initial Qty</th>
+            <th>Qty Used</th>
+            <th>Qty in Stock</th>
             <th>Unit</th>
             <th>Room</th>
-            <th>Date &amp; Time</th>
+            <th>Date</th>
             <th>Notes</th>
             <th class="text-end">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="usage-log-table">
           {% for entry in entries %}
-            <tr>
-              <td>{{ entry.item_name }}</td>
+            <tr data-entry-id="{{ entry.pk }}"
+                data-initial-quantity="{{ entry.initial_quantity }}"
+                data-quantity-used="{{ entry.quantity_used }}"
+                data-quantity-in-stock="{{ entry.quantity_in_stock }}">
+              <td>
+                {{ entry.item_name }}
+                {% if entry.is_low_stock %}
+                  <div class="small text-danger mt-1">Low stock alert</div>
+                {% endif %}
+              </td>
+              <td>{{ entry.initial_quantity }}</td>
               <td>{{ entry.quantity_used }}</td>
+              <td>
+                {% if entry.is_low_stock %}
+                  <span class="status-pill danger">{{ entry.quantity_in_stock }}</span>
+                {% else %}
+                  {{ entry.quantity_in_stock }}
+                {% endif %}
+              </td>
               <td>{{ entry.unit }}</td>
               <td>{% if entry.room %}{{ entry.room.room_number }}{% else %}<span class="text-muted">General</span>{% endif %}</td>
               <td>{{ entry.used_at|date:"d/m/Y H:i" }}</td>
@@ -179,11 +292,109 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="7" class="text-muted">No housekeeping usage has been logged yet.</td></tr>
+            <tr><td colspan="9" class="text-muted">No housekeeping usage has been logged yet.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+
+<script>
+  (function () {
+    const form = document.getElementById("housekeeping-log-form");
+    const summaryPanel = document.getElementById("housekeeping-summary");
+    if (!form || !summaryPanel) {
+      return;
+    }
+
+    const initialInput = document.getElementById("id_initial_quantity");
+    const usedInput = document.getElementById("id_quantity_used");
+    const stockInput = document.getElementById("id_quantity_in_stock");
+    const thresholdInput = document.getElementById("id_low_stock_threshold");
+    const stockStatusText = document.getElementById("stock-status-text");
+
+    const baseTotals = {
+      initial: Number(summaryPanel.dataset.totalInitialStock || 0),
+      used: Number(summaryPanel.dataset.totalItemsUsed || 0),
+      stock: Number(summaryPanel.dataset.totalItemsInStock || 0),
+    };
+
+    const editTotals = {
+      initial: Number(form.dataset.editInitial || 0),
+      used: Number(form.dataset.editUsed || 0),
+      stock: Number(form.dataset.editStock || 0),
+    };
+
+    const numberFormat = (value) => {
+      if (!Number.isFinite(value)) {
+        return "0.000";
+      }
+      return value.toFixed(3).replace(/\.000$/, "");
+    };
+
+    const currentValues = () => {
+      const initial = Number(initialInput?.value || 0);
+      const used = Number(usedInput?.value || 0);
+      const stock = Math.max(initial - used, 0);
+      return { initial, used, stock };
+    };
+
+    const updateSummaryPreview = () => {
+      const summaryInitial = document.getElementById("summary-total-initial");
+      const summaryUsed = document.getElementById("summary-total-used");
+      const summaryStock = document.getElementById("summary-total-stock");
+      const values = currentValues();
+      let previewInitial = baseTotals.initial;
+      let previewUsed = baseTotals.used;
+      let previewStock = baseTotals.stock;
+
+      if (form.dataset.mode === "edit") {
+        previewInitial = previewInitial - editTotals.initial + values.initial;
+        previewUsed = previewUsed - editTotals.used + values.used;
+        previewStock = previewStock - editTotals.stock + values.stock;
+      } else if ((initialInput?.value || "").length || (usedInput?.value || "").length) {
+        previewInitial += values.initial;
+        previewUsed += values.used;
+        previewStock += values.stock;
+      }
+
+      summaryInitial.textContent = numberFormat(previewInitial);
+      summaryUsed.textContent = numberFormat(previewUsed);
+      summaryStock.textContent = numberFormat(previewStock);
+    };
+
+    const updateCalculatedStock = () => {
+      const values = currentValues();
+      stockInput.value = numberFormat(values.stock);
+
+      const customThreshold = Number(thresholdInput?.value || 0);
+      const defaultThreshold = values.initial * 0.2;
+      const activeThreshold = (thresholdInput?.value || "").length ? customThreshold : defaultThreshold;
+      const isLowStock = values.stock <= activeThreshold && values.initial > 0;
+
+      if (isLowStock) {
+        stockStatusText.textContent = "Low stock alert: remaining stock is at or below the alert threshold.";
+        stockStatusText.classList.add("text-danger");
+      } else {
+        stockStatusText.textContent = "Calculated automatically from initial quantity minus quantity used.";
+        stockStatusText.classList.remove("text-danger");
+      }
+
+      updateSummaryPreview();
+    };
+
+    [initialInput, usedInput, thresholdInput].forEach((input) => {
+      if (input) {
+        input.addEventListener("input", updateCalculatedStock);
+      }
+    });
+
+    form.addEventListener("reset", function () {
+      window.setTimeout(updateCalculatedStock, 0);
+    });
+
+    updateCalculatedStock();
+  })();
+</script>
 {% endblock %}

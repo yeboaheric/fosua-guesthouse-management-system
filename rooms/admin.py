@@ -12,6 +12,16 @@ class RoomAdmin(admin.ModelAdmin):
 
 @admin.register(HousekeepingItemLog)
 class HousekeepingItemLogAdmin(admin.ModelAdmin):
-    list_display = ("item_name", "quantity_used", "unit", "room", "used_at", "created_by")
+    list_display = (
+        "item_name",
+        "initial_quantity",
+        "quantity_used",
+        "quantity_in_stock",
+        "unit",
+        "low_stock_threshold",
+        "room",
+        "used_at",
+        "created_by",
+    )
     list_filter = ("unit", "used_at")
     search_fields = ("item_name", "room__room_number", "notes")

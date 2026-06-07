@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -103,10 +106,29 @@ class MaintenanceRequest(StatusTrackingMixin, models.Model):
 
 class HousekeepingItemLog(models.Model):
     item_name = models.CharField(max_length=160)
+    initial_quantity = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        validators=[MinValueValidator(0.001)],
+    )
     quantity_used = models.DecimalField(
         max_digits=12,
         decimal_places=3,
         validators=[MinValueValidator(0.001)],
+    )
+    quantity_in_stock = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
+    low_stock_threshold = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        blank=True,
+        null=True,
+        validators=[MinValueValidator(0)],
+        help_text="Optional custom alert threshold for this item.",
     )
     unit = models.CharField(max_length=40)
     room = models.ForeignKey(
@@ -139,3 +161,26 @@ class HousekeepingItemLog(models.Model):
     def __str__(self):
         room_label = self.room.room_number if self.room_id else "General"
         return f"{self.item_name} ({self.quantity_used} {self.unit}) for {room_label}"
+
+    def clean(self):
+        super().clean()
+        if self.initial_quantity is not None and self.quantity_used is not None:
+            if self.quantity_used > self.initial_quantity:
+                raise ValidationError({"quantity_used": "Quantity used cannot be greater than initial quantity."})
+            self.quantity_in_stock = Decimal(self.initial_quantity) - Decimal(self.quantity_used)
+
+    def save(self, *args, **kwargs):
+        if self.initial_quantity is not None and self.quantity_used is not None:
+            self.quantity_in_stock = Decimal(self.initial_quantity) - Decimal(self.quantity_used)
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    @property
+    def effective_low_stock_threshold(self):
+        if self.low_stock_threshold is not None:
+            return self.low_stock_threshold
+        return Decimal(self.initial_quantity or 0) * Decimal("0.20")
+
+    @property
+    def is_low_stock(self):
+        return Decimal(self.quantity_in_stock or 0) <= Decimal(self.effective_low_stock_threshold or 0)

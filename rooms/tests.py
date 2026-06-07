@@ -74,7 +74,10 @@ class HousekeepingUsageLoggerTests(TestCase):
             f"{reverse('housekeeping-dashboard')}?report=daily",
             {
                 "item_name": "Bath Soap",
+                "initial_quantity": "12.000",
                 "quantity_used": "2.000",
+                "quantity_in_stock": "10.000",
+                "low_stock_threshold": "3.000",
                 "unit": "bars",
                 "room": self.room.pk,
                 "used_at": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
@@ -83,14 +86,19 @@ class HousekeepingUsageLoggerTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         entry = HousekeepingItemLog.objects.get(item_name="Bath Soap")
+        self.assertEqual(str(entry.initial_quantity), "12.000")
         self.assertEqual(str(entry.quantity_used), "2.000")
+        self.assertEqual(str(entry.quantity_in_stock), "10.000")
+        self.assertEqual(str(entry.low_stock_threshold), "3.000")
         self.assertEqual(entry.room, self.room)
         self.assertEqual(entry.created_by, self.user)
 
     def test_edit_and_delete_usage_entry(self):
         entry = HousekeepingItemLog.objects.create(
             item_name="Towel",
+            initial_quantity="8.000",
             quantity_used="4.000",
+            quantity_in_stock="4.000",
             unit="sheets",
             room=self.room,
             used_at=timezone.now(),
@@ -101,7 +109,10 @@ class HousekeepingUsageLoggerTests(TestCase):
             f"{reverse('housekeeping-log-edit', args=[entry.pk])}?report=weekly",
             {
                 "item_name": "Towel",
+                "initial_quantity": "9.000",
                 "quantity_used": "5.000",
+                "quantity_in_stock": "4.000",
+                "low_stock_threshold": "2.000",
                 "unit": "sheets",
                 "room": self.room.pk,
                 "used_at": timezone.localtime(entry.used_at).strftime("%Y-%m-%dT%H:%M"),
@@ -111,6 +122,8 @@ class HousekeepingUsageLoggerTests(TestCase):
         self.assertEqual(edit_response.status_code, 302)
         entry.refresh_from_db()
         self.assertEqual(str(entry.quantity_used), "5.000")
+        self.assertEqual(str(entry.initial_quantity), "9.000")
+        self.assertEqual(str(entry.quantity_in_stock), "4.000")
         self.assertEqual(entry.notes, "Updated count")
 
         delete_response = self.client.post(
@@ -123,7 +136,9 @@ class HousekeepingUsageLoggerTests(TestCase):
         now = timezone.now()
         HousekeepingItemLog.objects.create(
             item_name="Bath Soap",
+            initial_quantity="10.000",
             quantity_used="2.000",
+            quantity_in_stock="8.000",
             unit="bars",
             room=self.room,
             used_at=now,
@@ -131,7 +146,9 @@ class HousekeepingUsageLoggerTests(TestCase):
         )
         HousekeepingItemLog.objects.create(
             item_name="Bath Soap",
+            initial_quantity="8.000",
             quantity_used="1.000",
+            quantity_in_stock="7.000",
             unit="bars",
             room=self.room,
             used_at=now - timedelta(hours=1),
@@ -139,7 +156,9 @@ class HousekeepingUsageLoggerTests(TestCase):
         )
         HousekeepingItemLog.objects.create(
             item_name="Bed Sheet",
+            initial_quantity="12.000",
             quantity_used="3.000",
+            quantity_in_stock="9.000",
             unit="sheets",
             room=self.room,
             used_at=now - timedelta(days=2),
@@ -154,6 +173,9 @@ class HousekeepingUsageLoggerTests(TestCase):
             [row["item_name"] for row in response.context["report_summary_rows"]],
             ["Bath Soap"],
         )
+        self.assertContains(response, "Total initial stock")
+        self.assertContains(response, "Total items currently in stock")
+        self.assertEqual(str(response.context["summary_total_items_in_stock"]), "17.000")
 
         export_response = self.client.get(reverse("housekeeping-report-export", args=["daily"]))
         self.assertEqual(export_response.status_code, 200)
@@ -166,6 +188,38 @@ class HousekeepingUsageLoggerTests(TestCase):
         workbook = load_workbook(BytesIO(export_response.content))
         worksheet = workbook.active
         self.assertEqual(worksheet["A4"].value, "Item Name")
+        self.assertEqual(worksheet["B4"].value, "Total Initial Qty")
         self.assertEqual(worksheet["A5"].value, "Bath Soap")
-        self.assertEqual(worksheet["B5"].value, 3)
+        self.assertEqual(worksheet["B5"].value, 18)
+        self.assertEqual(worksheet["C5"].value, 3)
+        self.assertEqual(worksheet["D5"].value, 15)
         self.assertEqual(worksheet[f"A{worksheet.max_row}"].value, "TOTALS")
+
+    def test_low_stock_alert_uses_default_and_custom_thresholds(self):
+        now = timezone.now()
+        HousekeepingItemLog.objects.create(
+            item_name="Glass Cleaner",
+            initial_quantity="10.000",
+            quantity_used="8.500",
+            quantity_in_stock="1.500",
+            unit="litres",
+            room=self.room,
+            used_at=now,
+            created_by=self.user,
+        )
+        HousekeepingItemLog.objects.create(
+            item_name="Laundry Soap",
+            initial_quantity="30.000",
+            quantity_used="20.000",
+            quantity_in_stock="10.000",
+            low_stock_threshold="12.000",
+            unit="bars",
+            room=self.room,
+            used_at=now,
+            created_by=self.user,
+        )
+
+        response = self.client.get(reverse("housekeeping-dashboard"))
+        self.assertEqual(response.status_code, 200)
+        low_stock_names = [entry.item_name for entry in response.context["low_stock_entries"]]
+        self.assertEqual(low_stock_names, ["Glass Cleaner", "Laundry Soap"])

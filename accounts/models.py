@@ -5,6 +5,7 @@ from django.contrib.auth.models import Group
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum
 
 from accounts.permissions import ACCESS_MODULE_CHOICES, ACTION_CHOICES, user_has_permission
@@ -120,6 +121,9 @@ class Notification(models.Model):
 
 
 class Employee(StatusTrackingMixin, models.Model):
+    EMPLOYEE_ID_PREFIX = "EMP"
+    EMPLOYEE_ID_PADDING = 4
+
     TITLE_CHOICES = [
         ("mr", "Mr."),
         ("mrs", "Mrs."),
@@ -242,6 +246,24 @@ class Employee(StatusTrackingMixin, models.Model):
         verbose_name = "Employee"
         verbose_name_plural = "Employees"
 
+    @classmethod
+    def _next_employee_id(cls):
+        max_number = 0
+        employee_ids = (
+            cls.objects.select_for_update()
+            .exclude(employee_id__isnull=True)
+            .exclude(employee_id="")
+            .values_list("employee_id", flat=True)
+        )
+        for employee_id in employee_ids:
+            normalized_id = str(employee_id).strip().upper()
+            if not normalized_id.startswith(cls.EMPLOYEE_ID_PREFIX):
+                continue
+            suffix = normalized_id[len(cls.EMPLOYEE_ID_PREFIX):]
+            if suffix.isdigit():
+                max_number = max(max_number, int(suffix))
+        return f"{cls.EMPLOYEE_ID_PREFIX}{max_number + 1:0{cls.EMPLOYEE_ID_PADDING}d}"
+
     def __str__(self):
         if self.employee_id:
             return f"{self.employee_id} - {self.first_name} {self.last_name}"
@@ -272,6 +294,22 @@ class Employee(StatusTrackingMixin, models.Model):
         today = timezone.localdate()
         cutoff = today + timedelta(days=365)
         return self.qualifications.filter(expiry_date__lte=cutoff).count()
+
+    def save(self, *args, **kwargs):
+        if self.employee_id:
+            self.employee_id = str(self.employee_id).strip().upper()
+            return super().save(*args, **kwargs)
+
+        for _ in range(5):
+            try:
+                with transaction.atomic():
+                    self.employee_id = self._next_employee_id()
+                    return super().save(*args, **kwargs)
+            except IntegrityError as exc:
+                if "employee_id" not in str(exc).lower():
+                    raise
+                self.employee_id = None
+        raise IntegrityError("Could not generate a unique sequential employee ID.")
 
 
 class Rota(models.Model):

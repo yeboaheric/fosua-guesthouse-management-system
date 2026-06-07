@@ -610,6 +610,77 @@ class StaffManagementTests(TestCase):
         self.assertEqual(self.active_employee.first_name, "Kofi")
         self.assertEqual(self.active_employee.gps_address, "")
 
+    def test_employee_ids_are_generated_sequentially(self):
+        self.assertEqual(self.active_employee.employee_id, "EMP0001")
+        self.assertEqual(self.leave_employee.employee_id, "EMP0002")
+        self.assertEqual(self.terminated_employee.employee_id, "EMP0003")
+        self.assertEqual(self.approver_employee.employee_id, "EMP0004")
+
+        next_employee = Employee.objects.create(
+            title="mr",
+            first_name="Kwesi",
+            last_name="Sequential",
+            date_of_birth=date(1991, 5, 5),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-555555555-5",
+            contact_number="0245555555",
+            department="Operations",
+            start_date=date(2026, 1, 10),
+            position="security",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        self.assertEqual(next_employee.employee_id, "EMP0005")
+
+    def test_employee_create_ignores_manual_id_and_uses_next_sequence(self):
+        response = self.client.post(
+            reverse("hr-create"),
+            {
+                "employee_id": "MANUAL-999",
+                "title": "mr",
+                "first_name": "Kwaku",
+                "last_name": "AutoId",
+                "date_of_birth": "1994-05-01",
+                "nationality": "Ghanaian",
+                "ghana_card_number": "GHA-666666666-6",
+                "ghana_card_expiry_date": "",
+                "ssnit_number": "",
+                "contact_number": "0246666666",
+                "email": "",
+                "residential_address": "",
+                "department": "Front Desk",
+                "job_title": "Reception Clerk",
+                "salary_amount": "",
+                "supervisor": "",
+                "gps_address": "",
+                "emergency_contact_name": "",
+                "next_of_kin": "",
+                "next_of_kin_contact": "",
+                "next_of_kin_relationship": "",
+                "start_date": "2026-06-07",
+                "leave_entitlement_days": 21,
+                "termination_date": "",
+                "termination_reason_choice": "",
+                "termination_approved_by": "",
+                "termination_exit_interview_notes": "",
+                "company_assets_returned": "",
+                "termination_remarks": "",
+                "termination_reason": "",
+                "emergency_contact_number": "",
+                "position": "receptionist",
+                "employment_status": "active",
+                "gender": "male",
+                "marital_status": "single",
+                "ethnic_origin": "",
+                "religion": "",
+            },
+        )
+
+        self.assertRedirects(response, reverse("hr-list"))
+        created_employee = Employee.objects.get(ghana_card_number="GHA-666666666-6")
+        self.assertEqual(created_employee.employee_id, "EMP0005")
+
     def test_leave_request_form_uses_active_employees_as_approvers(self):
         form = LeaveRequestForm()
         approvers = list(form.fields["approving_manager"].queryset)

@@ -130,6 +130,12 @@ class EmployeeForm(forms.ModelForm):
             supervisor_queryset = supervisor_queryset.exclude(pk=self.instance.pk)
         self.fields["supervisor"].queryset = supervisor_queryset
         self.fields["termination_approved_by"].queryset = User.objects.order_by("username")
+        self.fields["employee_id"].required = False
+        self.fields["employee_id"].widget.attrs["readonly"] = "readonly"
+        if self.instance and self.instance.pk and self.instance.employee_id:
+            self.fields["employee_id"].help_text = "Employee ID is assigned automatically by the system."
+        else:
+            self.fields["employee_id"].help_text = "Employee ID will be generated automatically when the employee is created."
         for field_name in self.fields:
             field = self.fields[field_name]
             if field.widget.attrs.get("class") is None:
@@ -137,6 +143,11 @@ class EmployeeForm(forms.ModelForm):
                     field.widget.attrs["class"] = "form-select"
                 else:
                     field.widget.attrs["class"] = "form-control"
+
+    def clean_employee_id(self):
+        if self.instance and self.instance.pk:
+            return self.instance.employee_id
+        return None
 
     def clean_ghana_card_number(self):
         value = self.cleaned_data.get("ghana_card_number", "").strip().upper()

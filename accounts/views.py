@@ -3,6 +3,7 @@ import json
 from datetime import date, timedelta
 from calendar import monthrange
 from itertools import chain
+from urllib.parse import quote_plus, unquote_plus
 
 from django.contrib import messages
 from django.contrib.auth.models import Group
@@ -14,7 +15,7 @@ from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum, Value
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
-from django.http import HttpResponse
+from django.http import HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -753,6 +754,317 @@ def analytics_center(request):
     )
 
 
+STAFF_FILTER_QUERY_KEYS = (
+    "staff_view",
+    "q",
+    "department",
+    "status",
+    "role",
+    "leave",
+    "certifications",
+    "roster",
+)
+
+
+def _build_staff_filters_token(params):
+    query = QueryDict("", mutable=True)
+    staff_view = (params.get("staff_view", "").strip() or "active")
+    if staff_view not in {"active", "terminated"}:
+        staff_view = "active"
+
+    for key in STAFF_FILTER_QUERY_KEYS:
+        value = params.get(key, "").strip()
+        if value and (key != "staff_view" or value != "active"):
+            query[key] = value
+
+    encoded = query.urlencode()
+    return quote_plus(encoded) if encoded else ""
+
+
+def _decode_staff_filters_token(token):
+    if not token:
+        return "", QueryDict("", mutable=False)
+    query_string = unquote_plus(token).strip()
+    return query_string, QueryDict(query_string, mutable=False)
+
+
+def _append_query_param(url, name, value):
+    if not value:
+        return url
+    separator = "&" if "?" in url else "?"
+    return f"{url}{separator}{name}={value}"
+
+
+def _employee_section_filters(section, params):
+    filters = []
+
+    def add_select(name, label, choices):
+        filters.append(
+            {
+                "name": name,
+                "label": label,
+                "type": "select",
+                "choices": [("", "All")] + list(choices),
+                "value": params.get(name, "").strip(),
+            }
+        )
+
+    def add_date(name, label):
+        filters.append(
+            {
+                "name": name,
+                "label": label,
+                "type": "date",
+                "value": params.get(name, "").strip(),
+            }
+        )
+
+    def add_text(name, label, placeholder):
+        filters.append(
+            {
+                "name": name,
+                "label": label,
+                "type": "text",
+                "placeholder": placeholder,
+                "value": params.get(name, "").strip(),
+            }
+        )
+
+    if section == "leave":
+        add_select("approval_status", "Status", LeaveRequest.ApprovalStatus.choices)
+        add_select("leave_type", "Leave Type", LeaveRequest.LeaveType.choices)
+        add_date("date_from", "Start From")
+        add_date("date_to", "End To")
+    elif section == "attendance":
+        add_select("attendance_status", "Status", AttendanceRecord.AttendanceStatus.choices)
+        add_date("date_from", "Date From")
+        add_date("date_to", "Date To")
+    elif section == "certifications":
+        add_select(
+            "certification_status",
+            "Status",
+            [
+                ("current", "Current"),
+                ("expiring", "Expiring Soon"),
+                ("expired", "Expired"),
+            ],
+        )
+        add_text("query", "Search", "Qualification or institution")
+        add_date("date_from", "Issued From")
+        add_date("date_to", "Issued To")
+    elif section == "documents":
+        add_select("document_type", "Type", EmployeeDocument.DocumentType.choices)
+        add_text("query", "Search", "Title or description")
+    elif section == "payroll":
+        add_select("payment_status", "Status", PayrollRecord.PaymentStatus.choices)
+        add_date("date_from", "Period From")
+        add_date("date_to", "Period To")
+    elif section == "performance":
+        add_select(
+            "rating",
+            "Rating",
+            [(str(value), str(value)) for value in range(1, 6)],
+        )
+        add_date("date_from", "Review From")
+        add_date("date_to", "Review To")
+    elif section == "disciplinary":
+        add_select("record_type", "Type", DisciplinaryRecord.RecordType.choices)
+        add_select(
+            "resolved",
+            "Resolved",
+            [("yes", "Yes"), ("no", "No")],
+        )
+        add_date("date_from", "Incident From")
+        add_date("date_to", "Incident To")
+    elif section == "training":
+        add_text("query", "Search", "Training or provider")
+        add_date("date_from", "Completed From")
+        add_date("date_to", "Completed To")
+    elif section == "history":
+        add_select("change_type", "Change Type", EmploymentHistoryEntry.ChangeType.choices)
+        add_date("date_from", "Effective From")
+        add_date("date_to", "Effective To")
+
+    return filters
+
+
+def _apply_employee_section_filters(records, section, params):
+    if section == "leave":
+        approval_status = params.get("approval_status", "").strip()
+        leave_type = params.get("leave_type", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if approval_status:
+            records = records.filter(approval_status=approval_status)
+        if leave_type:
+            records = records.filter(leave_type=leave_type)
+        if date_from:
+            records = records.filter(start_date__gte=date_from)
+        if date_to:
+            records = records.filter(end_date__lte=date_to)
+        return records
+
+    if section == "attendance":
+        attendance_status = params.get("attendance_status", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if attendance_status:
+            records = records.filter(status=attendance_status)
+        if date_from:
+            records = records.filter(work_date__gte=date_from)
+        if date_to:
+            records = records.filter(work_date__lte=date_to)
+        return records
+
+    if section == "certifications":
+        certification_status = params.get("certification_status", "").strip()
+        query = params.get("query", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        today = timezone.localdate()
+        if certification_status == "current":
+            records = records.filter(Q(expiry_date__isnull=True) | Q(expiry_date__gte=today))
+        elif certification_status == "expiring":
+            records = records.filter(
+                expiry_date__isnull=False,
+                expiry_date__gte=today,
+                expiry_date__lte=today + timedelta(days=30),
+            )
+        elif certification_status == "expired":
+            records = records.filter(expiry_date__isnull=False, expiry_date__lt=today)
+        if query:
+            records = records.filter(
+                Q(qualification_name__icontains=query)
+                | Q(institution__icontains=query)
+                | Q(certificate_number__icontains=query)
+            )
+        if date_from:
+            records = records.filter(certification_date__gte=date_from)
+        if date_to:
+            records = records.filter(certification_date__lte=date_to)
+        return records
+
+    if section == "documents":
+        document_type = params.get("document_type", "").strip()
+        query = params.get("query", "").strip()
+        if document_type:
+            records = records.filter(document_type=document_type)
+        if query:
+            records = records.filter(
+                Q(title__icontains=query) | Q(description__icontains=query)
+            )
+        return records
+
+    if section == "payroll":
+        payment_status = params.get("payment_status", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if payment_status:
+            records = records.filter(payment_status=payment_status)
+        if date_from:
+            records = records.filter(pay_period_start__gte=date_from)
+        if date_to:
+            records = records.filter(pay_period_end__lte=date_to)
+        return records
+
+    if section == "performance":
+        rating = params.get("rating", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if rating:
+            records = records.filter(rating=rating)
+        if date_from:
+            records = records.filter(review_date__gte=date_from)
+        if date_to:
+            records = records.filter(review_date__lte=date_to)
+        return records
+
+    if section == "disciplinary":
+        record_type = params.get("record_type", "").strip()
+        resolved = params.get("resolved", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if record_type:
+            records = records.filter(record_type=record_type)
+        if resolved == "yes":
+            records = records.filter(resolved=True)
+        elif resolved == "no":
+            records = records.filter(resolved=False)
+        if date_from:
+            records = records.filter(incident_date__gte=date_from)
+        if date_to:
+            records = records.filter(incident_date__lte=date_to)
+        return records
+
+    if section == "training":
+        query = params.get("query", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if query:
+            records = records.filter(
+                Q(training_name__icontains=query) | Q(provider__icontains=query)
+            )
+        if date_from:
+            records = records.filter(completion_date__gte=date_from)
+        if date_to:
+            records = records.filter(completion_date__lte=date_to)
+        return records
+
+    if section == "history":
+        change_type = params.get("change_type", "").strip()
+        date_from = params.get("date_from", "").strip()
+        date_to = params.get("date_to", "").strip()
+        if change_type:
+            records = records.filter(change_type=change_type)
+        if date_from:
+            records = records.filter(effective_date__gte=date_from)
+        if date_to:
+            records = records.filter(effective_date__lte=date_to)
+        return records
+
+    return records
+
+
+def _employee_section_links(employee, staff_filters_token="", active_section=None):
+    section_specs = [
+        ("leave", "Annual Leave", employee.leave_requests.count()),
+        ("certifications", "Certifications", employee.qualifications.count()),
+        ("documents", "Documents", employee.documents.count()),
+        ("attendance", "Attendance History", employee.attendance_records.count()),
+        ("payroll", "Payroll Information", employee.payroll_records.count()),
+        ("performance", "Performance Reviews", employee.performance_reviews.count()),
+        ("disciplinary", "Disciplinary Records", employee.disciplinary_records.count()),
+        ("training", "Training Records", employee.training_records.count()),
+        ("history", "Employment History", employee.history_entries.count()),
+    ]
+    links = []
+    for key, label, count in section_specs:
+        url = reverse("hr-employee-section", args=[employee.pk, key])
+        url = _append_query_param(url, "staff_filters", staff_filters_token)
+        links.append(
+            {
+                "key": key,
+                "label": label,
+                "count": count,
+                "url": url,
+                "active": key == active_section,
+            }
+        )
+
+    roster_url = reverse("hr-rota-list")
+    roster_url = _append_query_param(roster_url, "employee", employee.pk)
+    links.append(
+        {
+            "key": "roster",
+            "label": "Roster Assignments",
+            "count": employee.rota_entries.count(),
+            "url": roster_url,
+            "active": active_section == "roster",
+        }
+    )
+    return links
+
+
 def _employee_section_headers(section):
     return {
         "leave": ["Type", "Dates", "Days", "Return", "Status", "Manager"],
@@ -980,8 +1292,19 @@ def hr_employee_section(request, pk, section):
     if form_class is None:
         return redirect("hr-detail", pk=employee.pk)
 
+    staff_filters_token = request.GET.get("staff_filters", "").strip()
+    back_to_list_url = reverse("hr-list")
+    if staff_filters_token:
+        staff_filters_query, _ = _decode_staff_filters_token(staff_filters_token)
+        if staff_filters_query:
+            back_to_list_url = f"{back_to_list_url}?{staff_filters_query}"
+
     form = form_class(request.POST or None, request.FILES or None)
-    records = _employee_section_records(employee, section)
+    records = _apply_employee_section_filters(
+        _employee_section_records(employee, section),
+        section,
+        request.GET,
+    )
     if request.method == "POST" and form.is_valid():
         record = form.save(commit=False)
         record.employee = employee
@@ -1010,7 +1333,14 @@ def hr_employee_section(request, pk, section):
             details={"section": section, "record": str(record)},
         )
         messages.success(request, f"{_employee_section_title(section)} saved successfully.")
-        return redirect("hr-employee-section", pk=employee.pk, section=section)
+        redirect_url = reverse("hr-employee-section", args=[employee.pk, section])
+        if staff_filters_token:
+            redirect_url = _append_query_param(
+                redirect_url,
+                "staff_filters",
+                staff_filters_token,
+            )
+        return redirect(redirect_url)
 
     return render(
         request,
@@ -1022,7 +1352,16 @@ def hr_employee_section(request, pk, section):
             "headers": _employee_section_headers(section),
             "rows": [_employee_section_row(record, section) for record in records],
             "records": records,
+            "record_count": records.count(),
             "form": form,
+            "section_filters": _employee_section_filters(section, request.GET),
+            "staff_filters_token": staff_filters_token,
+            "back_to_list_url": back_to_list_url,
+            "section_links": _employee_section_links(
+                employee,
+                staff_filters_token=staff_filters_token,
+                active_section=section,
+            ),
         },
     )
 
@@ -1038,6 +1377,7 @@ def hr_employee_list(request):
             "roster_employees": Employee.objects.filter(rota_entries__isnull=False).distinct().order_by("last_name", "first_name"),
             "active_count": Employee.objects.exclude(employment_status="terminated").count(),
             "terminated_count": Employee.objects.filter(employment_status="terminated").count(),
+            "staff_filters_token": _build_staff_filters_token(request.GET),
         }
     )
     return render(request, "accounts/hr_employee_list.html", context)
@@ -1074,6 +1414,13 @@ def hr_employee_update(request, pk):
 
 @group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_detail(request, pk):
+    staff_filters_token = request.GET.get("staff_filters", "").strip()
+    back_to_list_url = reverse("hr-list")
+    if staff_filters_token:
+        staff_filters_query, _ = _decode_staff_filters_token(staff_filters_token)
+        if staff_filters_query:
+            back_to_list_url = f"{back_to_list_url}?{staff_filters_query}"
+
     employee = get_object_or_404(
         Employee.objects.select_related("supervisor", "termination_approved_by")
         .prefetch_related("rota_entries", "documents", "qualifications", "leave_requests"),
@@ -1088,6 +1435,12 @@ def hr_employee_detail(request, pk):
             "rotas": rotas,
             "leave_balance": employee.annual_leave_balance,
             "expiring_certifications_count": employee.expiring_certifications_count,
+            "staff_filters_token": staff_filters_token,
+            "back_to_list_url": back_to_list_url,
+            "section_links": _employee_section_links(
+                employee,
+                staff_filters_token=staff_filters_token,
+            ),
         },
     )
 

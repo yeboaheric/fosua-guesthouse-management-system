@@ -12,9 +12,9 @@
         </div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{% url 'hr-list' %}"><i data-lucide="arrow-left"></i> Back</a>
+        <a class="topbar-pill" href="{{ back_to_list_url }}"><i data-lucide="arrow-left"></i> Back</a>
         <a class="topbar-pill" href="{% url 'hr-update' employee.pk %}"><i data-lucide="pencil"></i> Edit</a>
-        <a class="topbar-pill" href="{% url 'hr-employee-section' employee.pk 'leave' %}"><i data-lucide="calendar-range"></i> Annual Leave</a>
+        <a class="topbar-pill" href="{% url 'hr-employee-section' employee.pk 'leave' %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}"><i data-lucide="calendar-range"></i> Annual Leave</a>
       </div>
     </div>
   </div>
@@ -105,16 +105,9 @@
 
   <div class="surface-panel p-4 mt-3">
     <div class="d-flex flex-wrap gap-2 mb-3">
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'leave' %}">Annual Leave</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'certifications' %}">Certifications</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'documents' %}">Documents</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'attendance' %}">Attendance History</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'payroll' %}">Payroll Information</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'performance' %}">Performance Reviews</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'disciplinary' %}">Disciplinary Records</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'training' %}">Training Records</a>
-      <a class="status-pill neutral" href="{% url 'hr-rota-list' %}?employee={{ employee.pk }}">Roster Assignments</a>
-      <a class="status-pill neutral" href="{% url 'hr-employee-section' employee.pk 'history' %}">Employment History</a>
+      {% for link in section_links %}
+        <a class="status-pill neutral" href="{{ link.url }}">{{ link.label }} ({{ link.count }})</a>
+      {% endfor %}
     </div>
   </div>
 

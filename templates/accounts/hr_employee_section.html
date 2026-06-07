@@ -10,9 +10,18 @@
         <div class="page-subtitle">{{ employee.full_name }} · {{ employee.department|default:employee.get_position_display }}</div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{% url 'hr-detail' employee.pk %}"><i data-lucide="user-round"></i> Employee file</a>
+        <a class="topbar-pill" href="{{ back_to_list_url }}"><i data-lucide="arrow-left"></i> Back</a>
+        <a class="topbar-pill" href="{% url 'hr-detail' employee.pk %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}"><i data-lucide="user-round"></i> Employee file</a>
         <a class="topbar-pill" href="{% url 'hr-rota-list' %}?employee={{ employee.pk }}"><i data-lucide="calendar-range"></i> Roster</a>
       </div>
+    </div>
+  </div>
+
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex flex-wrap gap-2">
+      {% for link in section_links %}
+        <a class="status-pill {% if link.active %}success{% else %}neutral{% endif %}" href="{{ link.url }}">{{ link.label }} ({{ link.count }})</a>
+      {% endfor %}
     </div>
   </div>
 
@@ -45,9 +54,38 @@
         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
           <div>
             <div class="section-eyebrow mb-1">Records</div>
-            <h2 class="h5 mb-0">{{ records|length }} item(s)</h2>
+            <h2 class="h5 mb-0">{{ record_count }} item(s)</h2>
           </div>
         </div>
+        {% if section_filters %}
+          <form method="get" class="row g-3 mb-3">
+            {% if staff_filters_token %}
+              <input type="hidden" name="staff_filters" value="{{ staff_filters_token }}">
+            {% endif %}
+            {% for filter in section_filters %}
+              <div class="col-md-3">
+                <label class="form-label" for="filter_{{ filter.name }}">{{ filter.label }}</label>
+                {% if filter.type == "select" %}
+                  <select class="form-select" id="filter_{{ filter.name }}" name="{{ filter.name }}">
+                    {% for value, label in filter.choices %}
+                      <option value="{{ value }}" {% if filter.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                {% elif filter.type == "date" %}
+                  <input class="form-control" type="date" id="filter_{{ filter.name }}" name="{{ filter.name }}" value="{{ filter.value }}">
+                {% else %}
+                  <input class="form-control" type="text" id="filter_{{ filter.name }}" name="{{ filter.name }}" value="{{ filter.value }}" placeholder="{{ filter.placeholder }}">
+                {% endif %}
+              </div>
+            {% endfor %}
+            <div class="col-md-2 d-grid">
+              <button class="btn btn-primary" type="submit">Filter</button>
+            </div>
+            <div class="col-md-2 d-grid">
+              <a class="btn btn-outline-secondary" href="{% url 'hr-employee-section' employee.pk section %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">Reset</a>
+            </div>
+          </form>
+        {% endif %}
         <div class="table-responsive soft-table">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">

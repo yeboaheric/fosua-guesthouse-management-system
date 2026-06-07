@@ -135,7 +135,7 @@
               <td>{{ employee.termination_date|default:"-" }}</td>
               <td>
                 <div class="d-flex gap-2 justify-content-end flex-wrap">
-                  <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}">View</a>
+                  <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">View</a>
                   <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
                   <a class="btn btn-sm btn-outline-danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
                 </div>

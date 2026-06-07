@@ -1,5 +1,5 @@
 from accounts.forms import LeaveRequestForm
-from accounts.models import Employee, EmployeeQualification, LeaveRequest, Notification, Rota, RolePermission, UserAccessProfile
+from accounts.models import AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, Rota, RolePermission, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
@@ -9,6 +9,7 @@ from django.urls import reverse
 from guests.models import Guest
 from rooms.models import Room
 from django.utils import timezone
+from urllib.parse import quote_plus
 
 
 class DashboardRoutingTests(TestCase):
@@ -507,6 +508,58 @@ class StaffManagementTests(TestCase):
             certification_date=date(2024, 1, 1),
             expiry_date=timezone.localdate() - timedelta(days=1),
         )
+        self.active_leave_request = LeaveRequest.objects.create(
+            employee=self.active_employee,
+            leave_type=LeaveRequest.LeaveType.ANNUAL,
+            start_date=date(2026, 6, 10),
+            end_date=date(2026, 6, 12),
+            days=3,
+            return_to_work_date=date(2026, 6, 13),
+            reason="Approved annual leave",
+            approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            approving_manager=self.approver_employee,
+        )
+        self.active_pending_leave = LeaveRequest.objects.create(
+            employee=self.active_employee,
+            leave_type=LeaveRequest.LeaveType.SICK,
+            start_date=date(2026, 7, 1),
+            end_date=date(2026, 7, 2),
+            days=2,
+            return_to_work_date=date(2026, 7, 3),
+            reason="Pending sick leave",
+            approval_status=LeaveRequest.ApprovalStatus.PENDING,
+        )
+        LeaveRequest.objects.create(
+            employee=self.approver_employee,
+            leave_type=LeaveRequest.LeaveType.FAMILY,
+            start_date=date(2026, 6, 15),
+            end_date=date(2026, 6, 16),
+            days=2,
+            return_to_work_date=date(2026, 6, 17),
+            reason="Other employee leave",
+            approval_status=LeaveRequest.ApprovalStatus.REJECTED,
+        )
+        self.active_present_attendance = AttendanceRecord.objects.create(
+            employee=self.active_employee,
+            work_date=date(2026, 6, 1),
+            shift_type=AttendanceRecord.ShiftType.MORNING,
+            status=AttendanceRecord.AttendanceStatus.PRESENT,
+            notes="On time",
+        )
+        AttendanceRecord.objects.create(
+            employee=self.active_employee,
+            work_date=date(2026, 6, 2),
+            shift_type=AttendanceRecord.ShiftType.MORNING,
+            status=AttendanceRecord.AttendanceStatus.ABSENT,
+            notes="Sick day",
+        )
+        AttendanceRecord.objects.create(
+            employee=self.approver_employee,
+            work_date=date(2026, 6, 1),
+            shift_type=AttendanceRecord.ShiftType.MORNING,
+            status=AttendanceRecord.AttendanceStatus.LATE,
+            notes="Different employee",
+        )
 
     def test_employee_edit_allows_blank_optional_gps_address(self):
         response = self.client.post(
@@ -586,10 +639,78 @@ class StaffManagementTests(TestCase):
             response,
             reverse("hr-employee-section", args=[self.active_employee.pk, "leave"]),
         )
-        leave_request = LeaveRequest.objects.get(employee=self.active_employee)
+        leave_request = LeaveRequest.objects.get(
+            employee=self.active_employee,
+            reason="Annual break",
+        )
         self.assertEqual(leave_request.days, 3)
         self.assertEqual(leave_request.return_to_work_date, date(2026, 6, 13))
         self.assertEqual(leave_request.approving_manager, self.approver_employee)
+
+    def test_employee_detail_subsection_links_show_real_counts_and_preserve_filters(self):
+        staff_filters_token = quote_plus("staff_view=active&role=receptionist")
+        response = self.client.get(
+            reverse("hr-detail", args=[self.active_employee.pk]),
+            {"staff_filters": staff_filters_token},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context["back_to_list_url"],
+            f"{reverse('hr-list')}?staff_view=active&role=receptionist",
+        )
+        self.assertContains(response, "Annual Leave (2)")
+        self.assertContains(response, "Attendance History (2)")
+        leave_link = next(
+            link for link in response.context["section_links"] if link["key"] == "leave"
+        )
+        self.assertIn(f"staff_filters={staff_filters_token}", leave_link["url"])
+
+    def test_leave_section_filters_only_the_selected_employee_records(self):
+        response = self.client.get(
+            reverse("hr-employee-section", args=[self.active_employee.pk, "leave"]),
+            {
+                "approval_status": LeaveRequest.ApprovalStatus.APPROVED,
+                "leave_type": LeaveRequest.LeaveType.ANNUAL,
+                "date_from": "2026-06-01",
+                "date_to": "2026-06-30",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["records"]), [self.active_leave_request])
+        self.assertEqual(response.context["record_count"], 1)
+
+    def test_attendance_section_filters_only_the_selected_employee_records(self):
+        response = self.client.get(
+            reverse("hr-employee-section", args=[self.active_employee.pk, "attendance"]),
+            {
+                "attendance_status": AttendanceRecord.AttendanceStatus.PRESENT,
+                "date_from": "2026-06-01",
+                "date_to": "2026-06-01",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["records"]), [self.active_present_attendance])
+        self.assertEqual(response.context["record_count"], 1)
+
+    def test_certifications_section_filters_only_the_selected_employee_records(self):
+        response = self.client.get(
+            reverse("hr-employee-section", args=[self.active_employee.pk, "certifications"]),
+            {
+                "certification_status": "expiring",
+                "query": "Fire",
+                "date_from": "2025-01-01",
+                "date_to": "2025-12-31",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        records = list(response.context["records"])
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].employee, self.active_employee)
+        self.assertEqual(records[0].qualification_name, "Fire Safety")
 
     def test_staff_page_defaults_to_active_staff_and_has_terminated_tab(self):
         response = self.client.get(reverse("hr-list"))

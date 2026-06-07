@@ -765,6 +765,13 @@ STAFF_FILTER_QUERY_KEYS = (
     "roster",
 )
 
+LEAVE_EMPLOYMENT_STATUSES = ("annual_leave", "sick_leave", "family_emergency")
+LEAVE_TYPE_TO_EMPLOYMENT_STATUS = {
+    LeaveRequest.LeaveType.ANNUAL: "annual_leave",
+    LeaveRequest.LeaveType.SICK: "sick_leave",
+    LeaveRequest.LeaveType.FAMILY: "family_emergency",
+}
+
 
 def _build_staff_filters_token(params):
     query = QueryDict("", mutable=True)
@@ -793,6 +800,135 @@ def _append_query_param(url, name, value):
         return url
     separator = "&" if "?" in url else "?"
     return f"{url}{separator}{name}={value}"
+
+
+def _current_leave_q():
+    today = timezone.localdate()
+    return Q(
+        leave_requests__approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+        leave_requests__start_date__lte=today,
+        leave_requests__end_date__gte=today,
+    )
+
+
+def _system_status_filter_options():
+    status_labels = dict(Employee.EMPLOYMENT_STATUS_CHOICES)
+    available_statuses = set(
+        Employee.objects.exclude(employment_status="")
+        .values_list("employment_status", flat=True)
+        .distinct()
+    )
+    options = []
+
+    for value, label in (
+        ("active", "Active"),
+        ("on_leave", "On Leave"),
+        ("terminated", "Terminated"),
+    ):
+        if value == "on_leave":
+            has_on_leave = Employee.objects.filter(
+                Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
+            ).exists()
+            if has_on_leave:
+                options.append((value, label))
+        elif value in available_statuses:
+            options.append((value, label))
+
+    for value in sorted(available_statuses):
+        if value in {"active", "terminated"} or value in LEAVE_EMPLOYMENT_STATUSES:
+            continue
+        options.append((value, status_labels.get(value, value.replace("_", " ").title())))
+
+    for value in LEAVE_EMPLOYMENT_STATUSES:
+        if value in available_statuses:
+            options.append((value, status_labels.get(value, value.replace("_", " ").title())))
+
+    return options
+
+
+def _system_role_filter_options():
+    position_labels = dict(Employee.POSITION_CHOICES)
+    positions = sorted(
+        set(
+            Employee.objects.exclude(position="")
+            .values_list("position", flat=True)
+            .distinct()
+        )
+    )
+    return [
+        (value, position_labels.get(value, value.replace("_", " ").title()))
+        for value in positions
+    ]
+
+
+def _system_leave_filter_options():
+    leave_labels = dict(LeaveRequest.LeaveType.choices)
+    options = []
+
+    if Employee.objects.filter(
+        Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
+    ).exists():
+        options.append(("on_leave", "Currently On Leave"))
+
+    leave_types = sorted(
+        set(
+            LeaveRequest.objects.exclude(leave_type="")
+            .values_list("leave_type", flat=True)
+            .distinct()
+        )
+    )
+    options.extend(
+        (value, leave_labels.get(value, value.replace("_", " ").title()))
+        for value in leave_types
+    )
+    return options
+
+
+def _system_certification_filter_options():
+    options = []
+    qualification_names = sorted(
+        set(
+            EmployeeQualification.objects.exclude(qualification_name="")
+            .values_list("qualification_name", flat=True)
+            .distinct()
+        )
+    )
+    if EmployeeQualification.objects.exists():
+        options.extend(
+            [
+                ("expiring", "Expiring Soon"),
+                ("expired", "Expired"),
+            ]
+        )
+    options.extend((name, name) for name in qualification_names)
+    return options
+
+
+def _system_roster_filter_options():
+    rotas = (
+        Rota.objects.select_related("employee")
+        .prefetch_related("staff_members")
+        .filter(Q(employee__isnull=False) | Q(staff_members__isnull=False))
+        .order_by("-period_start", "-created_at")
+        .distinct()
+    )
+    options = []
+    for rota in rotas:
+        assigned_names = []
+        if rota.employee_id:
+            assigned_names.append(rota.employee.full_name)
+        for member in rota.staff_members.all():
+            if member.full_name not in assigned_names:
+                assigned_names.append(member.full_name)
+        label_parts = [
+            rota.period or f"{rota.period_start or '-'} to {rota.period_end or '-'}",
+        ]
+        if rota.operating_hours != "-":
+            label_parts.append(rota.operating_hours)
+        if assigned_names:
+            label_parts.append(", ".join(assigned_names))
+        options.append((f"rota:{rota.pk}", " · ".join(label_parts)))
+    return options
 
 
 def _employee_section_filters(section, params):
@@ -1218,7 +1354,7 @@ def _staff_management_queryset(request):
 
     employees = (
         Employee.objects.select_related("supervisor")
-        .prefetch_related("qualifications", "leave_requests", "rota_entries")
+        .prefetch_related("qualifications", "leave_requests", "rota_entries", "rotas")
         .order_by("last_name", "first_name")
     )
 
@@ -1244,19 +1380,41 @@ def _staff_management_queryset(request):
             | Q(ghana_card_number__icontains=query)
         )
     if department:
-        employees = employees.filter(department__icontains=department)
+        employees = employees.filter(department=department)
     if employment_status:
-        employees = employees.filter(employment_status=employment_status)
+        if employment_status == "on_leave":
+            employees = employees.filter(
+                Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
+            )
+        else:
+            employees = employees.filter(employment_status=employment_status)
     if role:
         employees = employees.filter(position=role)
     if roster_employee:
-        employees = employees.filter(rota_entries__isnull=False, pk=roster_employee)
+        if roster_employee.startswith("rota:"):
+            rota_id = roster_employee.split(":", 1)[1]
+            employees = employees.filter(Q(rota_entries__pk=rota_id) | Q(rotas__pk=rota_id))
+        else:
+            employees = employees.filter(rota_entries__isnull=False, pk=roster_employee)
     if leave_status == "on_leave":
-        employees = employees.filter(employment_status__in=["annual_leave", "sick_leave", "family_emergency"])
+        employees = employees.filter(
+            Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
+        )
     elif leave_status == "active":
         employees = employees.filter(employment_status="active")
     elif leave_status == "terminated":
         employees = employees.filter(employment_status="terminated")
+    elif leave_status in dict(LeaveRequest.LeaveType.choices):
+        leave_filter = Q(
+            leave_requests__leave_type=leave_status,
+            leave_requests__approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            leave_requests__start_date__lte=timezone.localdate(),
+            leave_requests__end_date__gte=timezone.localdate(),
+        )
+        employment_status_for_type = LEAVE_TYPE_TO_EMPLOYMENT_STATUS.get(leave_status)
+        if employment_status_for_type:
+            leave_filter |= Q(employment_status=employment_status_for_type)
+        employees = employees.filter(leave_filter)
     if certification_status == "expiring":
         today = timezone.localdate()
         employees = employees.filter(
@@ -1268,6 +1426,10 @@ def _staff_management_queryset(request):
         employees = employees.filter(
             qualifications__expiry_date__isnull=False,
             qualifications__expiry_date__lt=timezone.localdate(),
+        )
+    elif certification_status:
+        employees = employees.filter(
+            qualifications__qualification_name=certification_status
         )
 
     employees = employees.distinct()
@@ -1371,10 +1533,18 @@ def hr_employee_list(request):
     context = _staff_management_queryset(request)
     context.update(
         {
-            "departments": Employee.objects.exclude(department="").values_list("department", flat=True).distinct().order_by("department"),
-            "positions": Employee.POSITION_CHOICES,
-            "status_choices": Employee.EMPLOYMENT_STATUS_CHOICES,
-            "roster_employees": Employee.objects.filter(rota_entries__isnull=False).distinct().order_by("last_name", "first_name"),
+            "departments": sorted(
+                set(
+                    Employee.objects.exclude(department="")
+                    .values_list("department", flat=True)
+                    .distinct()
+                )
+            ),
+            "role_options": _system_role_filter_options(),
+            "status_choices": _system_status_filter_options(),
+            "leave_filter_options": _system_leave_filter_options(),
+            "certification_filter_options": _system_certification_filter_options(),
+            "roster_options": _system_roster_filter_options(),
             "active_count": Employee.objects.exclude(employment_status="terminated").count(),
             "terminated_count": Employee.objects.filter(employment_status="terminated").count(),
             "staff_filters_token": _build_staff_filters_token(request.GET),

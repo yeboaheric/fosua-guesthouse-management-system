@@ -726,6 +726,12 @@ class StaffManagementTests(TestCase):
         self.assertNotContains(response, 'name="hired_to"', html=False)
         self.assertNotContains(response, 'name="terminated_from"', html=False)
         self.assertNotContains(response, 'name="terminated_to"', html=False)
+        self.assertIn("Front Desk", response.context["departments"])
+        self.assertIn(("receptionist", "Receptionist"), response.context["role_options"])
+        self.assertIn(("annual", "Annual Leave"), response.context["leave_filter_options"])
+        self.assertIn(("Fire Safety", "Fire Safety"), response.context["certification_filter_options"])
+        roster_values = dict(response.context["roster_options"])
+        self.assertIn(f"rota:{self.rota.pk}", roster_values)
 
     def test_terminated_tab_returns_only_terminated_staff(self):
         response = self.client.get(reverse("hr-list"), {"staff_view": "terminated"})
@@ -734,11 +740,14 @@ class StaffManagementTests(TestCase):
         self.assertEqual(employees, [self.terminated_employee])
 
     def test_staff_filters_return_expected_results(self):
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "department": "Front"})
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "department": "Front Desk"})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
 
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "q": "Kojo"})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "on_leave"})
+        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
 
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "annual_leave"})
         self.assertEqual(list(response.context["employees"]), [self.leave_employee])
@@ -749,13 +758,31 @@ class StaffManagementTests(TestCase):
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "on_leave"})
         self.assertEqual(list(response.context["employees"]), [self.leave_employee])
 
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "annual"})
+        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
+
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "certifications": "expiring"})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
 
         response = self.client.get(reverse("hr-list"), {"staff_view": "terminated", "certifications": "expired"})
         self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
 
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "roster": str(self.active_employee.pk)})
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "certifications": "Fire Safety"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "roster": f"rota:{self.rota.pk}"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(
+            reverse("hr-list"),
+            {
+                "staff_view": "active",
+                "department": "Front Desk",
+                "role": "receptionist",
+                "certifications": "Fire Safety",
+                "roster": f"rota:{self.rota.pk}",
+            },
+        )
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
 
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "terminated"})

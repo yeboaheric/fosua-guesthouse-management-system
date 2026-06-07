@@ -37,12 +37,12 @@
       </div>
       <div class="col-md-2">
         <label class="form-label" for="department">Department</label>
-        <input class="form-control" list="department-list" id="department" name="department" value="{{ department }}" placeholder="All">
-        <datalist id="department-list">
+        <select class="form-select" id="department" name="department">
+          <option value="">All</option>
           {% for dep in departments %}
-            <option value="{{ dep }}"></option>
+            <option value="{{ dep }}" {% if department == dep %}selected{% endif %}>{{ dep }}</option>
           {% endfor %}
-        </datalist>
+        </select>
       </div>
       <div class="col-md-2">
         <label class="form-label" for="status">Status</label>
@@ -57,7 +57,7 @@
         <label class="form-label" for="role">Role</label>
         <select class="form-select" name="role" id="role">
           <option value="">All</option>
-          {% for value,label in positions %}
+          {% for value,label in role_options %}
             <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
@@ -66,25 +66,26 @@
         <label class="form-label" for="leave">Leave</label>
         <select class="form-select" name="leave" id="leave">
           <option value="">All</option>
-          <option value="active" {% if leave_status == "active" %}selected{% endif %}>Active</option>
-          <option value="on_leave" {% if leave_status == "on_leave" %}selected{% endif %}>On leave</option>
-          <option value="terminated" {% if leave_status == "terminated" %}selected{% endif %}>Terminated</option>
+          {% for value,label in leave_filter_options %}
+            <option value="{{ value }}" {% if leave_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="col-md-2">
         <label class="form-label" for="certifications">Certs</label>
         <select class="form-select" name="certifications" id="certifications">
           <option value="">All</option>
-          <option value="expiring" {% if certification_status == "expiring" %}selected{% endif %}>Expiring</option>
-          <option value="expired" {% if certification_status == "expired" %}selected{% endif %}>Expired</option>
+          {% for value,label in certification_filter_options %}
+            <option value="{{ value }}" {% if certification_status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
         </select>
       </div>
       <div class="col-md-2">
         <label class="form-label" for="roster">Roster</label>
         <select class="form-select" id="roster" name="roster">
           <option value="">Any</option>
-          {% for roster_employee in roster_employees %}
-            <option value="{{ roster_employee.pk }}" {% if selected_roster_employee == roster_employee.pk|stringformat:"s" %}selected{% endif %}>{{ roster_employee.full_name }}</option>
+          {% for value,label in roster_options %}
+            <option value="{{ value }}" {% if selected_roster_employee == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
       </div>

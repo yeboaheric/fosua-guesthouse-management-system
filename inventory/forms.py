@@ -9,9 +9,7 @@ from inventory.models import (
     Sale,
     StockAdjustment,
     Supplier,
-    ToiletryItem,
 )
-from rooms.models import Room
 
 
 class InventoryCategoryForm(forms.ModelForm):
@@ -94,50 +92,6 @@ class StockAdjustmentForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["quantity"].widget.attrs.update({"class": "form-control", "step": "0.001"})
         self.fields["reason"].widget.attrs.update({"class": "form-control"})
-
-
-class ToiletryItemForm(forms.ModelForm):
-    class Meta:
-        model = ToiletryItem
-        fields = [
-            "name",
-            "purchase_price",
-            "quantity_in_stock",
-            "unit_of_measure",
-            "minimum_stock_threshold",
-            "description",
-            "is_active",
-        ]
-        widgets = {
-            "name": forms.TextInput(attrs={"class": "form-control"}),
-            "purchase_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "quantity_in_stock": forms.NumberInput(attrs={"class": "form-control", "step": "0.001"}),
-            "unit_of_measure": forms.Select(attrs={"class": "form-select"}),
-            "minimum_stock_threshold": forms.NumberInput(attrs={"class": "form-control", "step": "0.001"}),
-            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-        }
-
-
-class ToiletryIssueForm(forms.Form):
-    item = forms.ModelChoiceField(
-        queryset=ToiletryItem.objects.filter(is_active=True).order_by("name"),
-        widget=forms.Select(attrs={"class": "form-select"}),
-    )
-    room = forms.ModelChoiceField(
-        queryset=None,
-        widget=forms.Select(attrs={"class": "form-select"}),
-    )
-    quantity = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"), widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.001"}))
-    reason = forms.CharField(required=False, max_length=255, widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}))
-
-    def __init__(self, *args, **kwargs):
-        rooms_queryset = kwargs.pop("rooms_queryset", None)
-        super().__init__(*args, **kwargs)
-        if rooms_queryset is not None:
-            self.fields["room"].queryset = rooms_queryset
-        else:
-            self.fields["room"].queryset = Room.objects.order_by("room_number")
 
 
 class POSCheckoutForm(forms.Form):

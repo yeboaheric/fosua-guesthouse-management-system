@@ -8,7 +8,6 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.models import User
 from django.db import IntegrityError
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMessage
@@ -34,8 +33,6 @@ from inventory.forms import (
     POSCheckoutForm,
     StockAdjustmentForm,
     SupplierForm,
-    ToiletryItemForm,
-    ToiletryIssueForm,
 )
 from inventory.models import (
     InventoryCategory,
@@ -46,10 +43,7 @@ from inventory.models import (
     SaleItem,
     StockAdjustment,
     Supplier,
-    ToiletryItem,
-    ToiletryIssue,
 )
-from rooms.models import Room
 
 ZERO_MONEY = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
 ZERO_UNITS = Value(Decimal("0.000"), output_field=DecimalField(max_digits=12, decimal_places=3))
@@ -356,168 +350,6 @@ def item_adjust_stock(request, pk):
         messages.success(request, "Stock adjusted successfully.")
         return redirect("inventory-items")
     return render(request, "inventory/adjustment_form.html", {"form": form, "item": item, "title": "Adjust Stock"})
-
-
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletries_dashboard(request):
-    items = ToiletryItem.objects.all().order_by("name")
-    low_stock_items = items.filter(quantity_in_stock__lte=F("minimum_stock_threshold"))
-    recent_issues = ToiletryIssue.objects.select_related("item", "room", "issued_by").all()[:10]
-    item_usage = (
-        ToiletryIssue.objects.values("item__name")
-        .annotate(total_issued=Coalesce(Sum("quantity"), ZERO_UNITS))
-        .order_by("-total_issued")[:6]
-    )
-    room_usage = (
-        ToiletryIssue.objects.values("room__room_number")
-        .annotate(total_issued=Coalesce(Sum("quantity"), ZERO_UNITS))
-        .order_by("-total_issued")[:6]
-    )
-    staff_usage = (
-        ToiletryIssue.objects.values("issued_by__username")
-        .annotate(total_issued=Coalesce(Sum("quantity"), ZERO_UNITS))
-        .order_by("-total_issued")[:6]
-    )
-
-    return render(
-        request,
-        "inventory/toiletries/dashboard.html",
-        {
-            "items": items,
-            "low_stock_items": low_stock_items,
-            "recent_issues": recent_issues,
-            "item_usage": item_usage,
-            "room_usage": room_usage,
-            "staff_usage": staff_usage,
-            "items_count": items.count(),
-            "low_stock_count": low_stock_items.count(),
-            "recent_issue_count": recent_issues.count(),
-            "total_stock_value": sum(item.stock_value for item in items),
-        },
-    )
-
-
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletries_item_list(request):
-    query = request.GET.get("q", "").strip()
-    stock_status = request.GET.get("stock", "")
-    items = ToiletryItem.objects.order_by("name")
-    if query:
-        items = items.filter(
-            Q(name__icontains=query)
-            | Q(description__icontains=query)
-        )
-    if stock_status == "low":
-        items = items.filter(quantity_in_stock__lte=F("minimum_stock_threshold"))
-    elif stock_status == "out":
-        items = items.filter(quantity_in_stock__lte=0)
-    elif stock_status == "in":
-        items = items.filter(quantity_in_stock__gt=F("minimum_stock_threshold"))
-
-    return render(
-        request,
-        "inventory/toiletries/item_list.html",
-        {
-            "items": items,
-            "query": query,
-            "selected_stock": stock_status,
-            "low_stock_count": items.filter(quantity_in_stock__lte=F("minimum_stock_threshold")).count(),
-            "out_of_stock_count": items.filter(quantity_in_stock__lte=0).count(),
-        },
-    )
-
-
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletries_item_create(request):
-    form = ToiletryItemForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Toiletry item created successfully.")
-        return redirect("inventory-toiletries-items")
-    return render(request, "inventory/entity_form.html", {"form": form, "title": "New Toiletry Item"})
-
-
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletries_item_update(request, pk):
-    item = get_object_or_404(ToiletryItem, pk=pk)
-    form = ToiletryItemForm(request.POST or None, instance=item)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Toiletry item updated successfully.")
-        return redirect("inventory-toiletries-items")
-    return render(request, "inventory/entity_form.html", {"form": form, "title": "Edit Toiletry Item"})
-
-
-@require_POST
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletries_item_delete(request, pk):
-    item = get_object_or_404(ToiletryItem, pk=pk)
-    try:
-        item.delete()
-        messages.success(request, "Toiletry item deleted.")
-    except ProtectedError:
-        messages.error(request, "This item is linked to issuance history and cannot be deleted.")
-    return redirect("inventory-toiletries-items")
-
-
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletry_issue(request):
-    form = ToiletryIssueForm(request.POST or None, rooms_queryset=Room.objects.order_by("room_number"))
-    if request.method == "POST" and form.is_valid():
-        item = form.cleaned_data["item"]
-        quantity = form.cleaned_data["quantity"]
-        if quantity > item.quantity_in_stock:
-            form.add_error("quantity", "Cannot issue more than available stock.")
-        else:
-            item.quantity_in_stock = item.quantity_in_stock - quantity
-            item.save()
-            ToiletryIssue.objects.create(
-                item=item,
-                room=form.cleaned_data["room"],
-                issued_by=request.user,
-                quantity=quantity,
-                reason=form.cleaned_data["reason"],
-            )
-            messages.success(request, "Toiletry item issued and recorded.")
-            return redirect("inventory-toiletries-dashboard")
-    return render(request, "inventory/entity_form.html", {"form": form, "title": "Issue Toiletry Item"})
-
-
-@group_required("Admin", "Receptionist", module="inventory")
-def toiletries_movement_log(request):
-    item_id = request.GET.get("item", "")
-    room_id = request.GET.get("room", "")
-    staff_id = request.GET.get("staff", "")
-    start_date = request.GET.get("start_date", "")
-    end_date = request.GET.get("end_date", "")
-
-    issues = ToiletryIssue.objects.select_related("item", "room", "issued_by").order_by("-created_at")
-    if item_id:
-        issues = issues.filter(item_id=item_id)
-    if room_id:
-        issues = issues.filter(room_id=room_id)
-    if staff_id:
-        issues = issues.filter(issued_by_id=staff_id)
-    if start_date:
-        issues = issues.filter(created_at__date__gte=start_date)
-    if end_date:
-        issues = issues.filter(created_at__date__lte=end_date)
-
-    return render(
-        request,
-        "inventory/toiletries/movement_log.html",
-        {
-            "issues": issues,
-            "items": ToiletryItem.objects.order_by("name"),
-            "rooms": Room.objects.order_by("room_number"),
-            "staff": User.objects.order_by("username"),
-            "selected_item": int(item_id) if item_id else None,
-            "selected_room": int(room_id) if room_id else None,
-            "selected_staff": int(staff_id) if staff_id else None,
-            "start_date": start_date,
-            "end_date": end_date,
-        },
-    )
 
 
 @group_required("Admin", "Receptionist", module="inventory")

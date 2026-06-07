@@ -7,11 +7,10 @@
       <div>
         <div class="section-eyebrow mb-2">Inventory control</div>
         <h1 class="page-title mb-2">Stock and POS overview</h1>
-        <div class="page-subtitle">Track drinks, foodstuff, housekeeping items, and live sales across the hotel.</div>
+        <div class="page-subtitle">Track drinks, foodstuff, stock movement, and live sales across the hotel.</div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a class="topbar-pill" href="{% url 'inventory-items' %}"><i data-lucide="package-search"></i> Items</a>
-        <a class="topbar-pill" href="{% url 'inventory-toiletries-dashboard' %}"><i data-lucide="droplet"></i> Toiletries</a>
         <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a>
         <a class="topbar-pill" href="{% url 'inventory-reports' %}"><i data-lucide="bar-chart-3"></i> Reports</a>
       </div>
@@ -25,7 +24,7 @@
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Out of stock</div><div class="metric-value">{{ out_of_stock_count }}</div><div class="text-muted small mt-2">Items needing urgent restock</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Today sales</div><div class="metric-value">GHS {{ sales_today_total }}</div><div class="text-muted small mt-2">Completed POS transactions today</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Month sales</div><div class="metric-value">GHS {{ sales_month_total }}</div><div class="text-muted small mt-2">Completed sales this month</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Categories</div><div class="metric-value">{{ categories_count }}</div><div class="text-muted small mt-2">Drinks, foodstuff, housekeeping, and more</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Categories</div><div class="metric-value">{{ categories_count }}</div><div class="text-muted small mt-2">Drinks, foodstuff, and related stock groups</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Suppliers</div><div class="metric-value">{{ suppliers_count }}</div><div class="text-muted small mt-2">Active supply contacts on file</div></div></div>
   </div>
 

@@ -1,15 +1,13 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
 
 from accounts.models import StatusTrackingMixin
-from rooms.models import Room
 
 
 class InventoryCategory(models.Model):
@@ -224,77 +222,6 @@ class InventoryTransaction(models.Model):
 
     def __str__(self):
         return f"{self.get_transaction_type_display()} for {self.item.name}"
-
-
-class ToiletryItem(models.Model):
-    class UnitOfMeasure(models.TextChoices):
-        PIECE = "piece", "Piece"
-        BOTTLE = "bottle", "Bottle"
-        PACK = "pack", "Pack"
-        ROLL = "roll", "Roll"
-        BOX = "box", "Box"
-        CARTON = "carton", "Carton"
-
-    name = models.CharField(max_length=160, unique=True)
-    purchase_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    quantity_in_stock = models.DecimalField(max_digits=12, decimal_places=3, default=0)
-    unit_of_measure = models.CharField(max_length=20, choices=UnitOfMeasure.choices, default=UnitOfMeasure.PIECE)
-    minimum_stock_threshold = models.DecimalField(max_digits=12, decimal_places=3, default=0)
-    description = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-    date_added = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["name"]
-        indexes = [models.Index(fields=["quantity_in_stock"])]
-
-    def __str__(self):
-        return self.name
-
-    def clean(self):
-        if self.quantity_in_stock is not None and self.quantity_in_stock < 0:
-            raise ValidationError("Quantity in stock cannot be negative.")
-        if self.minimum_stock_threshold is not None and self.minimum_stock_threshold < 0:
-            raise ValidationError("Minimum stock threshold cannot be negative.")
-
-    @property
-    def stock_value(self):
-        return Decimal(self.purchase_price) * Decimal(self.quantity_in_stock)
-
-    @property
-    def is_low_stock(self):
-        return self.quantity_in_stock <= self.minimum_stock_threshold
-
-
-class ToiletryIssue(models.Model):
-    item = models.ForeignKey(
-        ToiletryItem,
-        on_delete=models.PROTECT,
-        related_name="issues",
-    )
-    room = models.ForeignKey(
-        Room,
-        on_delete=models.PROTECT,
-        related_name="toiletry_issues",
-    )
-    issued_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
-        related_name="toiletry_issues",
-    )
-    quantity = models.DecimalField(max_digits=12, decimal_places=3)
-    reason = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        indexes = [models.Index(fields=["created_at"])]
-
-    def __str__(self):
-        return f"{self.quantity} {self.item.name} issued to Room {self.room.room_number}"
 
 
 class StockAdjustment(models.Model):

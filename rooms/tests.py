@@ -1,12 +1,13 @@
+from datetime import timedelta
+from io import BytesIO
+
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+from openpyxl import load_workbook
 
-from rooms.models import Room
-from rooms.models import HousekeepingTask, HousekeepingTaskToiletry
-from inventory.models import ToiletryItem, ToiletryIssue
-from django.urls import reverse
+from rooms.models import HousekeepingItemLog, Room
 
 
 class RoomCategoryTests(TestCase):
@@ -55,41 +56,116 @@ class RoomTimestampTests(TestCase):
         self.assertGreater(room.last_status_changed_at, original_changed)
 
 
-class HousekeepingTaskIntegrationTests(TestCase):
+class HousekeepingUsageLoggerTests(TestCase):
     def setUp(self):
         admin_group = Group.objects.create(name="Admin")
-        hk_group = Group.objects.create(name="Housekeeping Supervisor")
-        self.user = User.objects.create_user(username="hk_user", password="pass123456")
-        self.user.groups.add(hk_group)
-
+        self.user = User.objects.create_user(username="housekeeping_admin", password="pass123456")
+        self.user.groups.add(admin_group)
         self.room = Room.objects.create(
             room_number="300",
             room_type=Room.RoomType.STANDARD,
             status=Room.RoomStatus.AVAILABLE,
             base_rate=100,
         )
-
-        self.item = ToiletryItem.objects.create(name="Soap", purchase_price=1.5, quantity_in_stock=10, minimum_stock_threshold=2)
-
         self.client.force_login(self.user)
 
-    def test_task_completion_issues_toiletries_and_decrements_stock(self):
-        task = HousekeepingTask.objects.create(room=self.room, title="Clean and replenish", created_by=self.user)
-        req = HousekeepingTaskToiletry.objects.create(task=task, item=self.item, quantity=2)
-
-        # Complete the task via the view
-        url = reverse('housekeeping-task-complete', args=[task.pk])
-        response = self.client.get(url)
+    def test_create_usage_entry(self):
+        response = self.client.post(
+            f"{reverse('housekeeping-dashboard')}?report=daily",
+            {
+                "item_name": "Bath Soap",
+                "quantity_used": "2.000",
+                "unit": "bars",
+                "room": self.room.pk,
+                "used_at": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
+                "notes": "Restocked bathroom",
+            },
+        )
         self.assertEqual(response.status_code, 302)
+        entry = HousekeepingItemLog.objects.get(item_name="Bath Soap")
+        self.assertEqual(str(entry.quantity_used), "2.000")
+        self.assertEqual(entry.room, self.room)
+        self.assertEqual(entry.created_by, self.user)
 
-        # Check that a ToiletryIssue was created
-        issues = ToiletryIssue.objects.filter(item=self.item, room=self.room)
-        self.assertTrue(issues.exists())
-        issue = issues.first()
-        self.assertEqual(issue.quantity, 2)
+    def test_edit_and_delete_usage_entry(self):
+        entry = HousekeepingItemLog.objects.create(
+            item_name="Towel",
+            quantity_used="4.000",
+            unit="sheets",
+            room=self.room,
+            used_at=timezone.now(),
+            created_by=self.user,
+        )
 
-        # Stock decremented
-        self.item.refresh_from_db()
-        self.assertEqual(float(self.item.quantity_in_stock), 8.0)
+        edit_response = self.client.post(
+            f"{reverse('housekeeping-log-edit', args=[entry.pk])}?report=weekly",
+            {
+                "item_name": "Towel",
+                "quantity_used": "5.000",
+                "unit": "sheets",
+                "room": self.room.pk,
+                "used_at": timezone.localtime(entry.used_at).strftime("%Y-%m-%dT%H:%M"),
+                "notes": "Updated count",
+            },
+        )
+        self.assertEqual(edit_response.status_code, 302)
+        entry.refresh_from_db()
+        self.assertEqual(str(entry.quantity_used), "5.000")
+        self.assertEqual(entry.notes, "Updated count")
 
-        # cleanup assertions done above; no further timestamp checks here
+        delete_response = self.client.post(
+            f"{reverse('housekeeping-log-delete', args=[entry.pk])}?report=weekly"
+        )
+        self.assertEqual(delete_response.status_code, 302)
+        self.assertFalse(HousekeepingItemLog.objects.filter(pk=entry.pk).exists())
+
+    def test_daily_report_and_excel_export(self):
+        now = timezone.now()
+        HousekeepingItemLog.objects.create(
+            item_name="Bath Soap",
+            quantity_used="2.000",
+            unit="bars",
+            room=self.room,
+            used_at=now,
+            created_by=self.user,
+        )
+        HousekeepingItemLog.objects.create(
+            item_name="Bath Soap",
+            quantity_used="1.000",
+            unit="bars",
+            room=self.room,
+            used_at=now - timedelta(hours=1),
+            created_by=self.user,
+        )
+        HousekeepingItemLog.objects.create(
+            item_name="Bed Sheet",
+            quantity_used="3.000",
+            unit="sheets",
+            room=self.room,
+            used_at=now - timedelta(days=2),
+            created_by=self.user,
+        )
+
+        response = self.client.get(f"{reverse('housekeeping-dashboard')}?report=daily")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Daily report")
+        self.assertContains(response, "Bath Soap")
+        self.assertEqual(
+            [row["item_name"] for row in response.context["report_summary_rows"]],
+            ["Bath Soap"],
+        )
+
+        export_response = self.client.get(reverse("housekeeping-report-export", args=["daily"]))
+        self.assertEqual(export_response.status_code, 200)
+        self.assertEqual(
+            export_response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("housekeeping-report-daily-", export_response["Content-Disposition"])
+
+        workbook = load_workbook(BytesIO(export_response.content))
+        worksheet = workbook.active
+        self.assertEqual(worksheet["A4"].value, "Item Name")
+        self.assertEqual(worksheet["A5"].value, "Bath Soap")
+        self.assertEqual(worksheet["B5"].value, 3)
+        self.assertEqual(worksheet[f"A{worksheet.max_row}"].value, "TOTALS")

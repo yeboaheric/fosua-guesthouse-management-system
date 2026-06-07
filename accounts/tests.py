@@ -402,14 +402,16 @@ class CenterFilterTests(TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].pk, self.event_booking.pk)
 
-    def test_housekeeping_center_filters_by_status_and_type(self):
+    def test_housekeeping_center_redirects_to_housekeeping_dashboard(self):
         response = self.client.get(
             reverse("housekeeping-center"),
-            {"status": Room.RoomStatus.CLEANING, "room_type": Room.RoomType.DELUXE},
+            {"report": "weekly"},
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context["cleaning_rooms"]), [self.cleaning_room])
-        self.assertEqual(list(response.context["available_rooms"]), [])
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["Location"],
+            f"{reverse('housekeeping-dashboard')}?report=weekly",
+        )
 
 
 class PermissionSnapshotTests(TestCase):

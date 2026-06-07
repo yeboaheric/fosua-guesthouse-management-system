@@ -3,83 +3,187 @@
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
   <div class="surface-panel p-4 mb-3">
-    <div class="d-flex justify-content-between align-items-center">
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
       <div>
-        <div class="section-eyebrow">Housekeeping</div>
-        <h1 class="page-title">Room readiness and tasks</h1>
+        <div class="section-eyebrow mb-2">Housekeeping</div>
+        <h1 class="page-title mb-2">Hotel items usage logger</h1>
+        <div class="page-subtitle">Record supplies used during housekeeping and review the current reporting period from one place.</div>
       </div>
-      <div class="d-flex gap-2">
-        <a class="topbar-pill" href="{% url 'housekeeping-tasks' %}">Tasks</a>
-        <a class="topbar-pill" href="{% url 'housekeeping-update-status' %}">Update status</a>
-        <a class="topbar-pill" href="{% url 'housekeeping-history' %}">History</a>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}"><i data-lucide="clipboard-plus"></i> New log</a>
+        <a class="topbar-pill" href="{% url 'housekeeping-report-export' report_range %}"><i data-lucide="file-spreadsheet"></i> Export {{ report_range|title }}</a>
+        <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations overview</a>
       </div>
     </div>
   </div>
 
   <div class="row g-3 mb-3">
-    <div class="col-xl-8">
+    <div class="col-lg-5">
       <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Rooms overview</div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <div class="section-eyebrow mb-2">Usage entry</div>
+            <h2 class="h5 mb-0">{% if editing_entry %}Edit log entry{% else %}Add log entry{% endif %}</h2>
+          </div>
+          {% if editing_entry %}
+            <a class="btn btn-outline-secondary btn-sm" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}">Cancel edit</a>
+          {% endif %}
+        </div>
+        <form method="post" action="{% if editing_entry %}{% url 'housekeeping-log-edit' editing_entry.pk %}?report={{ report_range }}{% else %}{% url 'housekeeping-dashboard' %}?report={{ report_range }}{% endif %}" class="row g-3">
+          {% csrf_token %}
+          <div class="col-12">
+            <label class="form-label" for="{{ form.item_name.id_for_label }}">Item name</label>
+            {{ form.item_name }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.quantity_used.id_for_label }}">Quantity used</label>
+            {{ form.quantity_used }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.unit.id_for_label }}">Unit</label>
+            {{ form.unit }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.room.id_for_label }}">Room number</label>
+            {{ form.room }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.used_at.id_for_label }}">Date and time</label>
+            {{ form.used_at }}
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
+            {{ form.notes }}
+          </div>
+          {% if form.errors %}
+            <div class="col-12">
+              <div class="alert alert-danger mb-0">
+                {% for field in form %}
+                  {% for error in field.errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                  <div>{{ error }}</div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">{% if editing_entry %}Save changes{% else %}Log usage{% endif %}</button>
+            {% if not editing_entry %}
+              <button class="btn btn-outline-secondary" type="reset">Clear</button>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="surface-panel p-4 h-100">
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-md-center mb-3">
+          <div>
+            <div class="section-eyebrow mb-2">Reports</div>
+            <h2 class="h5 mb-0">{{ report_range|title }} report</h2>
+            <div class="text-muted small mt-1">{{ report_label }}</div>
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            <a class="btn {% if report_range == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=daily">Daily</a>
+            <a class="btn {% if report_range == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=weekly">Weekly</a>
+            <a class="btn {% if report_range == 'monthly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=monthly">Monthly</a>
+            <a class="btn {% if report_range == 'yearly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=yearly">Yearly</a>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <div class="mini-metric h-100">
+              <div class="metric-label">Total entries</div>
+              <div class="metric-value">{{ report_total_entries }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="mini-metric h-100">
+              <div class="metric-label">Total items consumed</div>
+              <div class="metric-value">{{ report_total_items_consumed }}</div>
+            </div>
+          </div>
+        </div>
+
         <div class="table-responsive soft-table">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
-                <th>Room</th>
-                <th>Type</th>
-                <th>Availability</th>
-                <th>Housekeeping status</th>
-                <th>Last changed</th>
+                <th>Item Name</th>
+                <th>Total Quantity Used</th>
+                <th>Unit</th>
+                <th>Number of Entries</th>
               </tr>
             </thead>
             <tbody>
-              {% for room in rooms %}
+              {% for row in report_summary_rows %}
                 <tr>
-                  <td>{{ room.room_number }}</td>
-                  <td>{{ room.get_room_type_display }}</td>
-                  <td>{{ room.get_status_display }}</td>
-                  <td>{{ room.get_housekeeping_status_display }}</td>
-                  <td>{{ room.housekeeping_last_changed_at|date:"d/m/Y H:i" }}</td>
+                  <td>{{ row.item_name }}</td>
+                  <td>{{ row.total_quantity }}</td>
+                  <td>{{ row.unit }}</td>
+                  <td>{{ row.entry_count }}</td>
                 </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No usage entries in this period.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
     </div>
-    <div class="col-xl-4">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Tasks summary</div>
-        <div class="text-muted small">Pending: {{ pending_tasks }}</div>
-        <div class="text-muted small">Overdue: {{ overdue_tasks }}</div>
-        <hr/>
-        <div class="section-eyebrow mb-2">Recent tasks</div>
-        <ul class="list-group list-group-flush">
-          {% for task in tasks %}
-            <li class="list-group-item">
-              <div class="fw-semibold">{{ task.title }}</div>
-              <div class="text-muted small">Room {{ task.room.room_number }} · {{ task.get_status_display }}</div>
-            </li>
-          {% empty %}
-            <li class="list-group-item text-muted">No tasks yet.</li>
-          {% endfor %}
-        </ul>
-      </div>
-    </div>
   </div>
 
   <div class="surface-panel p-4">
-    <div class="section-eyebrow mb-2">Recent housekeeping activity</div>
-    <ul class="list-group list-group-flush">
-      {% for h in recent_history %}
-        <li class="list-group-item">
-          <div>{{ h.room.room_number }} — {{ h.previous_status }} → {{ h.new_status }}</div>
-          <div class="text-muted small">{{ h.changed_by.get_full_name|default:h.changed_by.username }} · {{ h.created_at|date:"d/m/Y H:i" }}</div>
-          {% if h.notes %}<div class="text-muted small">{{ h.notes }}</div>{% endif %}
-        </li>
-      {% empty %}
-        <li class="list-group-item text-muted">No recent housekeeping activity.</li>
-      {% endfor %}
-    </ul>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <div class="section-eyebrow mb-2">Usage log</div>
+        <h2 class="h5 mb-0">All logged entries</h2>
+      </div>
+      <div class="text-muted small">Most recent entries first</div>
+    </div>
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Item</th>
+            <th>Quantity</th>
+            <th>Unit</th>
+            <th>Room</th>
+            <th>Date &amp; Time</th>
+            <th>Notes</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in entries %}
+            <tr>
+              <td>{{ entry.item_name }}</td>
+              <td>{{ entry.quantity_used }}</td>
+              <td>{{ entry.unit }}</td>
+              <td>{% if entry.room %}{{ entry.room.room_number }}{% else %}<span class="text-muted">General</span>{% endif %}</td>
+              <td>{{ entry.used_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ entry.notes|default:"-" }}</td>
+              <td class="text-end">
+                <div class="d-flex justify-content-end gap-2">
+                  <a class="btn btn-sm btn-outline-secondary" href="{% url 'housekeeping-log-edit' entry.pk %}?report={{ report_range }}">Edit</a>
+                  <form method="post" action="{% url 'housekeeping-log-delete' entry.pk %}?report={{ report_range }}" onsubmit="return confirm('Delete this usage entry?');">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="text-muted">No housekeeping usage has been logged yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 {% endblock %}

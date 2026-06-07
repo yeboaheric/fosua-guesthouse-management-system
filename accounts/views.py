@@ -548,37 +548,8 @@ def services_center(request):
 
 @group_required("Admin", "Receptionist", module="housekeeping")
 def housekeeping_center(request):
-    rooms = Room.objects.all().order_by("room_number")
-    query = request.GET.get("q", "").strip()
-    status = request.GET.get("status", "")
-    room_type = request.GET.get("room_type", "")
-
-    if query:
-        rooms = rooms.filter(
-            Q(room_number__icontains=query)
-            | Q(notes__icontains=query)
-        )
-    if status:
-        rooms = rooms.filter(status=status)
-    if room_type:
-        rooms = rooms.filter(room_type=room_type)
-
-    return render(
-        request,
-        "accounts/housekeeping_center.html",
-        {
-            "available_rooms": rooms.filter(status=Room.RoomStatus.AVAILABLE),
-            "occupied_rooms": rooms.filter(status=Room.RoomStatus.OCCUPIED),
-            "cleaning_rooms": rooms.filter(status=Room.RoomStatus.CLEANING),
-            "maintenance_rooms": rooms.filter(status=Room.RoomStatus.MAINTENANCE),
-            "recent_rooms": rooms.order_by("-last_status_changed_at")[:8],
-            "query": query,
-            "selected_status": status,
-            "selected_room_type": room_type,
-            "room_status_choices": Room.RoomStatus.choices,
-            "room_type_choices": Room.RoomType.choices,
-        },
-    )
+    report_range = request.GET.get("report", "daily")
+    return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}")
 
 
 @group_required("Admin", "Receptionist", module="notifications")

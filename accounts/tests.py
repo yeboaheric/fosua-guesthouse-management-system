@@ -1,4 +1,4 @@
-from accounts.models import Employee, Notification, Rota, RolePermission, UserAccessProfile
+from accounts.models import Employee, EmployeeQualification, Notification, Rota, RolePermission, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
@@ -412,6 +412,181 @@ class CenterFilterTests(TestCase):
             response.headers["Location"],
             f"{reverse('housekeeping-dashboard')}?report=weekly",
         )
+
+
+class StaffManagementTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.user = User.objects.create_user(username="hr_admin", password="pass123456")
+        self.user.groups.add(self.admin_group)
+        self.client.force_login(self.user)
+
+        self.active_employee = Employee.objects.create(
+            title="mr",
+            first_name="Kojo",
+            last_name="Active",
+            date_of_birth=date(1990, 1, 1),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-111111111-1",
+            contact_number="0241111111",
+            department="Front Desk",
+            job_title="Lead Receptionist",
+            start_date=date(2024, 1, 15),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        self.leave_employee = Employee.objects.create(
+            title="mrs",
+            first_name="Akosua",
+            last_name="Leave",
+            date_of_birth=date(1992, 2, 2),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-222222222-2",
+            contact_number="0242222222",
+            department="Housekeeping",
+            start_date=date(2024, 2, 1),
+            position="cleaner",
+            employment_status="annual_leave",
+            gender="female",
+            marital_status="married",
+        )
+        self.terminated_employee = Employee.objects.create(
+            title="mr",
+            first_name="Yaw",
+            last_name="Terminated",
+            date_of_birth=date(1988, 3, 3),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-333333333-3",
+            contact_number="0243333333",
+            department="Security",
+            start_date=date(2023, 3, 10),
+            termination_date=date(2026, 5, 10),
+            position="security",
+            employment_status="terminated",
+            gender="male",
+            marital_status="single",
+        )
+        self.rota = Rota.objects.create(
+            employee=self.active_employee,
+            period="Kojo Active rota",
+            period_start=date(2026, 6, 1),
+            period_end=date(2026, 6, 7),
+            opening_time=time(8, 0),
+            closing_time=time(16, 0),
+        )
+        self.rota.staff_members.set([self.active_employee])
+        EmployeeQualification.objects.create(
+            employee=self.active_employee,
+            qualification_name="Fire Safety",
+            institution="Hotel Academy",
+            certification_date=date(2025, 1, 1),
+            expiry_date=timezone.localdate() + timedelta(days=10),
+        )
+        EmployeeQualification.objects.create(
+            employee=self.terminated_employee,
+            qualification_name="First Aid",
+            institution="Safety Board",
+            certification_date=date(2024, 1, 1),
+            expiry_date=timezone.localdate() - timedelta(days=1),
+        )
+
+    def test_employee_edit_allows_blank_optional_gps_address(self):
+        response = self.client.post(
+            reverse("hr-update", args=[self.active_employee.pk]),
+            {
+                "employee_id": self.active_employee.employee_id or "",
+                "title": self.active_employee.title,
+                "first_name": "Kofi",
+                "last_name": self.active_employee.last_name,
+                "date_of_birth": self.active_employee.date_of_birth.isoformat(),
+                "nationality": self.active_employee.nationality,
+                "ghana_card_number": self.active_employee.ghana_card_number,
+                "ghana_card_expiry_date": "",
+                "ssnit_number": "",
+                "contact_number": self.active_employee.contact_number,
+                "email": "",
+                "residential_address": "",
+                "department": self.active_employee.department,
+                "job_title": self.active_employee.job_title,
+                "salary_amount": "",
+                "supervisor": "",
+                "gps_address": "",
+                "emergency_contact_name": "",
+                "next_of_kin": "",
+                "next_of_kin_contact": "",
+                "next_of_kin_relationship": "",
+                "start_date": self.active_employee.start_date.isoformat(),
+                "leave_entitlement_days": self.active_employee.leave_entitlement_days,
+                "termination_date": "",
+                "termination_reason_choice": "",
+                "termination_approved_by": "",
+                "termination_exit_interview_notes": "",
+                "company_assets_returned": "",
+                "termination_remarks": "",
+                "termination_reason": "",
+                "emergency_contact_number": "",
+                "position": self.active_employee.position,
+                "employment_status": self.active_employee.employment_status,
+                "gender": self.active_employee.gender,
+                "marital_status": self.active_employee.marital_status,
+                "ethnic_origin": "",
+                "religion": "",
+            },
+        )
+
+        self.assertRedirects(response, reverse("hr-list"))
+        self.active_employee.refresh_from_db()
+        self.assertEqual(self.active_employee.first_name, "Kofi")
+        self.assertEqual(self.active_employee.gps_address, "")
+
+    def test_staff_page_defaults_to_active_staff_and_has_terminated_tab(self):
+        response = self.client.get(reverse("hr-list"))
+        self.assertEqual(response.status_code, 200)
+        employees = list(response.context["employees"])
+        self.assertIn(self.active_employee, employees)
+        self.assertIn(self.leave_employee, employees)
+        self.assertNotIn(self.terminated_employee, employees)
+        self.assertContains(response, "Terminated Employees")
+        self.assertEqual(response.context["staff_view"], "active")
+
+    def test_terminated_tab_returns_only_terminated_staff(self):
+        response = self.client.get(reverse("hr-list"), {"staff_view": "terminated"})
+        self.assertEqual(response.status_code, 200)
+        employees = list(response.context["employees"])
+        self.assertEqual(employees, [self.terminated_employee])
+
+    def test_staff_filters_return_expected_results(self):
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "department": "Front"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "q": "Kojo"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "annual_leave"})
+        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "role": "receptionist"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "on_leave"})
+        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "certifications": "expiring"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "terminated", "certifications": "expired"})
+        self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "roster": str(self.active_employee.pk)})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "hired_from": "2024-01-01", "hired_to": "2024-01-31"})
+        self.assertEqual(list(response.context["employees"]), [self.active_employee])
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "terminated", "terminated_from": "2026-05-01", "terminated_to": "2026-05-31"})
+        self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
 
 
 class PermissionSnapshotTests(TestCase):

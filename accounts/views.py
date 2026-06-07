@@ -892,6 +892,97 @@ def _employee_section_row(record, section):
     return []
 
 
+def _staff_management_queryset(request):
+    query = request.GET.get("q", "").strip()
+    department = request.GET.get("department", "").strip()
+    employment_status = request.GET.get("status", "").strip()
+    role = request.GET.get("role", "").strip()
+    leave_status = request.GET.get("leave", "").strip()
+    certification_status = request.GET.get("certifications", "").strip()
+    hired_from = request.GET.get("hired_from", "").strip()
+    hired_to = request.GET.get("hired_to", "").strip()
+    terminated_from = request.GET.get("terminated_from", "").strip()
+    terminated_to = request.GET.get("terminated_to", "").strip()
+    roster_employee = request.GET.get("roster", "").strip()
+    staff_view = request.GET.get("staff_view", "active").strip() or "active"
+    if staff_view not in {"active", "terminated"}:
+        staff_view = "active"
+
+    employees = (
+        Employee.objects.select_related("supervisor")
+        .prefetch_related("qualifications", "leave_requests", "rota_entries")
+        .order_by("last_name", "first_name")
+    )
+
+    if staff_view == "terminated":
+        employees = employees.filter(employment_status="terminated")
+    else:
+        employees = employees.exclude(employment_status="terminated")
+
+    if query:
+        employees = employees.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(employee_id__icontains=query)
+            | Q(position__icontains=query)
+            | Q(job_title__icontains=query)
+            | Q(department__icontains=query)
+            | Q(ghana_card_number__icontains=query)
+        )
+    if department:
+        employees = employees.filter(department__icontains=department)
+    if employment_status:
+        employees = employees.filter(employment_status=employment_status)
+    if role:
+        employees = employees.filter(position=role)
+    if hired_from:
+        employees = employees.filter(start_date__gte=hired_from)
+    if hired_to:
+        employees = employees.filter(start_date__lte=hired_to)
+    if terminated_from:
+        employees = employees.filter(termination_date__isnull=False, termination_date__gte=terminated_from)
+    if terminated_to:
+        employees = employees.filter(termination_date__isnull=False, termination_date__lte=terminated_to)
+    if roster_employee:
+        employees = employees.filter(rota_entries__isnull=False, pk=roster_employee)
+    if leave_status == "on_leave":
+        employees = employees.filter(employment_status__in=["annual_leave", "sick_leave", "family_emergency"])
+    elif leave_status == "active":
+        employees = employees.filter(employment_status="active")
+    elif leave_status == "terminated":
+        employees = employees.filter(employment_status="terminated")
+    if certification_status == "expiring":
+        today = timezone.localdate()
+        employees = employees.filter(
+            qualifications__expiry_date__isnull=False,
+            qualifications__expiry_date__gte=today,
+            qualifications__expiry_date__lte=today + timedelta(days=30),
+        )
+    elif certification_status == "expired":
+        employees = employees.filter(
+            qualifications__expiry_date__isnull=False,
+            qualifications__expiry_date__lt=timezone.localdate(),
+        )
+
+    employees = employees.distinct()
+
+    return {
+        "employees": employees,
+        "query": query,
+        "department": department,
+        "employment_status": employment_status,
+        "role": role,
+        "leave_status": leave_status,
+        "certification_status": certification_status,
+        "hired_from": hired_from,
+        "hired_to": hired_to,
+        "terminated_from": terminated_from,
+        "terminated_to": terminated_to,
+        "selected_roster_employee": roster_employee,
+        "staff_view": staff_view,
+    }
+
+
 @group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_section(request, pk, section):
     employee = get_object_or_404(Employee, pk=pk)
@@ -944,76 +1035,18 @@ def hr_employee_section(request, pk, section):
 
 @group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_list(request):
-    query = request.GET.get("q", "").strip()
-    department = request.GET.get("department", "").strip()
-    employment_status = request.GET.get("status", "").strip()
-    role = request.GET.get("role", "").strip()
-    leave_status = request.GET.get("leave", "").strip()
-    certification_status = request.GET.get("certifications", "").strip()
-    hired_from = request.GET.get("hired_from", "").strip()
-    hired_to = request.GET.get("hired_to", "").strip()
-    terminated_from = request.GET.get("terminated_from", "").strip()
-    terminated_to = request.GET.get("terminated_to", "").strip()
-    roster_employee = request.GET.get("roster", "").strip()
-
-    employees = Employee.objects.select_related("supervisor").prefetch_related("qualifications", "leave_requests", "rota_entries").all().order_by("last_name", "first_name")
-    if query:
-        employees = employees.filter(
-            Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-            | Q(employee_id__icontains=query)
-            | Q(position__icontains=query)
-            | Q(department__icontains=query)
-            | Q(ghana_card_number__icontains=query)
-        )
-    if department:
-        employees = employees.filter(department__icontains=department)
-    if employment_status:
-        employees = employees.filter(employment_status=employment_status)
-    if role:
-        employees = employees.filter(position=role)
-    if hired_from:
-        employees = employees.filter(start_date__gte=hired_from)
-    if hired_to:
-        employees = employees.filter(start_date__lte=hired_to)
-    if terminated_from:
-        employees = employees.filter(termination_date__gte=terminated_from)
-    if terminated_to:
-        employees = employees.filter(termination_date__lte=terminated_to)
-    if roster_employee:
-        employees = employees.filter(rota_entries__isnull=False, pk=roster_employee).distinct()
-    if leave_status == "on_leave":
-        employees = employees.filter(employment_status__in=["annual_leave", "sick_leave", "family_emergency"])
-    elif leave_status == "active":
-        employees = employees.filter(employment_status="active")
-    elif leave_status == "terminated":
-        employees = employees.filter(employment_status="terminated")
-    if certification_status == "expiring":
-        employees = employees.filter(qualifications__expiry_date__isnull=False).distinct()
-    elif certification_status == "expired":
-        employees = employees.filter(qualifications__expiry_date__lt=timezone.localdate()).distinct()
-    return render(
-        request,
-        "accounts/hr_employee_list.html",
+    context = _staff_management_queryset(request)
+    context.update(
         {
-            "employees": employees,
-            "query": query,
-            "department": department,
-            "employment_status": employment_status,
-            "role": role,
-            "leave_status": leave_status,
-            "certification_status": certification_status,
-            "hired_from": hired_from,
-            "hired_to": hired_to,
-            "terminated_from": terminated_from,
-            "terminated_to": terminated_to,
-            "selected_roster_employee": roster_employee,
             "departments": Employee.objects.exclude(department="").values_list("department", flat=True).distinct().order_by("department"),
             "positions": Employee.POSITION_CHOICES,
             "status_choices": Employee.EMPLOYMENT_STATUS_CHOICES,
             "roster_employees": Employee.objects.filter(rota_entries__isnull=False).distinct().order_by("last_name", "first_name"),
-        },
+            "active_count": Employee.objects.exclude(employment_status="terminated").count(),
+            "terminated_count": Employee.objects.filter(employment_status="terminated").count(),
+        }
     )
+    return render(request, "accounts/hr_employee_list.html", context)
 
 
 @group_required("Admin", "Super Administrator", module="staff_management")

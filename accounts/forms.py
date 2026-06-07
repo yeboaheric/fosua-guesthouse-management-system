@@ -143,6 +143,8 @@ class EmployeeForm(forms.ModelForm):
 
     def clean_gps_address(self):
         value = self.cleaned_data.get("gps_address", "").strip().upper()
+        if not value:
+            return ""
         GPS_ADDRESS_VALIDATOR(value)
         return value
 

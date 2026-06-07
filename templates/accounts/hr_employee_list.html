@@ -19,7 +19,18 @@
   </div>
 
   <div class="surface-panel p-4 mb-3">
+    <div class="d-flex gap-2 flex-wrap mb-3">
+      <a class="btn {% if staff_view == 'active' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'hr-list' %}?staff_view=active">
+        Active Staff
+        <span class="ms-1">{{ active_count }}</span>
+      </a>
+      <a class="btn {% if staff_view == 'terminated' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'hr-list' %}?staff_view=terminated">
+        Terminated Employees
+        <span class="ms-1">{{ terminated_count }}</span>
+      </a>
+    </div>
     <form method="get" class="row g-3">
+      <input type="hidden" name="staff_view" value="{{ staff_view }}">
       <div class="col-md-4">
         <label class="form-label" for="q">Search</label>
         <input class="form-control" type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee ID, Ghana Card, department">
@@ -96,6 +107,9 @@
       <div class="col-md-2 d-grid">
         <button class="btn btn-primary" type="submit">Filter</button>
       </div>
+      <div class="col-md-2 d-grid">
+        <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}?staff_view={{ staff_view }}">Reset</a>
+      </div>
     </form>
   </div>
 
@@ -111,6 +125,7 @@
             <th>Contact</th>
             <th>Status</th>
             <th>Hired</th>
+            <th>Terminated</th>
             <th></th>
           </tr>
         </thead>
@@ -133,6 +148,7 @@
               <td>{{ employee.contact_number }}</td>
               <td><span class="status-pill {% if employee.employment_status == 'active' %}success{% else %}neutral{% endif %}">{{ employee.get_employment_status_display }}</span></td>
               <td>{{ employee.start_date }}</td>
+              <td>{{ employee.termination_date|default:"-" }}</td>
               <td>
                 <div class="d-flex gap-2 justify-content-end flex-wrap">
                   <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}">View</a>
@@ -143,7 +159,7 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="8" class="text-center text-muted">No employees matched your search.</td>
+              <td colspan="9" class="text-center text-muted">No employees matched your search.</td>
             </tr>
           {% endfor %}
         </tbody>

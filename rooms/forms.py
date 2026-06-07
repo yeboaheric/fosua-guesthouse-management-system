@@ -1,7 +1,14 @@
 from django import forms
 from django.utils import timezone
 
+from accounts.formatting import format_quantity
 from rooms.models import HousekeepingItemLog, Room
+
+
+class TrimmedDecimalNumberInput(forms.NumberInput):
+    def format_value(self, value):
+        formatted = format_quantity(value)
+        return formatted if formatted != "" else None
 
 
 class RoomForm(forms.ModelForm):
@@ -39,12 +46,12 @@ class HousekeepingItemLogForm(forms.ModelForm):
         ]
         widgets = {
             "item_name": forms.TextInput(attrs={"class": "form-control"}),
-            "initial_quantity": forms.NumberInput(attrs={"class": "form-control", "step": "0.001", "min": "0.001"}),
-            "quantity_used": forms.NumberInput(attrs={"class": "form-control", "step": "0.001", "min": "0.001"}),
-            "quantity_in_stock": forms.NumberInput(
+            "initial_quantity": TrimmedDecimalNumberInput(attrs={"class": "form-control", "step": "0.001", "min": "0.001"}),
+            "quantity_used": TrimmedDecimalNumberInput(attrs={"class": "form-control", "step": "0.001", "min": "0.001"}),
+            "quantity_in_stock": TrimmedDecimalNumberInput(
                 attrs={"class": "form-control", "step": "0.001", "readonly": "readonly"}
             ),
-            "low_stock_threshold": forms.NumberInput(
+            "low_stock_threshold": TrimmedDecimalNumberInput(
                 attrs={"class": "form-control", "step": "0.001", "min": "0", "placeholder": "Optional custom threshold"}
             ),
             "unit": forms.TextInput(attrs={"class": "form-control", "placeholder": "rolls, bars, sheets, litres"}),

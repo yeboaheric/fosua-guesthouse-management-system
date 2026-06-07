@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -116,7 +117,7 @@
                   <strong>{{ item.name }}</strong>
                   <div class="text-muted small">{{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
                 </div>
-                <span class="status-pill neutral">{{ item.quantity_in_stock }} {{ item.get_unit_of_measure_display }}</span>
+                <span class="status-pill neutral">{{ item.quantity_in_stock|quantity }} {{ item.get_unit_of_measure_display }}</span>
               </div>
             </div>
           {% empty %}

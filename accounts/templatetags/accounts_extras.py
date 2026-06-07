@@ -1,5 +1,6 @@
 from django import template
 
+from accounts.formatting import format_quantity
 from accounts.permissions import user_has_permission
 
 register = template.Library()
@@ -37,3 +38,8 @@ def get_field(form, field_name):
         return form[field_name]
     except Exception:
         return None
+
+
+@register.filter
+def quantity(value):
+    return format_quantity(value)

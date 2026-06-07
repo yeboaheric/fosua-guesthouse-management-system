@@ -223,3 +223,35 @@ class HousekeepingUsageLoggerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         low_stock_names = [entry.item_name for entry in response.context["low_stock_entries"]]
         self.assertEqual(low_stock_names, ["Glass Cleaner", "Laundry Soap"])
+
+    def test_housekeeping_quantities_render_without_trailing_zeroes(self):
+        entry = HousekeepingItemLog.objects.create(
+            item_name="Bath Soap",
+            initial_quantity="10.000",
+            quantity_used="2.000",
+            quantity_in_stock="8.000",
+            low_stock_threshold="3.000",
+            unit="bars",
+            room=self.room,
+            used_at=timezone.now(),
+            created_by=self.user,
+        )
+
+        response = self.client.get(reverse("housekeeping-dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, ">10<", html=False)
+        self.assertContains(response, ">8<", html=False)
+        self.assertNotContains(response, ">10.000<", html=False)
+        self.assertNotContains(response, ">8.000<", html=False)
+        self.assertNotContains(response, ">3.000<", html=False)
+
+        edit_response = self.client.get(
+            f"{reverse('housekeeping-log-edit', args=[entry.pk])}?report=daily"
+        )
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertContains(edit_response, 'value="10"', html=False)
+        self.assertContains(edit_response, 'value="2"', html=False)
+        self.assertContains(edit_response, 'value="8"', html=False)
+        self.assertNotContains(edit_response, 'value="10.000"', html=False)
+        self.assertNotContains(edit_response, 'value="2.000"', html=False)
+        self.assertNotContains(edit_response, 'value="8.000"', html=False)

@@ -180,3 +180,23 @@ class InventoryPosWorkflowTests(TestCase):
         reports = self.client.get(reverse("inventory-reports"))
         self.assertEqual(reports.status_code, 200)
         self.assertContains(reports, "Sales and stock analytics")
+
+    def test_quantity_fields_render_without_trailing_zeroes(self):
+        self.client.force_login(self.user)
+
+        item_form = self.client.get(reverse("inventory-item-update", args=[self.item.pk]))
+        self.assertEqual(item_form.status_code, 200)
+        self.assertContains(item_form, 'value="10"', html=False)
+        self.assertContains(item_form, 'value="2"', html=False)
+        self.assertNotContains(item_form, 'value="10.000"', html=False)
+        self.assertNotContains(item_form, 'value="2.000"', html=False)
+
+        adjustment_form = self.client.get(reverse("inventory-item-adjust", args=[self.item.pk]))
+        self.assertEqual(adjustment_form.status_code, 200)
+        self.assertContains(adjustment_form, "Adjust Mango Juice from 10")
+        self.assertNotContains(adjustment_form, "Adjust Mango Juice from 10.000")
+
+        item_list = self.client.get(reverse("inventory-items"))
+        self.assertEqual(item_list.status_code, 200)
+        self.assertContains(item_list, "Min 2")
+        self.assertNotContains(item_list, "Min 2.000")

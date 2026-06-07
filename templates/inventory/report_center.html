@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -71,7 +72,7 @@
                 <div class="fw-semibold">{{ item.item__name }}</div>
                 <div class="text-muted small">Revenue GHS {{ item.total_revenue }}</div>
               </div>
-              <span class="status-pill success">{{ item.total_units }} sold</span>
+              <span class="status-pill success">{{ item.total_units|quantity }} sold</span>
             </div>
           {% empty %}
             <div class="text-muted">No sales in this period.</div>
@@ -99,7 +100,7 @@
                 <tr>
                   <td>{{ item.name }}</td>
                   <td>{{ item.category.name }}</td>
-                  <td><span class="status-pill warning">{{ item.quantity_in_stock }}</span></td>
+                  <td><span class="status-pill warning">{{ item.quantity_in_stock|quantity }}</span></td>
                 </tr>
               {% empty %}
                 <tr><td colspan="3" class="text-muted">No low stock items in this period.</td></tr>

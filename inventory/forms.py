@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django import forms
 
+from accounts.formatting import format_quantity
 from inventory.models import (
     InventoryCategory,
     InventoryItem,
@@ -10,6 +11,12 @@ from inventory.models import (
     StockAdjustment,
     Supplier,
 )
+
+
+class TrimmedDecimalNumberInput(forms.NumberInput):
+    def format_value(self, value):
+        formatted = format_quantity(value)
+        return formatted if formatted != "" else None
 
 
 class InventoryCategoryForm(forms.ModelForm):
@@ -74,9 +81,9 @@ class InventoryItemForm(forms.ModelForm):
             "supplier": forms.Select(attrs={"class": "form-select"}),
             "purchase_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "selling_price": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
-            "quantity_in_stock": forms.NumberInput(attrs={"class": "form-control", "step": "0.001"}),
+            "quantity_in_stock": TrimmedDecimalNumberInput(attrs={"class": "form-control", "step": "0.001"}),
             "unit_of_measure": forms.Select(attrs={"class": "form-select"}),
-            "minimum_stock_threshold": forms.NumberInput(attrs={"class": "form-control", "step": "0.001"}),
+            "minimum_stock_threshold": TrimmedDecimalNumberInput(attrs={"class": "form-control", "step": "0.001"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "image": forms.ClearableFileInput(attrs={"class": "form-control"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -84,7 +91,12 @@ class InventoryItemForm(forms.ModelForm):
 
 
 class StockAdjustmentForm(forms.Form):
-    quantity = forms.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
+    quantity = forms.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.001"),
+        widget=TrimmedDecimalNumberInput(),
+    )
     reason = forms.CharField(max_length=120)
     notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3, "class": "form-control"}))
 

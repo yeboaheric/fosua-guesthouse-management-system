@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -58,7 +59,7 @@
                 <div class="fw-semibold">{{ item.name }}</div>
                 <div class="text-muted small">{{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
               </div>
-              <span class="status-pill warning">{{ item.quantity_in_stock }} left</span>
+              <span class="status-pill warning">{{ item.quantity_in_stock|quantity }} left</span>
             </div>
           {% empty %}
             <div class="text-muted">No low stock items right now.</div>
@@ -116,7 +117,7 @@
                 <tr>
                   <td>{{ transaction.item.name }}</td>
                   <td>{{ transaction.get_transaction_type_display }}</td>
-                  <td>{{ transaction.quantity_changed }}</td>
+                  <td>{{ transaction.quantity_changed|quantity }}</td>
                   <td>{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
                 </tr>
               {% empty %}

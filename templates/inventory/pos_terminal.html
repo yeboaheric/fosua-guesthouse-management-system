@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -59,7 +60,7 @@
                       <div class="fw-semibold">{{ item.name }}</div>
                       <div class="text-muted small">{{ item.category.name }}{% if item.subcategory %} · {{ item.subcategory.name }}{% endif %}</div>
                       <div class="mt-2"><strong>GHS {{ item.selling_price }}</strong> <span class="text-muted small">/ {{ item.get_unit_of_measure_display }}</span></div>
-                      <div class="text-muted small">Stock {{ item.quantity_in_stock }}</div>
+                      <div class="text-muted small">Stock {{ item.quantity_in_stock|quantity }}</div>
                     </div>
                     {% if item.image %}
                       <img src="{{ item.image.url }}" alt="{{ item.name }}" class="employee-avatar">

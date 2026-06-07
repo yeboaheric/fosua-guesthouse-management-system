@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
   <div class="surface-panel p-4 mb-3">
     <div class="section-eyebrow mb-2">Stock adjustment</div>
     <h1 class="page-title mb-2">{{ title }}</h1>
-    <div class="page-subtitle">Adjust {{ item.name }} from {{ item.quantity_in_stock }} and record the reason in the audit trail.</div>
+    <div class="page-subtitle">Adjust {{ item.name }} from {{ item.quantity_in_stock|quantity }} and record the reason in the audit trail.</div>
   </div>
 
   <div class="row g-3">

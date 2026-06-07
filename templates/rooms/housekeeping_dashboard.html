@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -23,19 +24,19 @@
     <div class="col-md-4">
       <div class="mini-metric h-100">
         <div class="metric-label">Total initial stock</div>
-        <div class="metric-value" id="summary-total-initial">{{ summary_total_initial_stock }}</div>
+        <div class="metric-value" id="summary-total-initial">{{ summary_total_initial_stock|quantity }}</div>
       </div>
     </div>
     <div class="col-md-4">
       <div class="mini-metric h-100">
         <div class="metric-label">Total items used</div>
-        <div class="metric-value" id="summary-total-used">{{ summary_total_items_used }}</div>
+        <div class="metric-value" id="summary-total-used">{{ summary_total_items_used|quantity }}</div>
       </div>
     </div>
     <div class="col-md-4">
       <div class="mini-metric h-100">
         <div class="metric-label">Total items currently in stock</div>
-        <div class="metric-value" id="summary-total-stock">{{ summary_total_items_in_stock }}</div>
+        <div class="metric-value" id="summary-total-stock">{{ summary_total_items_in_stock|quantity }}</div>
       </div>
     </div>
   </div>
@@ -62,8 +63,8 @@
           {% for entry in low_stock_entries %}
             <tr>
               <td>{{ entry.item_name }}</td>
-              <td><span class="status-pill danger">{{ entry.quantity_in_stock }}</span></td>
-              <td>{{ entry.effective_low_stock_threshold }}</td>
+              <td><span class="status-pill danger">{{ entry.quantity_in_stock|quantity }}</span></td>
+              <td>{{ entry.effective_low_stock_threshold|quantity }}</td>
               <td>{{ entry.unit }}</td>
               <td>{{ entry.used_at|date:"d/m/Y H:i" }}</td>
             </tr>
@@ -184,19 +185,19 @@
           <div class="col-md-6">
             <div class="mini-metric h-100">
               <div class="metric-label">Total items used</div>
-              <div class="metric-value">{{ report_total_items_consumed }}</div>
+              <div class="metric-value">{{ report_total_items_consumed|quantity }}</div>
             </div>
           </div>
           <div class="col-md-6">
             <div class="mini-metric h-100">
               <div class="metric-label">Total initial quantity</div>
-              <div class="metric-value">{{ report_total_initial_quantity }}</div>
+              <div class="metric-value">{{ report_total_initial_quantity|quantity }}</div>
             </div>
           </div>
           <div class="col-md-6">
             <div class="mini-metric h-100">
               <div class="metric-label">Total quantity in stock</div>
-              <div class="metric-value">{{ report_total_items_in_stock }}</div>
+              <div class="metric-value">{{ report_total_items_in_stock|quantity }}</div>
             </div>
           </div>
         </div>
@@ -217,9 +218,9 @@
               {% for row in report_summary_rows %}
                 <tr>
                   <td>{{ row.item_name }}</td>
-                  <td>{{ row.total_initial_quantity }}</td>
-                  <td>{{ row.total_quantity }}</td>
-                  <td>{{ row.total_quantity_in_stock }}</td>
+                  <td>{{ row.total_initial_quantity|quantity }}</td>
+                  <td>{{ row.total_quantity|quantity }}</td>
+                  <td>{{ row.total_quantity_in_stock|quantity }}</td>
                   <td>{{ row.unit }}</td>
                   <td>{{ row.entry_count }}</td>
                 </tr>
@@ -268,13 +269,13 @@
                   <div class="small text-danger mt-1">Low stock alert</div>
                 {% endif %}
               </td>
-              <td>{{ entry.initial_quantity }}</td>
-              <td>{{ entry.quantity_used }}</td>
+              <td>{{ entry.initial_quantity|quantity }}</td>
+              <td>{{ entry.quantity_used|quantity }}</td>
               <td>
                 {% if entry.is_low_stock %}
-                  <span class="status-pill danger">{{ entry.quantity_in_stock }}</span>
+                  <span class="status-pill danger">{{ entry.quantity_in_stock|quantity }}</span>
                 {% else %}
-                  {{ entry.quantity_in_stock }}
+                  {{ entry.quantity_in_stock|quantity }}
                 {% endif %}
               </td>
               <td>{{ entry.unit }}</td>
@@ -328,7 +329,7 @@
 
     const numberFormat = (value) => {
       if (!Number.isFinite(value)) {
-        return "0.000";
+        return "0";
       }
       return value.toFixed(3).replace(/\.000$/, "");
     };

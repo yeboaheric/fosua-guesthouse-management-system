@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -42,7 +43,7 @@
               {% for line in items %}
                 <tr>
                   <td>{{ line.item.name }}<div class="text-muted small">{{ line.item.category.name }}</div></td>
-                  <td>{{ line.quantity }}</td>
+                  <td>{{ line.quantity|quantity }}</td>
                   <td>GHS {{ line.unit_price }}</td>
                   <td>GHS {{ line.line_total }}</td>
                 </tr>

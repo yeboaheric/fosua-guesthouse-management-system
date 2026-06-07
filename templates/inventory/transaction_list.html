@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load accounts_extras %}
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
@@ -65,9 +66,9 @@
             <tr>
               <td>{{ transaction.item.name }}<div class="text-muted small">{{ transaction.reference|default:"-" }}</div></td>
               <td><span class="status-pill neutral">{{ transaction.get_transaction_type_display }}</span></td>
-              <td>{{ transaction.quantity_before }}</td>
-              <td>{{ transaction.quantity_changed }}</td>
-              <td>{{ transaction.quantity_after }}</td>
+              <td>{{ transaction.quantity_before|quantity }}</td>
+              <td>{{ transaction.quantity_changed|quantity }}</td>
+              <td>{{ transaction.quantity_after|quantity }}</td>
               <td>{{ transaction.created_by.get_username|default:"-" }}</td>
               <td>{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
               <td>{{ transaction.notes|default:"-" }}</td>

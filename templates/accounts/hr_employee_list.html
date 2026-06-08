@@ -109,10 +109,10 @@
           {% for employee in employees %}
             <tr>
               <td>
-                {% if employee.passport_photo %}
-                  <img src="{{ employee.passport_photo.url }}" alt="{{ employee }}" class="employee-avatar">
+                {% if employee.profile_photo_url %}
+                  <img src="{{ employee.profile_photo_url }}" alt="{{ employee.full_name }}" class="employee-avatar">
                 {% else %}
-                  <div class="employee-avatar employee-avatar-placeholder">{{ employee.first_name|slice:":1" }}{{ employee.last_name|slice:":1" }}</div>
+                  <div class="employee-avatar employee-avatar-placeholder" aria-label="{{ employee.full_name }}">{{ employee.initials }}</div>
                 {% endif %}
               </td>
               <td>

@@ -281,6 +281,23 @@ class Employee(StatusTrackingMixin, models.Model):
         return f"{self.first_name} {self.last_name}".strip()
 
     @property
+    def initials(self):
+        first_initial = (self.first_name or "")[:1].upper()
+        last_initial = (self.last_name or "")[:1].upper()
+        return f"{first_initial}{last_initial}".strip() or "?"
+
+    @property
+    def profile_photo_url(self):
+        if not self.passport_photo:
+            return ""
+        try:
+            if self.passport_photo.name and self.passport_photo.storage.exists(self.passport_photo.name):
+                return self.passport_photo.url
+        except (OSError, ValueError):
+            return ""
+        return ""
+
+    @property
     def annual_leave_taken_days(self):
         return (
             self.leave_requests.filter(

@@ -53,10 +53,10 @@
   <div class="row g-3">
     <div class="col-lg-4">
       <div class="surface-panel p-4 h-100 text-center">
-        {% if employee.passport_photo %}
-          <img src="{{ employee.passport_photo.url }}" alt="{{ employee }}" class="employee-portrait mb-3">
+        {% if employee.profile_photo_url %}
+          <img src="{{ employee.profile_photo_url }}" alt="{{ employee.full_name }}" class="employee-portrait mb-3">
         {% else %}
-          <div class="employee-portrait employee-portrait-placeholder mb-3">{{ employee.first_name|slice:":1" }}{{ employee.last_name|slice:":1" }}</div>
+          <div class="employee-portrait employee-portrait-placeholder mb-3" aria-label="{{ employee.full_name }}">{{ employee.initials }}</div>
         {% endif %}
         <div class="small text-muted">Ghana Card</div>
         <div class="fw-semibold">{{ employee.ghana_card_number }}</div>

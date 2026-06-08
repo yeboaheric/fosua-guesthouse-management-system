@@ -1,10 +1,15 @@
+import shutil
+import tempfile
+
 from accounts.forms import LeaveRequestForm
 from accounts.models import AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, Rota, RolePermission, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
 from django.contrib.auth.models import Group, User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 from guests.models import Guest
 from rooms.models import Room
@@ -959,6 +964,139 @@ class PermissionSnapshotTests(TestCase):
         )
         response = self.client.get(reverse("booking-list"))
         self.assertEqual(response.status_code, 403)
+
+
+class EmployeePhotoDisplayTests(TestCase):
+    def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.settings_override = override_settings(MEDIA_ROOT=self.media_root)
+        self.settings_override.enable()
+        self.addCleanup(self.settings_override.disable)
+        self.addCleanup(shutil.rmtree, self.media_root, ignore_errors=True)
+        self.admin_group = Group.objects.create(name="Admin")
+        self.user = User.objects.create_user(username="photo_admin", password="pass123456")
+        self.user.groups.add(self.admin_group)
+        self.client.force_login(self.user)
+
+    def test_uploaded_employee_photo_renders_as_image_in_list_and_detail(self):
+        upload = SimpleUploadedFile(
+            "avatar.gif",
+            (
+                b"GIF89a\x01\x00\x01\x00\x80\x00\x00"
+                b"\x00\x00\x00\xff\xff\xff!\xf9\x04\x01"
+                b"\x00\x00\x00\x00,\x00\x00\x00\x00\x01"
+                b"\x00\x01\x00\x00\x02\x02D\x01\x00;"
+            ),
+            content_type="image/gif",
+        )
+
+        response = self.client.post(
+            reverse("hr-create"),
+            {
+                "employee_id": "",
+                "title": "mr",
+                "first_name": "Yaw",
+                "last_name": "Photo",
+                "date_of_birth": "1994-05-01",
+                "nationality": "Ghanaian",
+                "ghana_card_number": "GHA-888888888-8",
+                "ghana_card_expiry_date": "",
+                "ssnit_number": "",
+                "contact_number": "0248888888",
+                "email": "",
+                "residential_address": "",
+                "department": "Front Desk",
+                "job_title": "Reception Clerk",
+                "salary_amount": "",
+                "supervisor": "",
+                "gps_address": "",
+                "emergency_contact_name": "",
+                "next_of_kin": "",
+                "next_of_kin_contact": "",
+                "next_of_kin_relationship": "",
+                "start_date": "2026-06-07",
+                "leave_entitlement_days": 21,
+                "termination_date": "",
+                "termination_reason_choice": "",
+                "termination_approved_by": "",
+                "termination_exit_interview_notes": "",
+                "company_assets_returned": "",
+                "termination_remarks": "",
+                "termination_reason": "",
+                "emergency_contact_number": "",
+                "position": "receptionist",
+                "employment_status": "active",
+                "gender": "male",
+                "marital_status": "single",
+                "ethnic_origin": "",
+                "religion": "",
+                "passport_photo": upload,
+            },
+        )
+
+        self.assertRedirects(response, reverse("hr-list"))
+        employee = Employee.objects.get(ghana_card_number="GHA-888888888-8")
+        self.assertTrue(employee.profile_photo_url)
+
+        list_response = self.client.get(reverse("hr-list"))
+        self.assertContains(list_response, f'src="{employee.profile_photo_url}"', html=False)
+        self.assertNotContains(list_response, f">{employee.passport_photo.name}<", html=False)
+
+        detail_response = self.client.get(reverse("hr-detail", args=[employee.pk]))
+        self.assertContains(detail_response, f'src="{employee.profile_photo_url}"', html=False)
+        self.assertNotContains(detail_response, f">{employee.passport_photo.name}<", html=False)
+
+    def test_employee_without_photo_uses_placeholder_avatar(self):
+        employee = Employee.objects.create(
+            title="mrs",
+            first_name="Akua",
+            last_name="Placeholder",
+            date_of_birth=date(1992, 2, 2),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-999999998-8",
+            contact_number="0249999998",
+            department="Housekeeping",
+            start_date=date(2026, 1, 1),
+            position="cleaner",
+            employment_status="active",
+            gender="female",
+            marital_status="single",
+        )
+
+        list_response = self.client.get(reverse("hr-list"))
+        self.assertContains(list_response, "employee-avatar-placeholder")
+        self.assertContains(list_response, employee.initials)
+
+        detail_response = self.client.get(reverse("hr-detail", args=[employee.pk]))
+        self.assertContains(detail_response, "employee-portrait-placeholder")
+        self.assertContains(detail_response, employee.initials)
+
+    def test_missing_photo_file_falls_back_to_placeholder(self):
+        employee = Employee.objects.create(
+            title="mr",
+            first_name="Kojo",
+            last_name="Missing",
+            date_of_birth=date(1991, 1, 1),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-999999997-7",
+            contact_number="0249999997",
+            department="Security",
+            start_date=date(2026, 1, 1),
+            position="security",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        employee.passport_photo = "employee_photos/missing.gif"
+        employee.save(update_fields=["passport_photo"])
+
+        list_response = self.client.get(reverse("hr-list"))
+        self.assertNotContains(list_response, 'src="/media/employee_photos/missing.gif"', html=False)
+        self.assertContains(list_response, "employee-avatar-placeholder")
+
+        detail_response = self.client.get(reverse("hr-detail", args=[employee.pk]))
+        self.assertNotContains(detail_response, 'src="/media/employee_photos/missing.gif"', html=False)
+        self.assertContains(detail_response, "employee-portrait-placeholder")
 
 
 class UserDeletionTests(TestCase):

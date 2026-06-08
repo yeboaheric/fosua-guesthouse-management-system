@@ -39,6 +39,10 @@ GPS_ADDRESS_VALIDATOR = RegexValidator(
 )
 
 
+class EmployeePhotoInput(forms.ClearableFileInput):
+    template_name = "widgets/employee_photo_input.html"
+
+
 class EmployeeForm(forms.ModelForm):
     class Meta:
         model = Employee
@@ -98,7 +102,7 @@ class EmployeeForm(forms.ModelForm):
             "next_of_kin_contact": forms.TextInput(attrs={"class": "form-control"}),
             "next_of_kin_relationship": forms.TextInput(attrs={"class": "form-control"}),
             "ssnit_number": forms.TextInput(attrs={"class": "form-control"}),
-            "passport_photo": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "passport_photo": EmployeePhotoInput(attrs={"class": "form-control", "accept": "image/*"}),
             "title": forms.Select(attrs={"class": "form-select"}),
             "position": forms.Select(attrs={"class": "form-select"}),
             "employment_status": forms.Select(attrs={"class": "form-select"}),

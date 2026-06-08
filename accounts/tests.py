@@ -1071,6 +1071,27 @@ class EmployeePhotoDisplayTests(TestCase):
         self.assertContains(detail_response, "employee-portrait-placeholder")
         self.assertContains(detail_response, employee.initials)
 
+    def test_employee_edit_page_loads_with_photo_widget(self):
+        employee = Employee.objects.create(
+            title="mr",
+            first_name="Edit",
+            last_name="Page",
+            date_of_birth=date(1991, 1, 1),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-999999996-6",
+            contact_number="0249999996",
+            department="Front Desk",
+            start_date=date(2026, 1, 1),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+
+        response = self.client.get(reverse("hr-update", args=[employee.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Passport photo")
+
     def test_missing_photo_file_falls_back_to_placeholder(self):
         employee = Employee.objects.create(
             title="mr",

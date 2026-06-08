@@ -718,6 +718,30 @@ class StaffManagementTests(TestCase):
         self.assertEqual(leave_request.return_to_work_date, date(2026, 6, 13))
         self.assertEqual(leave_request.approving_manager, self.approver_employee)
 
+    def test_approved_current_leave_updates_employee_status(self):
+        today = timezone.localdate()
+        response = self.client.post(
+            reverse("hr-employee-section", args=[self.active_employee.pk, "leave"]),
+            {
+                "leave_type": LeaveRequest.LeaveType.SICK,
+                "start_date": today.isoformat(),
+                "end_date": today.isoformat(),
+                "days": "",
+                "return_to_work_date": "",
+                "reason": "Medical review",
+                "approval_status": LeaveRequest.ApprovalStatus.APPROVED,
+                "approving_manager": self.approver_employee.pk,
+                "decision_notes": "Approved",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("hr-employee-section", args=[self.active_employee.pk, "leave"]),
+        )
+        self.active_employee.refresh_from_db()
+        self.assertEqual(self.active_employee.employment_status, "sick_leave")
+
     def test_employee_detail_subsection_links_show_real_counts_and_preserve_filters(self):
         staff_filters_token = quote_plus("staff_view=active&role=receptionist")
         response = self.client.get(
@@ -797,9 +821,20 @@ class StaffManagementTests(TestCase):
         self.assertNotContains(response, 'name="hired_to"', html=False)
         self.assertNotContains(response, 'name="terminated_from"', html=False)
         self.assertNotContains(response, 'name="terminated_to"', html=False)
+        self.assertNotContains(response, 'name="leave"', html=False)
         self.assertIn("Front Desk", response.context["departments"])
         self.assertIn(("receptionist", "Receptionist"), response.context["role_options"])
-        self.assertIn(("annual", "Annual Leave"), response.context["leave_filter_options"])
+        status_choices = dict(response.context["status_choices"])
+        self.assertEqual(status_choices["active"], "Active")
+        self.assertEqual(status_choices["terminated"], "Terminated")
+        self.assertEqual(status_choices["annual_leave"], "Annual Leave")
+        self.assertEqual(status_choices["sick_leave"], "Sick Leave")
+        self.assertEqual(status_choices["family_emergency"], "Emergency Leave")
+        self.assertEqual(status_choices["maternity_leave"], "Maternity Leave")
+        self.assertEqual(status_choices["paternity_leave"], "Paternity Leave")
+        self.assertEqual(status_choices["unpaid_leave"], "Unpaid Leave")
+        self.assertEqual(status_choices["compassionate_leave"], "Compassionate Leave")
+        self.assertEqual(status_choices["study_leave"], "Study Leave")
         self.assertIn(("Fire Safety", "Fire Safety"), response.context["certification_filter_options"])
         roster_values = dict(response.context["roster_options"])
         self.assertIn(f"rota:{self.rota.pk}", roster_values)
@@ -817,20 +852,11 @@ class StaffManagementTests(TestCase):
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "q": "Kojo"})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
 
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "on_leave"})
-        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
-
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "annual_leave"})
         self.assertEqual(list(response.context["employees"]), [self.leave_employee])
 
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "role": "receptionist"})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
-
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "on_leave"})
-        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
-
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "annual"})
-        self.assertEqual(list(response.context["employees"]), [self.leave_employee])
 
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "certifications": "expiring"})
         self.assertEqual(list(response.context["employees"]), [self.active_employee])
@@ -859,8 +885,40 @@ class StaffManagementTests(TestCase):
         response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "terminated"})
         self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
 
-        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "leave": "terminated"})
-        self.assertEqual(list(response.context["employees"]), [self.terminated_employee])
+    def test_status_filter_uses_live_leave_type_records(self):
+        today = timezone.localdate()
+        leave_employee = Employee.objects.create(
+            title="mr",
+            first_name="Yaw",
+            last_name="Maternity",
+            date_of_birth=date(1991, 6, 6),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-777777777-7",
+            contact_number="0247777777",
+            department="Front Desk",
+            start_date=date(2024, 3, 1),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        LeaveRequest.objects.create(
+            employee=leave_employee,
+            leave_type=LeaveRequest.LeaveType.MATERNITY,
+            start_date=today,
+            end_date=today + timedelta(days=2),
+            days=3,
+            return_to_work_date=today + timedelta(days=3),
+            reason="Coverage test",
+            approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            approving_manager=self.approver_employee,
+        )
+
+        leave_employee.refresh_from_db()
+        self.assertEqual(leave_employee.employment_status, "maternity_leave")
+
+        response = self.client.get(reverse("hr-list"), {"staff_view": "active", "status": "maternity_leave"})
+        self.assertEqual(list(response.context["employees"]), [leave_employee])
 
 
 class PermissionSnapshotTests(TestCase):

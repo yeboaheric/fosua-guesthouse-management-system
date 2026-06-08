@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db import IntegrityError, transaction
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from accounts.permissions import ACCESS_MODULE_CHOICES, ACTION_CHOICES, user_has_permission
 
@@ -161,7 +162,13 @@ class Employee(StatusTrackingMixin, models.Model):
         ("active", "Active"),
         ("annual_leave", "Annual Leave"),
         ("sick_leave", "Sick Leave"),
-        ("family_emergency", "Family Emergency"),
+        ("family_emergency", "Emergency Leave"),
+        ("maternity_leave", "Maternity Leave"),
+        ("paternity_leave", "Paternity Leave"),
+        ("unpaid_leave", "Unpaid Leave"),
+        ("compassionate_leave", "Compassionate Leave"),
+        ("study_leave", "Study Leave"),
+        ("other_leave", "Other Leave"),
         ("suspension", "Suspension"),
         ("terminated", "Terminated"),
     ]
@@ -417,10 +424,12 @@ class LeaveRequest(models.Model):
     class LeaveType(models.TextChoices):
         ANNUAL = "annual", "Annual Leave"
         SICK = "sick", "Sick Leave"
-        FAMILY = "family_emergency", "Family Emergency"
+        FAMILY = "family_emergency", "Emergency Leave"
         STUDY = "study", "Study Leave"
         MATERNITY = "maternity", "Maternity Leave"
+        PATERNITY = "paternity", "Paternity Leave"
         UNPAID = "unpaid", "Unpaid Leave"
+        COMPASSIONATE = "compassionate", "Compassionate Leave"
         OTHER = "other", "Other"
 
     class ApprovalStatus(models.TextChoices):
@@ -461,7 +470,63 @@ class LeaveRequest(models.Model):
             self.days = max((self.end_date - self.start_date).days + 1, 1)
             if not self.return_to_work_date:
                 self.return_to_work_date = self.end_date + timedelta(days=1)
-        super().save(*args, **kwargs)
+        result = super().save(*args, **kwargs)
+        sync_employee_leave_status(self.employee)
+        return result
+
+    def delete(self, *args, **kwargs):
+        employee = self.employee
+        result = super().delete(*args, **kwargs)
+        sync_employee_leave_status(employee)
+        return result
+
+
+LEAVE_TYPE_TO_EMPLOYMENT_STATUS = {
+    LeaveRequest.LeaveType.ANNUAL: "annual_leave",
+    LeaveRequest.LeaveType.SICK: "sick_leave",
+    LeaveRequest.LeaveType.FAMILY: "family_emergency",
+    LeaveRequest.LeaveType.STUDY: "study_leave",
+    LeaveRequest.LeaveType.MATERNITY: "maternity_leave",
+    LeaveRequest.LeaveType.PATERNITY: "paternity_leave",
+    LeaveRequest.LeaveType.UNPAID: "unpaid_leave",
+    LeaveRequest.LeaveType.COMPASSIONATE: "compassionate_leave",
+    LeaveRequest.LeaveType.OTHER: "other_leave",
+}
+
+
+def sync_employee_leave_status(employee):
+    if employee is None or employee.pk is None:
+        return
+
+    employee = Employee.objects.get(pk=employee.pk)
+    if employee.employment_status == "terminated":
+        return
+
+    today = timezone.localdate()
+    current_leave = (
+        employee.leave_requests.filter(
+            approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            start_date__lte=today,
+            end_date__gte=today,
+        )
+        .order_by("start_date", "created_at", "pk")
+        .first()
+    )
+
+    leave_status_values = set(LEAVE_TYPE_TO_EMPLOYMENT_STATUS.values())
+    if current_leave:
+        desired_status = LEAVE_TYPE_TO_EMPLOYMENT_STATUS.get(
+            current_leave.leave_type,
+            "other_leave",
+        )
+    elif employee.employment_status in leave_status_values:
+        desired_status = "active"
+    else:
+        desired_status = employee.employment_status
+
+    if employee.employment_status != desired_status:
+        employee.employment_status = desired_status
+        employee.save(update_fields=["employment_status", "updated_at"])
 
 
 class AttendanceRecord(models.Model):

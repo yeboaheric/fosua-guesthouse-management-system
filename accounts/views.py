@@ -53,6 +53,7 @@ from accounts.models import (
     PerformanceReview,
     Rota,
     RolePermission,
+    LEAVE_TYPE_TO_EMPLOYMENT_STATUS,
     TrainingRecord,
     Notification,
     StatusHistory,
@@ -760,16 +761,14 @@ STAFF_FILTER_QUERY_KEYS = (
     "department",
     "status",
     "role",
-    "leave",
     "certifications",
     "roster",
 )
 
-LEAVE_EMPLOYMENT_STATUSES = ("annual_leave", "sick_leave", "family_emergency")
-LEAVE_TYPE_TO_EMPLOYMENT_STATUS = {
-    LeaveRequest.LeaveType.ANNUAL: "annual_leave",
-    LeaveRequest.LeaveType.SICK: "sick_leave",
-    LeaveRequest.LeaveType.FAMILY: "family_emergency",
+LEAVE_EMPLOYMENT_STATUSES = tuple(dict(LEAVE_TYPE_TO_EMPLOYMENT_STATUS).values())
+EMPLOYMENT_STATUS_TO_LEAVE_TYPE = {
+    employment_status: leave_type
+    for leave_type, employment_status in LEAVE_TYPE_TO_EMPLOYMENT_STATUS.items()
 }
 
 
@@ -813,36 +812,24 @@ def _current_leave_q():
 
 def _system_status_filter_options():
     status_labels = dict(Employee.EMPLOYMENT_STATUS_CHOICES)
-    available_statuses = set(
-        Employee.objects.exclude(employment_status="")
-        .values_list("employment_status", flat=True)
-        .distinct()
+    options = [("active", "Active"), ("terminated", "Terminated")]
+    options.extend(
+        (employment_status, dict(LeaveRequest.LeaveType.choices).get(leave_type, status_labels.get(employment_status)))
+        for leave_type, employment_status in LEAVE_TYPE_TO_EMPLOYMENT_STATUS.items()
     )
-    options = []
 
-    for value, label in (
-        ("active", "Active"),
-        ("on_leave", "On Leave"),
-        ("terminated", "Terminated"),
-    ):
-        if value == "on_leave":
-            has_on_leave = Employee.objects.filter(
-                Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
-            ).exists()
-            if has_on_leave:
-                options.append((value, label))
-        elif value in available_statuses:
-            options.append((value, label))
-
-    for value in sorted(available_statuses):
-        if value in {"active", "terminated"} or value in LEAVE_EMPLOYMENT_STATUSES:
+    existing_values = {value for value, _label in options}
+    available_statuses = sorted(
+        set(
+            Employee.objects.exclude(employment_status="")
+            .values_list("employment_status", flat=True)
+            .distinct()
+        )
+    )
+    for value in available_statuses:
+        if value in existing_values:
             continue
         options.append((value, status_labels.get(value, value.replace("_", " ").title())))
-
-    for value in LEAVE_EMPLOYMENT_STATUSES:
-        if value in available_statuses:
-            options.append((value, status_labels.get(value, value.replace("_", " ").title())))
-
     return options
 
 
@@ -859,29 +846,6 @@ def _system_role_filter_options():
         (value, position_labels.get(value, value.replace("_", " ").title()))
         for value in positions
     ]
-
-
-def _system_leave_filter_options():
-    leave_labels = dict(LeaveRequest.LeaveType.choices)
-    options = []
-
-    if Employee.objects.filter(
-        Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
-    ).exists():
-        options.append(("on_leave", "Currently On Leave"))
-
-    leave_types = sorted(
-        set(
-            LeaveRequest.objects.exclude(leave_type="")
-            .values_list("leave_type", flat=True)
-            .distinct()
-        )
-    )
-    options.extend(
-        (value, leave_labels.get(value, value.replace("_", " ").title()))
-        for value in leave_types
-    )
-    return options
 
 
 def _system_certification_filter_options():
@@ -1345,7 +1309,6 @@ def _staff_management_queryset(request):
     department = request.GET.get("department", "").strip()
     employment_status = request.GET.get("status", "").strip()
     role = request.GET.get("role", "").strip()
-    leave_status = request.GET.get("leave", "").strip()
     certification_status = request.GET.get("certifications", "").strip()
     roster_employee = request.GET.get("roster", "").strip()
     staff_view = request.GET.get("staff_view", "active").strip() or "active"
@@ -1361,7 +1324,6 @@ def _staff_management_queryset(request):
     show_terminated_only = (
         staff_view == "terminated"
         or employment_status == "terminated"
-        or leave_status == "terminated"
     )
 
     if show_terminated_only:
@@ -1382,9 +1344,18 @@ def _staff_management_queryset(request):
     if department:
         employees = employees.filter(department=department)
     if employment_status:
-        if employment_status == "on_leave":
+        if employment_status == "active":
+            employees = employees.filter(employment_status="active").exclude(_current_leave_q())
+        elif employment_status in EMPLOYMENT_STATUS_TO_LEAVE_TYPE:
+            leave_type = EMPLOYMENT_STATUS_TO_LEAVE_TYPE[employment_status]
             employees = employees.filter(
-                Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
+                Q(employment_status=employment_status)
+                | Q(
+                    leave_requests__leave_type=leave_type,
+                    leave_requests__approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+                    leave_requests__start_date__lte=timezone.localdate(),
+                    leave_requests__end_date__gte=timezone.localdate(),
+                )
             )
         else:
             employees = employees.filter(employment_status=employment_status)
@@ -1396,25 +1367,6 @@ def _staff_management_queryset(request):
             employees = employees.filter(Q(rota_entries__pk=rota_id) | Q(rotas__pk=rota_id))
         else:
             employees = employees.filter(rota_entries__isnull=False, pk=roster_employee)
-    if leave_status == "on_leave":
-        employees = employees.filter(
-            Q(employment_status__in=LEAVE_EMPLOYMENT_STATUSES) | _current_leave_q()
-        )
-    elif leave_status == "active":
-        employees = employees.filter(employment_status="active")
-    elif leave_status == "terminated":
-        employees = employees.filter(employment_status="terminated")
-    elif leave_status in dict(LeaveRequest.LeaveType.choices):
-        leave_filter = Q(
-            leave_requests__leave_type=leave_status,
-            leave_requests__approval_status=LeaveRequest.ApprovalStatus.APPROVED,
-            leave_requests__start_date__lte=timezone.localdate(),
-            leave_requests__end_date__gte=timezone.localdate(),
-        )
-        employment_status_for_type = LEAVE_TYPE_TO_EMPLOYMENT_STATUS.get(leave_status)
-        if employment_status_for_type:
-            leave_filter |= Q(employment_status=employment_status_for_type)
-        employees = employees.filter(leave_filter)
     if certification_status == "expiring":
         today = timezone.localdate()
         employees = employees.filter(
@@ -1440,7 +1392,6 @@ def _staff_management_queryset(request):
         "department": department,
         "employment_status": employment_status,
         "role": role,
-        "leave_status": leave_status,
         "certification_status": certification_status,
         "selected_roster_employee": roster_employee,
         "staff_view": staff_view,
@@ -1542,7 +1493,6 @@ def hr_employee_list(request):
             ),
             "role_options": _system_role_filter_options(),
             "status_choices": _system_status_filter_options(),
-            "leave_filter_options": _system_leave_filter_options(),
             "certification_filter_options": _system_certification_filter_options(),
             "roster_options": _system_roster_filter_options(),
             "active_count": Employee.objects.exclude(employment_status="terminated").count(),

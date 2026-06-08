@@ -63,15 +63,6 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label" for="leave">Leave</label>
-        <select class="form-select" name="leave" id="leave">
-          <option value="">All</option>
-          {% for value,label in leave_filter_options %}
-            <option value="{{ value }}" {% if leave_status == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
         <label class="form-label" for="certifications">Certs</label>
         <select class="form-select" name="certifications" id="certifications">
           <option value="">All</option>

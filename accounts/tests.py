@@ -365,8 +365,9 @@ class AdminReportExportTests(TestCase):
         workbook = load_workbook(BytesIO(response.content))
         self.assertEqual(
             workbook.sheetnames,
-            ["Bookings", "Revenue Payments", "Housekeeping", "Duty Roster", "Rooms", "Staff HR"],
+            ["Overview", "Bookings", "Revenue Payments", "Housekeeping", "Duty Roster", "Rooms", "Staff HR"],
         )
+        self.assertEqual(workbook["Overview"]["A1"].value, "Full System Report")
         self.assertEqual(workbook["Housekeeping"]["A1"].value, "Housekeeping")
 
 

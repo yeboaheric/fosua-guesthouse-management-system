@@ -1808,7 +1808,9 @@ def admin_reports_export_all_excel(request):
         report_window["end_date"],
     )
 
-    workbook.remove(workbook.active)
+    overview_sheet = workbook.active
+    overview_sheet.title = "Overview"
+    _write_report_overview_sheet(overview_sheet, sections, report_window["display_range"])
     for section in sections:
         sheet = workbook.create_sheet(title=section["sheet_title"])
         _write_report_section_sheet(sheet, section, report_window["display_range"])
@@ -2737,9 +2739,9 @@ def _write_report_section_sheet(worksheet, section, display_range):
             worksheet.append(row)
         if table.get("export_summary_row"):
             worksheet.append(table["export_summary_row"])
-            for cell in worksheet[worksheet.max_row]:
-                cell.font = Font(bold=True)
-                cell.fill = summary_fill
+        for cell in worksheet[worksheet.max_row]:
+            cell.font = Font(bold=True)
+            cell.fill = summary_fill
 
     for column in worksheet.columns:
         max_length = 0
@@ -2748,6 +2750,38 @@ def _write_report_section_sheet(worksheet, section, display_range):
             max_length = max(max_length, len(str(cell.value or "")))
             cell.alignment = Alignment(vertical="top", wrap_text=True)
         worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 12), 30)
+
+
+def _write_report_overview_sheet(worksheet, sections, display_range):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+
+    worksheet["A1"] = "Full System Report"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"Range: {display_range}"
+    worksheet["A4"] = "This workbook contains one sheet per report section."
+    worksheet["A6"] = "Sheet"
+    worksheet["B6"] = "Report Section"
+    worksheet["C6"] = "What it includes"
+
+    for cell in worksheet[6]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    for index, section in enumerate(sections, start=7):
+        worksheet.cell(row=index, column=1).value = section["sheet_title"]
+        worksheet.cell(row=index, column=2).value = section["title"]
+        worksheet.cell(row=index, column=3).value = section["subtitle"]
+
+    worksheet.column_dimensions["A"].width = 22
+    worksheet.column_dimensions["B"].width = 24
+    worksheet.column_dimensions["C"].width = 90
+    for column in worksheet.columns:
+        for cell in column:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
 
 
 def _xlsx_response(workbook, filename):

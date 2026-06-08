@@ -190,6 +190,39 @@ def roster_export_excel(request):
         if status:
             rosters = rosters.filter(employee__employment_status=status)
 
+    export_rows = []
+    for rota in rosters:
+        for day in _weekly_rota_daily_breakdown(rota):
+            export_rows.append(
+                {
+                    "day_name": day["day_name"],
+                    "date": day["date"],
+                    "employee": rota.employee.full_name,
+                    "department": rota.employee.department or "-",
+                    "role": rota.employee.job_title or rota.employee.get_position_display(),
+                    "start": day["start_time"].strftime("%H:%M") if day["start_time"] else "-",
+                    "finish": day["end_time"].strftime("%H:%M") if day["end_time"] else "-",
+                    "hours": day["hours"],
+                }
+            )
+
+    export_rows.sort(
+        key=lambda row: (
+            row["date"],
+            row["employee"].split()[-1].lower() if row["employee"] else "",
+            row["employee"].lower(),
+        )
+    )
+
+    week_reference = None
+    if export_rows:
+        week_reference = export_rows[0]["date"]
+    elif form.is_valid() and form.cleaned_data.get("start_date"):
+        week_reference = form.cleaned_data["start_date"]
+    else:
+        week_reference = timezone.localdate()
+    week_start = week_reference - timedelta(days=week_reference.weekday())
+
     # Create workbook
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -208,7 +241,7 @@ def roster_export_excel(request):
 
     # Headers begin on the first row so exports are straightforward to consume.
     row = 1
-    headers = ["Date", "Employee", "Department", "Role", "Start", "Finish", "Hours"]
+    headers = ["Day", "Date", "Employee", "Department", "Role", "Start", "Finish", "Hours"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=row, column=col)
         cell.value = header
@@ -219,38 +252,39 @@ def roster_export_excel(request):
 
     # Data
     row = 2
-    for rota in rosters:
-        for day in _weekly_rota_daily_breakdown(rota):
-            ws.cell(row=row, column=1).value = day["date"].strftime("%d/%m/%Y")
-            ws.cell(row=row, column=2).value = rota.employee.full_name
-            ws.cell(row=row, column=3).value = rota.employee.department or "-"
-            ws.cell(row=row, column=4).value = rota.employee.job_title or rota.employee.get_position_display()
-            ws.cell(row=row, column=5).value = day["start_time"].strftime("%H:%M") if day["start_time"] else "-"
-            ws.cell(row=row, column=6).value = day["end_time"].strftime("%H:%M") if day["end_time"] else "-"
-            ws.cell(row=row, column=7).value = day["hours"]
+    for export_row in export_rows:
+        ws.cell(row=row, column=1).value = export_row["day_name"]
+        ws.cell(row=row, column=2).value = export_row["date"].strftime("%d/%m/%Y")
+        ws.cell(row=row, column=3).value = export_row["employee"]
+        ws.cell(row=row, column=4).value = export_row["department"]
+        ws.cell(row=row, column=5).value = export_row["role"]
+        ws.cell(row=row, column=6).value = export_row["start"]
+        ws.cell(row=row, column=7).value = export_row["finish"]
+        ws.cell(row=row, column=8).value = export_row["hours"]
 
-            for col in range(1, 8):
-                cell = ws.cell(row=row, column=col)
-                cell.border = border
-                cell.alignment = Alignment(vertical="top", wrap_text=True)
+        for col in range(1, 9):
+            cell = ws.cell(row=row, column=col)
+            cell.border = border
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
 
-            row += 1
+        row += 1
 
     # Adjust column widths
-    ws.column_dimensions["A"].width = 12
-    ws.column_dimensions["B"].width = 18
-    ws.column_dimensions["C"].width = 20
-    ws.column_dimensions["D"].width = 15
-    ws.column_dimensions["E"].width = 15
-    ws.column_dimensions["F"].width = 30
+    ws.column_dimensions["A"].width = 14
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 22
+    ws.column_dimensions["D"].width = 20
+    ws.column_dimensions["E"].width = 24
+    ws.column_dimensions["F"].width = 12
     ws.column_dimensions["G"].width = 12
+    ws.column_dimensions["H"].width = 12
 
     # Generate response
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response["Content-Disposition"] = (
-        f'attachment; filename="roster_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        f'attachment; filename="duty-roster-week-{week_start.strftime("%d-%m-%Y")}.xlsx"'
     )
     wb.save(response)
     return response

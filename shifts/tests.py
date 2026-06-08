@@ -199,6 +199,7 @@ class RosterExcelExportTests(TestCase):
         self.user1.groups.add(self.admin_group)
         self.staff_employees = []
         today = timezone.now().date()
+        self.week_start = today - timedelta(days=today.weekday())
         departments = ["Reception", "Housekeeping"]
         positions = ["receptionist", "cleaner"]
         job_titles = ["Receptionist", "Housekeeper"]
@@ -225,8 +226,8 @@ class RosterExcelExportTests(TestCase):
             Rota.objects.create(
                 employee=employee,
                 period=f"Staff Member{i} weekly duty roster",
-                period_start=today,
-                period_end=today + timedelta(days=6),
+                period_start=self.week_start,
+                period_end=self.week_start + timedelta(days=6),
                 opening_time=opening_times[i % 2],
                 closing_time=closing_times[i % 2],
                 shift_rules=f"Duty {i}",
@@ -258,6 +259,7 @@ class RosterExcelExportTests(TestCase):
         # Check headers
         headers = [cell.value for cell in worksheet[1]]
         expected_headers = [
+            "Day",
             "Date",
             "Employee",
             "Department",
@@ -328,5 +330,28 @@ class RosterExcelExportTests(TestCase):
 
         filename = response["Content-Disposition"]
         self.assertIn("filename=", filename)
-        self.assertIn("roster_report", filename)
+        self.assertIn(f'duty-roster-week-{self.week_start.strftime("%d-%m-%Y")}.xlsx', filename)
         self.assertIn(".xlsx", filename)
+
+    def test_excel_export_separates_day_and_date_and_orders_week_monday_to_sunday(self):
+        response = self.client.get(reverse("roster-export-excel"))
+        self.assertEqual(response.status_code, 200)
+
+        workbook = load_workbook(BytesIO(response.content))
+        worksheet = workbook.active
+
+        self.assertEqual(worksheet["A1"].value, "Day")
+        self.assertEqual(worksheet["B1"].value, "Date")
+        self.assertEqual(worksheet["A2"].value, "Monday")
+        self.assertEqual(worksheet["B2"].value, self.week_start.strftime("%d/%m/%Y"))
+
+        observed_days = []
+        for row_index in range(2, worksheet.max_row + 1):
+            day_name = worksheet.cell(row=row_index, column=1).value
+            if day_name and day_name not in observed_days:
+                observed_days.append(day_name)
+
+        self.assertEqual(
+            observed_days[:7],
+            ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        )

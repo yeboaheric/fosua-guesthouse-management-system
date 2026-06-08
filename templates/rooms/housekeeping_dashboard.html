@@ -8,10 +8,11 @@
       <div>
         <div class="section-eyebrow mb-2">Housekeeping</div>
         <h1 class="page-title mb-2">Hotel items usage logger</h1>
-        <div class="page-subtitle">Record supply usage, track remaining stock, and review item reports from one workspace.</div>
+        <div class="page-subtitle">Manage housekeeping stock, log usage against existing items, and keep reports in sync from one workspace.</div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}"><i data-lucide="clipboard-plus"></i> New log</a>
+        <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}&mode=item"><i data-lucide="package-plus"></i> Add item</a>
+        <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}&mode=log"><i data-lucide="clipboard-plus"></i> Add log entry</a>
         <a class="topbar-pill" href="{% url 'housekeeping-report-export' report_range %}"><i data-lucide="file-spreadsheet"></i> Export {{ report_range|title }}</a>
       </div>
     </div>
@@ -56,17 +57,17 @@
             <th>Qty in Stock</th>
             <th>Threshold</th>
             <th>Unit</th>
-            <th>Last Logged</th>
+            <th>Updated</th>
           </tr>
         </thead>
         <tbody>
-          {% for entry in low_stock_entries %}
+          {% for item in low_stock_entries %}
             <tr>
-              <td>{{ entry.item_name }}</td>
-              <td><span class="status-pill danger">{{ entry.quantity_in_stock|quantity }}</span></td>
-              <td>{{ entry.effective_low_stock_threshold|quantity }}</td>
-              <td>{{ entry.unit }}</td>
-              <td>{{ entry.used_at|date:"d/m/Y H:i" }}</td>
+              <td>{{ item.name }}</td>
+              <td><span class="status-pill danger">{{ item.quantity_in_stock|quantity }}</span></td>
+              <td>{{ item.effective_low_stock_threshold|quantity }}</td>
+              <td>{{ item.unit }}</td>
+              <td>{{ item.updated_at|date:"d/m/Y H:i" }}</td>
             </tr>
           {% empty %}
             <tr><td colspan="5" class="text-muted">No low stock items right now.</td></tr>
@@ -79,83 +80,145 @@
   <div class="row g-3 mb-3">
     <div class="col-lg-5">
       <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <div>
-            <div class="section-eyebrow mb-2">Usage entry</div>
-            <h2 class="h5 mb-0">{% if editing_entry %}Edit log entry{% else %}Add log entry{% endif %}</h2>
-          </div>
-          {% if editing_entry %}
-            <a class="btn btn-outline-secondary btn-sm" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}">Cancel edit</a>
-          {% endif %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <button class="btn {% if form_mode == 'item' and not editing_entry %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                  type="button"
+                  data-housekeeping-toggle="item-panel">
+            Add Item
+          </button>
+          <button class="btn {% if form_mode == 'log' or editing_entry %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                  type="button"
+                  data-housekeeping-toggle="log-panel">
+            Add Log Entry
+          </button>
         </div>
-        <form method="post"
-              id="housekeeping-log-form"
-              data-mode="{% if editing_entry %}edit{% else %}create{% endif %}"
-              data-edit-initial="{% if editing_entry %}{{ editing_entry.initial_quantity }}{% else %}0{% endif %}"
-              data-edit-used="{% if editing_entry %}{{ editing_entry.quantity_used }}{% else %}0{% endif %}"
-              data-edit-stock="{% if editing_entry %}{{ editing_entry.quantity_in_stock }}{% else %}0{% endif %}"
-              action="{% if editing_entry %}{% url 'housekeeping-log-edit' editing_entry.pk %}?report={{ report_range }}{% else %}{% url 'housekeeping-dashboard' %}?report={{ report_range }}{% endif %}"
-              class="row g-3">
-          {% csrf_token %}
-          <div class="col-12">
-            <label class="form-label" for="{{ form.item_name.id_for_label }}">Item name</label>
-            {{ form.item_name }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.initial_quantity.id_for_label }}">Initial quantity</label>
-            {{ form.initial_quantity }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.quantity_used.id_for_label }}">Quantity used</label>
-            {{ form.quantity_used }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.quantity_in_stock.id_for_label }}">Quantity in stock</label>
-            {{ form.quantity_in_stock }}
-            <div class="form-text" id="stock-status-text">Calculated automatically from initial quantity minus quantity used.</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.low_stock_threshold.id_for_label }}">Custom alert threshold</label>
-            {{ form.low_stock_threshold }}
-            <div class="form-text">Leave blank to alert at 20% of the initial quantity.</div>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.unit.id_for_label }}">Unit</label>
-            {{ form.unit }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.room.id_for_label }}">Room number</label>
-            {{ form.room }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label" for="{{ form.used_at.id_for_label }}">Date and time</label>
-            {{ form.used_at }}
-          </div>
-          <div class="col-12">
-            <label class="form-label" for="{{ form.notes.id_for_label }}">Notes</label>
-            {{ form.notes }}
-          </div>
-          {% if form.errors %}
+
+        <div id="item-panel" class="{% if form_mode != 'item' or editing_entry %}d-none{% endif %}">
+          <div class="section-eyebrow mb-2">Stock management</div>
+          <h2 class="h5 mb-3">Register a housekeeping item</h2>
+          <form method="post" id="housekeeping-item-form" class="row g-3">
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="item">
             <div class="col-12">
-              <div class="alert alert-danger mb-0">
-                {% for field in form %}
-                  {% for error in field.errors %}
+              <label class="form-label" for="{{ item_form.name.id_for_label }}">Item name</label>
+              {{ item_form.name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ item_form.initial_quantity.id_for_label }}">Initial quantity</label>
+              {{ item_form.initial_quantity }}
+              <div class="form-text">Initial quantity becomes the opening quantity in stock.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ item_form.unit.id_for_label }}">Unit</label>
+              {{ item_form.unit }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ item_form.low_stock_threshold.id_for_label }}">Custom low stock threshold</label>
+              {{ item_form.low_stock_threshold }}
+              <div class="form-text">Leave blank to alert at 20% of the initial quantity.</div>
+            </div>
+            {% if item_form.errors %}
+              <div class="col-12">
+                <div class="alert alert-danger mb-0">
+                  {% for field in item_form %}
+                    {% for error in field.errors %}
+                      <div>{{ error }}</div>
+                    {% endfor %}
+                  {% endfor %}
+                  {% for error in item_form.non_field_errors %}
                     <div>{{ error }}</div>
                   {% endfor %}
-                {% endfor %}
-                {% for error in form.non_field_errors %}
-                  <div>{{ error }}</div>
-                {% endfor %}
+                </div>
               </div>
-            </div>
-          {% endif %}
-          <div class="col-12 d-flex gap-2">
-            <button class="btn btn-primary" type="submit">{% if editing_entry %}Save changes{% else %}Log usage{% endif %}</button>
-            {% if not editing_entry %}
+            {% endif %}
+            <div class="col-12 d-flex gap-2">
+              <button class="btn btn-primary" type="submit">Save item</button>
               <button class="btn btn-outline-secondary" type="reset">Clear</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="log-panel" class="{% if form_mode != 'log' and not editing_entry %}d-none{% endif %}">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <div class="section-eyebrow mb-2">Usage entry</div>
+              <h2 class="h5 mb-0">{% if editing_entry %}Edit log entry{% else %}Record item usage{% endif %}</h2>
+            </div>
+            {% if editing_entry %}
+              <a class="btn btn-outline-secondary btn-sm" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}&mode=log">Cancel edit</a>
             {% endif %}
           </div>
-        </form>
+          <form method="post"
+                id="housekeeping-log-form"
+                data-mode="{% if editing_entry %}edit{% else %}create{% endif %}"
+                data-edit-item-id="{% if editing_entry %}{{ editing_entry.item_id }}{% endif %}"
+                data-edit-used="{% if editing_entry %}{{ editing_entry.quantity_used }}{% else %}0{% endif %}"
+                action="{% if editing_entry %}{% url 'housekeeping-log-edit' editing_entry.pk %}?report={{ report_range }}{% else %}{% url 'housekeeping-dashboard' %}?report={{ report_range }}&mode=log{% endif %}"
+                class="row g-3">
+            {% csrf_token %}
+            <input type="hidden" name="form_type" value="log">
+            <div class="col-12">
+              <label class="form-label" for="{{ log_form.item.id_for_label }}">Item</label>
+              <select name="{{ log_form.item.html_name }}" id="{{ log_form.item.id_for_label }}" class="form-select">
+                <option value="">Select an item</option>
+                {% for item in housekeeping_items %}
+                  <option value="{{ item.pk }}"
+                          data-unit="{{ item.unit }}"
+                          data-stock="{{ item.quantity_in_stock }}"
+                          data-threshold="{{ item.effective_low_stock_threshold }}"
+                          {% if log_form.item.value|stringformat:"s" == item.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ item.name }}
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="selected-item-unit">Unit</label>
+              <input class="form-control" id="selected-item-unit" type="text" readonly>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="selected-item-stock">Quantity in stock</label>
+              <input class="form-control" id="selected-item-stock" type="text" readonly>
+              <div class="form-text" id="stock-status-text">Select an item to see its current stock before logging usage.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ log_form.quantity_used.id_for_label }}">Quantity used</label>
+              {{ log_form.quantity_used }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ log_form.room.id_for_label }}">Room number</label>
+              {{ log_form.room }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ log_form.used_at.id_for_label }}">Date and time</label>
+              {{ log_form.used_at }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ log_form.notes.id_for_label }}">Notes</label>
+              {{ log_form.notes }}
+            </div>
+            {% if log_form.errors %}
+              <div class="col-12">
+                <div class="alert alert-danger mb-0">
+                  {% for field in log_form %}
+                    {% for error in field.errors %}
+                      <div>{{ error }}</div>
+                    {% endfor %}
+                  {% endfor %}
+                  {% for error in log_form.non_field_errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+            <div class="col-12 d-flex gap-2">
+              <button class="btn btn-primary" type="submit">{% if editing_entry %}Save changes{% else %}Log usage{% endif %}</button>
+              {% if not editing_entry %}
+                <button class="btn btn-outline-secondary" type="reset">Clear</button>
+              {% endif %}
+            </div>
+          </form>
+        </div>
       </div>
     </div>
 
@@ -168,10 +231,10 @@
             <div class="text-muted small mt-1">{{ report_label }}</div>
           </div>
           <div class="d-flex gap-2 flex-wrap">
-            <a class="btn {% if report_range == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=daily">Daily</a>
-            <a class="btn {% if report_range == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=weekly">Weekly</a>
-            <a class="btn {% if report_range == 'monthly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=monthly">Monthly</a>
-            <a class="btn {% if report_range == 'yearly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=yearly">Yearly</a>
+            <a class="btn {% if report_range == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=daily&mode={{ form_mode }}">Daily</a>
+            <a class="btn {% if report_range == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=weekly&mode={{ form_mode }}">Weekly</a>
+            <a class="btn {% if report_range == 'monthly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=monthly&mode={{ form_mode }}">Monthly</a>
+            <a class="btn {% if report_range == 'yearly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'housekeeping-dashboard' %}?report=yearly&mode={{ form_mode }}">Yearly</a>
           </div>
         </div>
 
@@ -234,6 +297,53 @@
     </div>
   </div>
 
+  <div class="surface-panel p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div>
+        <div class="section-eyebrow mb-2">Items in stock</div>
+        <h2 class="h5 mb-0">Current housekeeping items</h2>
+      </div>
+      <div class="text-muted small">Live stock values update from usage logs</div>
+    </div>
+    <div class="table-responsive soft-table">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Item Name</th>
+            <th>Initial Qty</th>
+            <th>Qty in Stock</th>
+            <th>Unit</th>
+            <th>Threshold</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in housekeeping_items %}
+            <tr>
+              <td>
+                {{ item.name }}
+                {% if item.is_low_stock %}
+                  <div class="small text-danger mt-1">Low stock alert</div>
+                {% endif %}
+              </td>
+              <td>{{ item.initial_quantity|quantity }}</td>
+              <td>
+                {% if item.is_low_stock %}
+                  <span class="status-pill danger">{{ item.quantity_in_stock|quantity }}</span>
+                {% else %}
+                  {{ item.quantity_in_stock|quantity }}
+                {% endif %}
+              </td>
+              <td>{{ item.unit }}</td>
+              <td>{{ item.effective_low_stock_threshold|quantity }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-muted">No housekeeping items have been registered yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="surface-panel p-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <div>
@@ -260,19 +370,20 @@
         <tbody id="usage-log-table">
           {% for entry in entries %}
             <tr data-entry-id="{{ entry.pk }}"
+                data-item-id="{{ entry.item_id }}"
                 data-initial-quantity="{{ entry.initial_quantity }}"
                 data-quantity-used="{{ entry.quantity_used }}"
                 data-quantity-in-stock="{{ entry.quantity_in_stock }}">
               <td>
                 {{ entry.item_name }}
-                {% if entry.is_low_stock %}
+                {% if entry.item.is_low_stock %}
                   <div class="small text-danger mt-1">Low stock alert</div>
                 {% endif %}
               </td>
               <td>{{ entry.initial_quantity|quantity }}</td>
               <td>{{ entry.quantity_used|quantity }}</td>
               <td>
-                {% if entry.is_low_stock %}
+                {% if entry.item.is_low_stock %}
                   <span class="status-pill danger">{{ entry.quantity_in_stock|quantity }}</span>
                 {% else %}
                   {{ entry.quantity_in_stock|quantity }}
@@ -303,28 +414,21 @@
 
 <script>
   (function () {
-    const form = document.getElementById("housekeeping-log-form");
     const summaryPanel = document.getElementById("housekeeping-summary");
-    if (!form || !summaryPanel) {
+    const itemForm = document.getElementById("housekeeping-item-form");
+    const logForm = document.getElementById("housekeeping-log-form");
+    const toggleButtons = document.querySelectorAll("[data-housekeeping-toggle]");
+    const itemPanel = document.getElementById("item-panel");
+    const logPanel = document.getElementById("log-panel");
+
+    if (!summaryPanel) {
       return;
     }
-
-    const initialInput = document.getElementById("id_initial_quantity");
-    const usedInput = document.getElementById("id_quantity_used");
-    const stockInput = document.getElementById("id_quantity_in_stock");
-    const thresholdInput = document.getElementById("id_low_stock_threshold");
-    const stockStatusText = document.getElementById("stock-status-text");
 
     const baseTotals = {
       initial: Number(summaryPanel.dataset.totalInitialStock || 0),
       used: Number(summaryPanel.dataset.totalItemsUsed || 0),
       stock: Number(summaryPanel.dataset.totalItemsInStock || 0),
-    };
-
-    const editTotals = {
-      initial: Number(form.dataset.editInitial || 0),
-      used: Number(form.dataset.editUsed || 0),
-      stock: Number(form.dataset.editStock || 0),
     };
 
     const numberFormat = (value) => {
@@ -334,68 +438,134 @@
       return value.toFixed(3).replace(/\.000$/, "");
     };
 
-    const currentValues = () => {
-      const initial = Number(initialInput?.value || 0);
-      const used = Number(usedInput?.value || 0);
-      const stock = Math.max(initial - used, 0);
-      return { initial, used, stock };
+    const setSummary = (initial, used, stock) => {
+      document.getElementById("summary-total-initial").textContent = numberFormat(initial);
+      document.getElementById("summary-total-used").textContent = numberFormat(used);
+      document.getElementById("summary-total-stock").textContent = numberFormat(stock);
+    };
+
+    const activatePanel = (panelId) => {
+      if (itemPanel) {
+        itemPanel.classList.toggle("d-none", panelId !== "item-panel");
+      }
+      if (logPanel) {
+        logPanel.classList.toggle("d-none", panelId !== "log-panel");
+      }
+      toggleButtons.forEach((button) => {
+        const active = button.dataset.housekeepingToggle === panelId;
+        button.classList.toggle("btn-primary", active);
+        button.classList.toggle("btn-outline-primary", !active);
+      });
+      updateSummaryPreview();
+    };
+
+    toggleButtons.forEach((button) => {
+      button.addEventListener("click", () => activatePanel(button.dataset.housekeepingToggle));
+    });
+
+    const logItemSelect = document.getElementById("{{ log_form.item.id_for_label }}");
+    const logUsedInput = document.getElementById("{{ log_form.quantity_used.id_for_label }}");
+    const selectedUnitInput = document.getElementById("selected-item-unit");
+    const selectedStockInput = document.getElementById("selected-item-stock");
+    const stockStatusText = document.getElementById("stock-status-text");
+    const itemInitialInput = document.getElementById("{{ item_form.initial_quantity.id_for_label }}");
+
+    const currentLogItemValues = () => {
+      const selectedOption = logItemSelect?.selectedOptions?.[0];
+      if (!selectedOption || !selectedOption.value) {
+        return { stock: 0, displayStock: 0, unit: "", threshold: 0 };
+      }
+      const currentStock = Number(selectedOption.dataset.stock || 0);
+      const threshold = Number(selectedOption.dataset.threshold || 0);
+      const editItemId = logForm?.dataset.editItemId || "";
+      const editUsed = Number(logForm?.dataset.editUsed || 0);
+      const displayStock = logForm?.dataset.mode === "edit" && selectedOption.value === editItemId
+        ? currentStock + editUsed
+        : currentStock;
+      return {
+        stock: currentStock,
+        displayStock,
+        unit: selectedOption.dataset.unit || "",
+        threshold,
+      };
+    };
+
+    const updateLogReference = () => {
+      if (!logForm || !logItemSelect || !selectedUnitInput || !selectedStockInput || !stockStatusText) {
+        return;
+      }
+      const values = currentLogItemValues();
+      const used = Number(logUsedInput?.value || 0);
+      selectedUnitInput.value = values.unit;
+      selectedStockInput.value = logItemSelect.value ? numberFormat(values.displayStock) : "";
+
+      if (!logItemSelect.value) {
+        stockStatusText.textContent = "Select an item to see its current stock before logging usage.";
+        stockStatusText.classList.remove("text-danger");
+        return;
+      }
+
+      const projectedStock = values.displayStock - used;
+      if (projectedStock <= values.threshold && values.displayStock > 0) {
+        stockStatusText.textContent = "Low stock alert: this log will take the item to or below its alert threshold.";
+        stockStatusText.classList.add("text-danger");
+      } else {
+        stockStatusText.textContent = "Quantity used is deducted automatically from the selected item's stock.";
+        stockStatusText.classList.remove("text-danger");
+      }
     };
 
     const updateSummaryPreview = () => {
-      const summaryInitial = document.getElementById("summary-total-initial");
-      const summaryUsed = document.getElementById("summary-total-used");
-      const summaryStock = document.getElementById("summary-total-stock");
-      const values = currentValues();
       let previewInitial = baseTotals.initial;
       let previewUsed = baseTotals.used;
       let previewStock = baseTotals.stock;
 
-      if (form.dataset.mode === "edit") {
-        previewInitial = previewInitial - editTotals.initial + values.initial;
-        previewUsed = previewUsed - editTotals.used + values.used;
-        previewStock = previewStock - editTotals.stock + values.stock;
-      } else if ((initialInput?.value || "").length || (usedInput?.value || "").length) {
-        previewInitial += values.initial;
-        previewUsed += values.used;
-        previewStock += values.stock;
+      if (itemPanel && !itemPanel.classList.contains("d-none")) {
+        const initialQuantity = Number(itemInitialInput?.value || 0);
+        if ((itemInitialInput?.value || "").length) {
+          previewInitial += initialQuantity;
+          previewStock += initialQuantity;
+        }
       }
 
-      summaryInitial.textContent = numberFormat(previewInitial);
-      summaryUsed.textContent = numberFormat(previewUsed);
-      summaryStock.textContent = numberFormat(previewStock);
-    };
-
-    const updateCalculatedStock = () => {
-      const values = currentValues();
-      stockInput.value = numberFormat(values.stock);
-
-      const customThreshold = Number(thresholdInput?.value || 0);
-      const defaultThreshold = values.initial * 0.2;
-      const activeThreshold = (thresholdInput?.value || "").length ? customThreshold : defaultThreshold;
-      const isLowStock = values.stock <= activeThreshold && values.initial > 0;
-
-      if (isLowStock) {
-        stockStatusText.textContent = "Low stock alert: remaining stock is at or below the alert threshold.";
-        stockStatusText.classList.add("text-danger");
-      } else {
-        stockStatusText.textContent = "Calculated automatically from initial quantity minus quantity used.";
-        stockStatusText.classList.remove("text-danger");
+      if (logPanel && !logPanel.classList.contains("d-none") && logForm) {
+        const used = Number(logUsedInput?.value || 0);
+        const editUsed = Number(logForm.dataset.editUsed || 0);
+        if (logForm.dataset.mode === "edit") {
+          previewUsed = previewUsed - editUsed + used;
+          previewStock = previewStock + editUsed - used;
+        } else if ((logUsedInput?.value || "").length && logItemSelect?.value) {
+          previewUsed += used;
+          previewStock -= used;
+        }
       }
 
-      updateSummaryPreview();
+      setSummary(previewInitial, previewUsed, Math.max(previewStock, 0));
+      updateLogReference();
     };
 
-    [initialInput, usedInput, thresholdInput].forEach((input) => {
+    [itemInitialInput, logItemSelect, logUsedInput].forEach((input) => {
       if (input) {
-        input.addEventListener("input", updateCalculatedStock);
+        input.addEventListener("input", updateSummaryPreview);
+        input.addEventListener("change", updateSummaryPreview);
       }
     });
 
-    form.addEventListener("reset", function () {
-      window.setTimeout(updateCalculatedStock, 0);
+    [itemForm, logForm].forEach((form) => {
+      if (form) {
+        form.addEventListener("reset", function () {
+          window.setTimeout(updateSummaryPreview, 0);
+        });
+      }
     });
 
-    updateCalculatedStock();
+    if (logForm && logForm.dataset.mode === "edit") {
+      activatePanel("log-panel");
+    } else if ("{{ form_mode }}" === "item") {
+      activatePanel("item-panel");
+    } else {
+      activatePanel("log-panel");
+    }
   })();
 </script>
 {% endblock %}

@@ -4,7 +4,7 @@ from decimal import Decimal
 from io import BytesIO
 
 from django.contrib import messages
-from django.db.models import Count, DecimalField, ExpressionWrapper, F, Sum, Value
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,47 +14,34 @@ from django.views.decorators.http import require_POST
 
 from accounts.decorators import group_required
 from bookings.models import Booking
-from rooms.forms import HousekeepingItemLogForm, RoomForm
-from rooms.models import HousekeepingItemLog, Room
+from rooms.forms import HousekeepingItemForm, HousekeepingItemLogForm, RoomForm
+from rooms.models import HousekeepingItem, HousekeepingItemLog, Room
 
 
 ZERO_UNITS = Value(0, output_field=DecimalField(max_digits=12, decimal_places=3))
 
 
-def _recalculate_all_stock_levels():
-    HousekeepingItemLog.objects.update(
-        quantity_in_stock=ExpressionWrapper(
-            F("initial_quantity") - F("quantity_used"),
-            output_field=DecimalField(max_digits=12, decimal_places=3),
-        )
-    )
-
-
-def _latest_item_entries():
-    latest_entries = {}
-    entries = HousekeepingItemLog.objects.select_related("room", "created_by").order_by(
-        "item_name",
-        "unit",
-        "-used_at",
-        "-created_at",
-    )
-    for entry in entries:
-        key = (entry.item_name.strip().lower(), entry.unit.strip().lower())
-        latest_entries.setdefault(key, entry)
-    return list(latest_entries.values())
-
-
 def _housekeeping_inventory_summary():
-    latest_entries = _latest_item_entries()
-    total_initial_stock = sum((entry.initial_quantity for entry in latest_entries), Decimal("0.000"))
-    total_items_used = sum((entry.quantity_used for entry in latest_entries), Decimal("0.000"))
-    total_items_in_stock = sum((entry.quantity_in_stock for entry in latest_entries), Decimal("0.000"))
-    low_stock_entries = [entry for entry in latest_entries if entry.is_low_stock]
+    items = list(HousekeepingItem.objects.order_by("name"))
+    totals = HousekeepingItem.objects.aggregate(
+        total_initial_stock=Coalesce(Sum("initial_quantity"), ZERO_UNITS),
+        total_items_in_stock=Coalesce(Sum("quantity_in_stock"), ZERO_UNITS),
+        total_items_used=Coalesce(
+            Sum(
+                ExpressionWrapper(
+                    F("initial_quantity") - F("quantity_in_stock"),
+                    output_field=DecimalField(max_digits=12, decimal_places=3),
+                )
+            ),
+            ZERO_UNITS,
+        ),
+    )
+    low_stock_entries = [item for item in items if item.is_low_stock]
     return {
-        "latest_entries": latest_entries,
-        "total_initial_stock": total_initial_stock,
-        "total_items_used": total_items_used,
-        "total_items_in_stock": total_items_in_stock,
+        "items": items,
+        "total_initial_stock": totals["total_initial_stock"],
+        "total_items_used": totals["total_items_used"],
+        "total_items_in_stock": totals["total_items_in_stock"],
         "low_stock_entries": low_stock_entries,
         "low_stock_count": len(low_stock_entries),
     }
@@ -193,7 +180,7 @@ def _report_window(report_range):
 
 def _report_queryset(report_range):
     window = _report_window(report_range)
-    queryset = HousekeepingItemLog.objects.select_related("room", "created_by").filter(
+    queryset = HousekeepingItemLog.objects.select_related("item", "room", "created_by").filter(
         used_at__date__range=(window["start_date"], window["end_date"])
     )
     return window, queryset
@@ -201,12 +188,15 @@ def _report_queryset(report_range):
 
 def _report_summary(report_range):
     window, queryset = _report_queryset(report_range)
+    items_in_period = HousekeepingItem.objects.filter(
+        usage_logs__used_at__date__range=(window["start_date"], window["end_date"])
+    ).distinct()
     summary_rows = list(
-        queryset.values("item_name", "unit")
+        queryset.values("item_id", "item_name", "unit")
         .annotate(
-            total_initial_quantity=Coalesce(Sum("initial_quantity"), ZERO_UNITS),
+            total_initial_quantity=Max("initial_quantity"),
             total_quantity=Coalesce(Sum("quantity_used"), ZERO_UNITS),
-            total_quantity_in_stock=Coalesce(Sum("quantity_in_stock"), ZERO_UNITS),
+            total_quantity_in_stock=Max("item__quantity_in_stock"),
             entry_count=Count("id"),
         )
         .order_by("item_name", "unit")
@@ -216,26 +206,31 @@ def _report_summary(report_range):
         "entries": queryset.order_by("-used_at", "-created_at"),
         "summary_rows": summary_rows,
         "total_entries": queryset.count(),
-        "total_initial_quantity": queryset.aggregate(
+        "total_initial_quantity": items_in_period.aggregate(
             total=Coalesce(Sum("initial_quantity"), ZERO_UNITS)
         )["total"],
         "total_items_consumed": queryset.aggregate(
             total=Coalesce(Sum("quantity_used"), ZERO_UNITS)
         )["total"],
-        "total_items_in_stock": queryset.aggregate(
+        "total_items_in_stock": items_in_period.aggregate(
             total=Coalesce(Sum("quantity_in_stock"), ZERO_UNITS)
         )["total"],
     }
 
 
-def _dashboard_context(form, report_range, editing_entry=None):
-    _recalculate_all_stock_levels()
+def _dashboard_context(item_form, log_form, report_range, form_mode="log", editing_entry=None):
     report = _report_summary(report_range)
     inventory_summary = _housekeeping_inventory_summary()
     return {
-        "form": form,
+        "item_form": item_form,
+        "log_form": log_form,
+        "housekeeping_items": inventory_summary["items"],
         "editing_entry": editing_entry,
-        "entries": HousekeepingItemLog.objects.select_related("room", "created_by").order_by("-used_at", "-created_at"),
+        "form_mode": "log" if editing_entry else form_mode,
+        "entries": HousekeepingItemLog.objects.select_related("item", "room", "created_by").order_by(
+            "-used_at",
+            "-created_at",
+        ),
         "summary_total_initial_stock": inventory_summary["total_initial_stock"],
         "summary_total_items_used": inventory_summary["total_items_used"],
         "summary_total_items_in_stock": inventory_summary["total_items_in_stock"],
@@ -257,18 +252,34 @@ def _dashboard_context(form, report_range, editing_entry=None):
 @group_required("Admin", "Receptionist", "Housekeeping", module="housekeeping")
 def housekeeping_dashboard(request):
     report_range = request.GET.get("report", "daily")
-    form = HousekeepingItemLogForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        entry = form.save(commit=False)
-        entry.created_by = request.user
-        entry.save()
-        _recalculate_all_stock_levels()
-        messages.success(request, "Usage entry logged.")
-        return redirect(f"{request.path}?report={report_range}")
+    form_mode = request.GET.get("mode", "log")
+    item_form = HousekeepingItemForm(prefix="item")
+    log_form = HousekeepingItemLogForm(prefix="log")
+    if request.method == "POST":
+        form_type = request.POST.get("form_type")
+        if form_type == "item":
+            form_mode = "item"
+            item_form = HousekeepingItemForm(request.POST, prefix="item")
+            if item_form.is_valid():
+                item = item_form.save(commit=False)
+                item.created_by = request.user
+                item.quantity_in_stock = item.initial_quantity
+                item.save()
+                messages.success(request, "Housekeeping item added.")
+                return redirect(f"{request.path}?report={report_range}&mode=item")
+        else:
+            form_mode = "log"
+            log_form = HousekeepingItemLogForm(request.POST, prefix="log")
+            if log_form.is_valid():
+                entry = log_form.save(commit=False)
+                entry.created_by = request.user
+                entry.save()
+                messages.success(request, "Usage entry logged.")
+                return redirect(f"{request.path}?report={report_range}&mode=log")
     return render(
         request,
         "rooms/housekeeping_dashboard.html",
-        _dashboard_context(form, report_range),
+        _dashboard_context(item_form, log_form, report_range, form_mode=form_mode),
     )
 
 
@@ -276,16 +287,16 @@ def housekeeping_dashboard(request):
 def housekeeping_log_edit(request, pk):
     entry = get_object_or_404(HousekeepingItemLog, pk=pk)
     report_range = request.GET.get("report", "daily")
-    form = HousekeepingItemLogForm(request.POST or None, instance=entry)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        _recalculate_all_stock_levels()
+    item_form = HousekeepingItemForm(prefix="item")
+    log_form = HousekeepingItemLogForm(request.POST or None, instance=entry, prefix="log")
+    if request.method == "POST" and log_form.is_valid():
+        log_form.save()
         messages.success(request, "Usage entry updated.")
-        return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}")
+        return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}&mode=log")
     return render(
         request,
         "rooms/housekeeping_dashboard.html",
-        _dashboard_context(form, report_range, editing_entry=entry),
+        _dashboard_context(item_form, log_form, report_range, form_mode="log", editing_entry=entry),
     )
 
 
@@ -295,9 +306,8 @@ def housekeeping_log_delete(request, pk):
     entry = get_object_or_404(HousekeepingItemLog, pk=pk)
     report_range = request.GET.get("report", "daily")
     entry.delete()
-    _recalculate_all_stock_levels()
     messages.success(request, "Usage entry deleted.")
-    return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}")
+    return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}&mode=log")
 
 
 @group_required("Admin", "Receptionist", "Housekeeping", module="housekeeping")
@@ -335,9 +345,9 @@ def housekeeping_report_export(request, report_range):
         worksheet.append(
             [
                 row["item_name"],
-                float(row["total_initial_quantity"]),
+                float(row["total_initial_quantity"] or 0),
                 float(row["total_quantity"]),
-                float(row["total_quantity_in_stock"]),
+                float(row["total_quantity_in_stock"] or 0),
                 row["unit"],
                 row["entry_count"],
             ]

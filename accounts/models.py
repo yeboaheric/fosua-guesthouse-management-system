@@ -210,6 +210,7 @@ class Employee(StatusTrackingMixin, models.Model):
     gps_address = models.CharField(max_length=255, blank=True)
     emergency_contact_name = models.CharField(max_length=255, blank=True)
     next_of_kin = models.CharField(max_length=255, blank=True)
+    next_of_kin_email = models.EmailField(blank=True)
     next_of_kin_contact = models.CharField(max_length=40, blank=True)
     next_of_kin_relationship = models.CharField(max_length=120, blank=True)
     start_date = models.DateField()

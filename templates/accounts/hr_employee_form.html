@@ -13,6 +13,176 @@
         <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {{ form.non_field_errors }}
+        {% if is_create %}
+        <div class="row g-4">
+          <div class="col-12">
+            <h2 class="h6 mb-3">Personal details</h2>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_employee_id">Employee ID</label>
+            {{ form.employee_id }}
+            {% if form.employee_id.errors %}<div class="text-danger small mt-1">{{ form.employee_id.errors|join:", " }}</div>{% endif %}
+            {% if form.employee_id.help_text %}<div class="form-text">{{ form.employee_id.help_text }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_passport_photo">Passport photo</label>
+            {{ form.passport_photo }}
+            {% if form.passport_photo.errors %}<div class="text-danger small mt-1">{{ form.passport_photo.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_title">Title</label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_first_name">First name</label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_last_name">Surname</label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_date_of_birth">Date of birth</label>
+            {{ form.date_of_birth }}
+            {% if form.date_of_birth.errors %}<div class="text-danger small mt-1">{{ form.date_of_birth.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_gender">Gender</label>
+            {{ form.gender }}
+            {% if form.gender.errors %}<div class="text-danger small mt-1">{{ form.gender.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_marital_status">Marital Status</label>
+            {{ form.marital_status }}
+            {% if form.marital_status.errors %}<div class="text-danger small mt-1">{{ form.marital_status.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_residential_address">Residential address</label>
+            {{ form.residential_address }}
+            {% if form.residential_address.errors %}<div class="text-danger small mt-1">{{ form.residential_address.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_gps_address">GPS address</label>
+            {{ form.gps_address }}
+            {% if form.gps_address.errors %}<div class="text-danger small mt-1">{{ form.gps_address.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_contact_number">Contact details</label>
+            {{ form.contact_number }}
+            {% if form.contact_number.errors %}<div class="text-danger small mt-1">{{ form.contact_number.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_email">Email address</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_ghana_card_number">Ghana card number</label>
+            {{ form.ghana_card_number }}
+            {% if form.ghana_card_number.errors %}<div class="text-danger small mt-1">{{ form.ghana_card_number.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_ghana_card_expiry_date">Ghana card expiry date</label>
+            {{ form.ghana_card_expiry_date }}
+            {% if form.ghana_card_expiry_date.errors %}<div class="text-danger small mt-1">{{ form.ghana_card_expiry_date.errors|join:", " }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <h2 class="h6 mb-3 mt-4">Employment details</h2>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_position">Position</label>
+            {{ form.position }}
+            {% if form.position.errors %}<div class="text-danger small mt-1">{{ form.position.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_start_date">Start Date</label>
+            {{ form.start_date }}
+            {% if form.start_date.errors %}<div class="text-danger small mt-1">{{ form.start_date.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_leave_entitlement_days">Leave entitlement</label>
+            {{ form.leave_entitlement_days }}
+            {% if form.leave_entitlement_days.errors %}<div class="text-danger small mt-1">{{ form.leave_entitlement_days.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_employment_status">Employee Status</label>
+            {{ form.employment_status }}
+            {% if form.employment_status.errors %}<div class="text-danger small mt-1">{{ form.employment_status.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_department">Department</label>
+            {{ form.department }}
+            {% if form.department.errors %}<div class="text-danger small mt-1">{{ form.department.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_salary_amount">Salary amount</label>
+            {{ form.salary_amount }}
+            {% if form.salary_amount.errors %}<div class="text-danger small mt-1">{{ form.salary_amount.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_supervisor">Supervisor</label>
+            {{ form.supervisor }}
+            {% if form.supervisor.errors %}<div class="text-danger small mt-1">{{ form.supervisor.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_ssnit_number">SSNIT number</label>
+            {{ form.ssnit_number }}
+            {% if form.ssnit_number.errors %}<div class="text-danger small mt-1">{{ form.ssnit_number.errors|join:", " }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <h2 class="h6 mb-3 mt-4">Additional details</h2>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_nationality">Nationality</label>
+            {{ form.nationality }}
+            {% if form.nationality.errors %}<div class="text-danger small mt-1">{{ form.nationality.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_ethnic_origin">Ethnic origin</label>
+            {{ form.ethnic_origin }}
+            {% if form.ethnic_origin.errors %}<div class="text-danger small mt-1">{{ form.ethnic_origin.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="id_religion">Religion</label>
+            {{ form.religion }}
+            {% if form.religion.errors %}<div class="text-danger small mt-1">{{ form.religion.errors|join:", " }}</div>{% endif %}
+          </div>
+
+          <div class="col-12">
+            <h2 class="h6 mb-3 mt-4">Next of kin/ Emergency contact</h2>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_first_name">First name</label>
+            {{ form.next_of_kin_first_name }}
+            {% if form.next_of_kin_first_name.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_first_name.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_surname">Surname</label>
+            {{ form.next_of_kin_surname }}
+            {% if form.next_of_kin_surname.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_surname.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_email">Email address</label>
+            {{ form.next_of_kin_email }}
+            {% if form.next_of_kin_email.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_email.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_contact">Contact number</label>
+            {{ form.next_of_kin_contact }}
+            {% if form.next_of_kin_contact.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_contact.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_next_of_kin_relationship">Relationship</label>
+            {{ form.next_of_kin_relationship }}
+            {% if form.next_of_kin_relationship.errors %}<div class="text-danger small mt-1">{{ form.next_of_kin_relationship.errors|join:", " }}</div>{% endif %}
+          </div>
+        </div>
+        {% else %}
         <div class="row g-4">
           <div class="col-12">
             <h2 class="h6 mb-3">Personal details</h2>
@@ -82,13 +252,11 @@
             {{ form.employment_status }}
             {% if form.employment_status.errors %}<div class="text-danger small mt-1">{{ form.employment_status.errors|join:", " }}</div>{% endif %}
           </div>
-          {% if not is_create %}
-            <div class="col-md-6">
-              <label class="form-label" for="id_termination_date">Termination Date</label>
-              {{ form.termination_date }}
-              {% if form.termination_date.errors %}<div class="text-danger small mt-1">{{ form.termination_date.errors|join:", " }}</div>{% endif %}
-            </div>
-          {% endif %}
+          <div class="col-md-6">
+            <label class="form-label" for="id_termination_date">Termination Date</label>
+            {{ form.termination_date }}
+            {% if form.termination_date.errors %}<div class="text-danger small mt-1">{{ form.termination_date.errors|join:", " }}</div>{% endif %}
+          </div>
           <div class="col-md-6">
             <label class="form-label" for="id_ghana_card_number">Ghana Card number</label>
             {{ form.ghana_card_number }}
@@ -109,13 +277,11 @@
             {{ form.department }}
             {% if form.department.errors %}<div class="text-danger small mt-1">{{ form.department.errors|join:", " }}</div>{% endif %}
           </div>
-          {% if not is_create %}
-            <div class="col-md-6">
-              <label class="form-label" for="id_job_title">Job title</label>
-              {{ form.job_title }}
-              {% if form.job_title.errors %}<div class="text-danger small mt-1">{{ form.job_title.errors|join:", " }}</div>{% endif %}
-            </div>
-          {% endif %}
+          <div class="col-md-6">
+            <label class="form-label" for="id_job_title">Job title</label>
+            {{ form.job_title }}
+            {% if form.job_title.errors %}<div class="text-danger small mt-1">{{ form.job_title.errors|join:", " }}</div>{% endif %}
+          </div>
           <div class="col-md-6">
             <label class="form-label" for="id_salary_amount">Salary amount</label>
             {{ form.salary_amount }}
@@ -131,37 +297,35 @@
             {{ form.ssnit_number }}
             {% if form.ssnit_number.errors %}<div class="text-danger small mt-1">{{ form.ssnit_number.errors|join:", " }}</div>{% endif %}
           </div>
-          {% if not is_create %}
-            <div class="col-md-12">
-              <label class="form-label" for="id_termination_reason_choice">Termination reason</label>
-              {{ form.termination_reason_choice }}
-              {% if form.termination_reason_choice.errors %}<div class="text-danger small mt-1">{{ form.termination_reason_choice.errors|join:", " }}</div>{% endif %}
-            </div>
-            <div class="col-md-6">
-              <label class="form-label" for="id_termination_approved_by">Approved by</label>
-              {{ form.termination_approved_by }}
-              {% if form.termination_approved_by.errors %}<div class="text-danger small mt-1">{{ form.termination_approved_by.errors|join:", " }}</div>{% endif %}
-            </div>
-            <div class="col-md-6 form-check form-switch d-flex align-items-end">
-              {{ form.company_assets_returned }}
-              <label class="form-check-label ms-2" for="id_company_assets_returned">Company assets returned</label>
-            </div>
-            <div class="col-md-12">
-              <label class="form-label" for="id_termination_reason">Termination notes</label>
-              {{ form.termination_reason }}
-              {% if form.termination_reason.errors %}<div class="text-danger small mt-1">{{ form.termination_reason.errors|join:", " }}</div>{% endif %}
-            </div>
-            <div class="col-md-12">
-              <label class="form-label" for="id_termination_exit_interview_notes">Exit interview notes</label>
-              {{ form.termination_exit_interview_notes }}
-              {% if form.termination_exit_interview_notes.errors %}<div class="text-danger small mt-1">{{ form.termination_exit_interview_notes.errors|join:", " }}</div>{% endif %}
-            </div>
-            <div class="col-md-12">
-              <label class="form-label" for="id_termination_remarks">Additional remarks</label>
-              {{ form.termination_remarks }}
-              {% if form.termination_remarks.errors %}<div class="text-danger small mt-1">{{ form.termination_remarks.errors|join:", " }}</div>{% endif %}
-            </div>
-          {% endif %}
+          <div class="col-md-12">
+            <label class="form-label" for="id_termination_reason_choice">Termination reason</label>
+            {{ form.termination_reason_choice }}
+            {% if form.termination_reason_choice.errors %}<div class="text-danger small mt-1">{{ form.termination_reason_choice.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="id_termination_approved_by">Approved by</label>
+            {{ form.termination_approved_by }}
+            {% if form.termination_approved_by.errors %}<div class="text-danger small mt-1">{{ form.termination_approved_by.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 form-check form-switch d-flex align-items-end">
+            {{ form.company_assets_returned }}
+            <label class="form-check-label ms-2" for="id_company_assets_returned">Company assets returned</label>
+          </div>
+          <div class="col-md-12">
+            <label class="form-label" for="id_termination_reason">Termination notes</label>
+            {{ form.termination_reason }}
+            {% if form.termination_reason.errors %}<div class="text-danger small mt-1">{{ form.termination_reason.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-12">
+            <label class="form-label" for="id_termination_exit_interview_notes">Exit interview notes</label>
+            {{ form.termination_exit_interview_notes }}
+            {% if form.termination_exit_interview_notes.errors %}<div class="text-danger small mt-1">{{ form.termination_exit_interview_notes.errors|join:", " }}</div>{% endif %}
+          </div>
+          <div class="col-md-12">
+            <label class="form-label" for="id_termination_remarks">Additional remarks</label>
+            {{ form.termination_remarks }}
+            {% if form.termination_remarks.errors %}<div class="text-danger small mt-1">{{ form.termination_remarks.errors|join:", " }}</div>{% endif %}
+          </div>
 
           <div class="col-12">
             <h2 class="h6 mb-3 mt-4">Contact & address</h2>
@@ -226,6 +390,7 @@
             {% if form.religion.errors %}<div class="text-danger small mt-1">{{ form.religion.errors|join:", " }}</div>{% endif %}
           </div>
         </div>
+        {% endif %}
 
         <div class="mt-4 d-flex gap-2">
           <button type="submit" class="btn btn-primary">Save employee</button>

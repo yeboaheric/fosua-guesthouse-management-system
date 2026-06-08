@@ -44,6 +44,15 @@ class EmployeePhotoInput(forms.ClearableFileInput):
 
 
 class EmployeeForm(forms.ModelForm):
+    next_of_kin_first_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    next_of_kin_surname = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+
     CREATE_ONLY_EXCLUDED_FIELDS = {
         "job_title",
         "termination_date",
@@ -53,6 +62,9 @@ class EmployeeForm(forms.ModelForm):
         "company_assets_returned",
         "termination_remarks",
         "termination_reason",
+        "emergency_contact_name",
+        "emergency_contact_number",
+        "next_of_kin",
     }
 
     class Meta:
@@ -77,6 +89,7 @@ class EmployeeForm(forms.ModelForm):
             "gps_address",
             "emergency_contact_name",
             "next_of_kin",
+            "next_of_kin_email",
             "next_of_kin_contact",
             "next_of_kin_relationship",
             "start_date",
@@ -110,6 +123,7 @@ class EmployeeForm(forms.ModelForm):
             "gps_address": forms.TextInput(attrs={"placeholder": "AK-1234-56", "class": "form-control"}),
             "nationality": forms.TextInput(attrs={"class": "form-control"}),
             "next_of_kin": forms.TextInput(attrs={"class": "form-control"}),
+            "next_of_kin_email": forms.EmailInput(attrs={"class": "form-control"}),
             "next_of_kin_contact": forms.TextInput(attrs={"class": "form-control"}),
             "next_of_kin_relationship": forms.TextInput(attrs={"class": "form-control"}),
             "ssnit_number": forms.TextInput(attrs={"class": "form-control"}),
@@ -141,13 +155,18 @@ class EmployeeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         for_create = kwargs.pop("for_create", False)
         super().__init__(*args, **kwargs)
+        self.for_create = for_create
         if for_create:
             for field_name in self.CREATE_ONLY_EXCLUDED_FIELDS:
                 self.fields.pop(field_name, None)
+        else:
+            self.fields.pop("next_of_kin_first_name", None)
+            self.fields.pop("next_of_kin_surname", None)
         supervisor_queryset = Employee.objects.order_by("last_name", "first_name")
         if self.instance and self.instance.pk:
             supervisor_queryset = supervisor_queryset.exclude(pk=self.instance.pk)
-        self.fields["supervisor"].queryset = supervisor_queryset
+        if "supervisor" in self.fields:
+            self.fields["supervisor"].queryset = supervisor_queryset
         if "termination_approved_by" in self.fields:
             self.fields["termination_approved_by"].queryset = User.objects.order_by("username")
         self.fields["employee_id"].required = False
@@ -163,6 +182,12 @@ class EmployeeForm(forms.ModelForm):
                     field.widget.attrs["class"] = "form-select"
                 else:
                     field.widget.attrs["class"] = "form-control"
+        if not for_create and self.instance and self.instance.pk and self.instance.next_of_kin:
+            parts = self.instance.next_of_kin.split(None, 1)
+            if "next_of_kin_first_name" in self.fields:
+                self.fields["next_of_kin_first_name"].initial = parts[0]
+            if "next_of_kin_surname" in self.fields:
+                self.fields["next_of_kin_surname"].initial = parts[1] if len(parts) > 1 else ""
 
     def clean_employee_id(self):
         if self.instance and self.instance.pk:
@@ -180,6 +205,19 @@ class EmployeeForm(forms.ModelForm):
             return ""
         GPS_ADDRESS_VALIDATOR(value)
         return value
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if getattr(self, "for_create", False):
+            next_of_kin_first_name = self.cleaned_data.get("next_of_kin_first_name", "").strip()
+            next_of_kin_surname = self.cleaned_data.get("next_of_kin_surname", "").strip()
+            instance.next_of_kin = " ".join(
+                part for part in [next_of_kin_first_name, next_of_kin_surname] if part
+            )
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class EmployeeQualificationForm(forms.ModelForm):

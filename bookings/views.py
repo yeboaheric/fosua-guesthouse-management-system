@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -16,6 +18,16 @@ from bookings.models import Booking, EventBooking, EventPayment, Payment
 from rooms.models import Room
 
 
+def _parse_filter_date(raw_value):
+    value = (raw_value or "").strip()
+    if not value:
+        return "", None
+    try:
+        return value, date.fromisoformat(value)
+    except ValueError:
+        return value, None
+
+
 @group_required("Admin", "Receptionist", module="reservations")
 def booking_list(request):
     bookings = Booking.objects.select_related("guest", "room", "created_by").annotate(
@@ -25,9 +37,9 @@ def booking_list(request):
         )
     )
     query = request.GET.get("q", "").strip()
-    status = request.GET.get("status")
-    check_in = request.GET.get("check_in")
-    check_out = request.GET.get("check_out")
+    status = request.GET.get("status", "").strip()
+    check_in_input, check_in_date = _parse_filter_date(request.GET.get("check_in"))
+    check_out_input, check_out_date = _parse_filter_date(request.GET.get("check_out"))
 
     if query:
         bookings = bookings.filter(
@@ -39,20 +51,27 @@ def booking_list(request):
         )
     if status:
         bookings = bookings.filter(status=status)
-    if check_in:
-        bookings = bookings.filter(check_in=check_in)
-    if check_out:
-        bookings = bookings.filter(check_out=check_out)
+    if check_in_input and check_in_date is None:
+        messages.error(request, "Enter a valid check-in date to filter reservations.")
+    if check_out_input and check_out_date is None:
+        messages.error(request, "Enter a valid check-out date to filter reservations.")
+    if check_in_date and check_out_date and check_out_date < check_in_date:
+        messages.error(request, "Check-out filter date must be on or after the check-in filter date.")
+    else:
+        if check_in_date:
+            bookings = bookings.filter(check_in__gte=check_in_date)
+        if check_out_date:
+            bookings = bookings.filter(check_out__lte=check_out_date)
     return render(
         request,
         "bookings/booking_list.html",
         {
-            "bookings": bookings,
+            "bookings": bookings.order_by("-created_at"),
             "status_choices": Booking.BookingStatus.choices,
             "query": query,
             "selected_status": status or "",
-            "check_in": check_in or "",
-            "check_out": check_out or "",
+            "check_in": check_in_input,
+            "check_out": check_out_input,
         },
     )
 

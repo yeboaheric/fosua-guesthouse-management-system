@@ -252,6 +252,42 @@ class BookingWorkflowTests(TestCase):
         self.assertContains(response, "Akua Owusu")
         self.assertNotContains(response, "Yaw Asare")
 
+    def test_booking_list_filters_by_date_range_and_combines_with_status(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("booking-list"),
+            {
+                "status": Booking.BookingStatus.PENDING,
+                "check_in": "2026-07-01",
+                "check_out": "2026-07-04",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        bookings = list(response.context["bookings"])
+        self.assertEqual(bookings, [self.booking_two])
+        self.assertContains(response, "Yaw Asare")
+        self.assertNotContains(response, "Akua Owusu")
+
+    def test_booking_list_rejects_invalid_filter_date_range(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("booking-list"),
+            {
+                "check_in": "2026-07-05",
+                "check_out": "2026-07-01",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Check-out filter date must be on or after the check-in filter date.",
+        )
+        bookings = list(response.context["bookings"])
+        self.assertEqual({booking.pk for booking in bookings}, {self.booking.pk, self.booking_two.pk})
+
 
 class EventBookingWorkflowTests(TestCase):
     def setUp(self):

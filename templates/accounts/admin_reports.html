@@ -1,177 +1,166 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Admin Reports</h1>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-daily' %}?start_date={{ start_date }}&end_date={{ end_date }}">Export Daily CSV</a>
-    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-balances' %}">Export Balances CSV</a>
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">Admin Reports</h1>
+    <div class="text-muted">{{ report_label }}</div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-success" href="{% url 'admin-reports-export-all' %}?start_date={{ start_date }}&end_date={{ end_date }}">
+      Export All
+    </a>
+    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-daily' %}?start_date={{ start_date }}&end_date={{ end_date }}">
+      Legacy Daily CSV
+    </a>
+    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-balances' %}">
+      Legacy Balances CSV
+    </a>
     <a class="btn btn-outline-secondary" href="{% url 'admin-dashboard' %}">Back</a>
   </div>
 </div>
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a class="btn {% if report_period == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-reports' %}?period=daily">Daily</a>
+      <a class="btn {% if report_period == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-reports' %}?period=weekly">Weekly</a>
+      <a class="btn {% if report_period == 'monthly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-reports' %}?period=monthly">Monthly</a>
+      <a class="btn {% if report_period == 'yearly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-reports' %}?period=yearly">Yearly</a>
+    </div>
+
     <form method="get" class="row g-3 align-items-end">
       <div class="col-md-4">
-        <label class="form-label" for="start_date">Start Date</label>
+        <label class="form-label" for="start_date">Start date</label>
         <input class="form-control" type="date" id="start_date" name="start_date" value="{{ start_date }}">
       </div>
       <div class="col-md-4">
-        <label class="form-label" for="end_date">End Date</label>
+        <label class="form-label" for="end_date">End date</label>
         <input class="form-control" type="date" id="end_date" name="end_date" value="{{ end_date }}">
       </div>
-      <div class="col-md-4">
-        <button class="btn btn-primary w-100" type="submit">Apply Range</button>
+      <div class="col-md-4 d-flex gap-2">
+        <button class="btn btn-primary flex-grow-1" type="submit">Apply custom range</button>
+        <a class="btn btn-outline-secondary" href="{% url 'admin-reports' %}?period=weekly">Reset</a>
       </div>
     </form>
   </div>
 </div>
 
-<div class="row g-3">
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Date</div>
-        <div class="h5 mb-0">{{ today }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Rooms Occupied</div>
-        <div class="h5 mb-0">{{ occupied_rooms }} / {{ total_rooms }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Active Bookings</div>
-        <div class="h5 mb-0">{{ active_bookings }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Revenue Collected</div>
-        <div class="h5 mb-0">GHS {{ payments_total }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Outstanding Balance</div>
-        <div class="h5 mb-0">GHS {{ outstanding_total }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Range Revenue</div>
-        <div class="h5 mb-0">GHS {{ period_revenue_total }}</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="text-muted small">Event Bookings</div>
-        <div class="h5 mb-0">{{ event_bookings_total }}</div>
-      </div>
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2">
+      {% for section in sections %}
+        <a class="btn btn-outline-dark" href="#{{ section.key }}">{{ section.title }}</a>
+      {% endfor %}
     </div>
   </div>
 </div>
 
-<div class="row g-3 mt-1">
+<div class="row g-3 mb-3">
+  {% for metric in summary_metrics %}
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="text-muted small">{{ metric.label }}</div>
+          <div class="h5 mb-0">{{ metric.value }}</div>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mb-3">
   <div class="col-lg-6">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h2 class="h6">Daily Revenue</h2>
+        <h2 class="h6 mb-3">Revenue trend</h2>
         <canvas id="revenueChart" height="130"></canvas>
       </div>
     </div>
   </div>
   <div class="col-lg-6">
-    <div class="card shadow-sm">
+    <div class="card shadow-sm h-100">
       <div class="card-body">
-        <h2 class="h6">Daily Occupancy</h2>
+        <h2 class="h6 mb-3">Occupancy trend</h2>
         <canvas id="occupancyChart" height="130"></canvas>
       </div>
     </div>
   </div>
 </div>
 
-<div class="row g-3 mt-1">
-  <div class="col-lg-7">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="h6">Outstanding Bookings</h2>
-      </div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Booking</th>
-              <th>Guest</th>
-              <th>Room</th>
-              <th>Status</th>
-              <th class="text-end">Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for booking in outstanding_bookings %}
-              <tr>
-                <td>#{{ booking.id }}</td>
-                <td>{{ booking.guest }}</td>
-                <td>{{ booking.room.room_number }}</td>
-                <td>{{ booking.get_status_display }}</td>
-                <td class="text-end">GHS {{ booking.balance }}</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="5" class="text-center text-muted py-3">No outstanding bookings.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+{% for section in sections %}
+  <section id="{{ section.key }}" class="card shadow-sm mb-3">
+    <div class="card-body border-bottom">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+          <div class="section-eyebrow mb-2">System report</div>
+          <h2 class="h5 mb-1">{{ section.title }}</h2>
+          <div class="text-muted small">{{ section.subtitle }}</div>
+        </div>
+        <a class="btn btn-outline-success" href="{% url 'admin-reports-export-section' section.key %}?start_date={{ start_date }}&end_date={{ end_date }}">
+          Export {{ section.title }}
+        </a>
       </div>
     </div>
-  </div>
-  <div class="col-lg-5">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="h6">Daily Detail</h2>
+
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        {% for metric in section.metrics %}
+          <div class="col-md-4 col-xl-2">
+            <div class="border rounded-3 h-100 p-3 bg-light-subtle">
+              <div class="text-muted small">{{ metric.label }}</div>
+              <div class="fw-semibold mt-1">{{ metric.value }}</div>
+            </div>
+          </div>
+        {% endfor %}
       </div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Date</th>
-              <th>Occupied</th>
-              <th>Occ %</th>
-              <th class="text-end">Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in daily_rows %}
-              <tr>
-                <td>{{ row.date }}</td>
-                <td>{{ row.occupied_rooms }}</td>
-                <td>{{ row.occupancy_percent }}%</td>
-                <td class="text-end">GHS {{ row.revenue_collected }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+
+      {% for table in section.tables %}
+        <div class="{% if not forloop.first %}mt-4{% endif %}">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h3 class="h6 mb-0">{{ table.title }}</h3>
+            <span class="text-muted small">{{ display_range }}</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  {% for header in table.headers %}
+                    <th>{{ header }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in table.rows %}
+                  <tr>
+                    {% for cell in row %}
+                      <td>{{ cell }}</td>
+                    {% endfor %}
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="{{ table.headers|length }}" class="text-center text-muted py-3">
+                      No data available for this range.
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              {% if table.summary_row %}
+                <tfoot class="table-group-divider">
+                  <tr class="fw-semibold">
+                    {% for cell in table.summary_row %}
+                      <td>{{ cell }}</td>
+                    {% endfor %}
+                  </tr>
+                </tfoot>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+      {% endfor %}
     </div>
-  </div>
-</div>
+  </section>
+{% endfor %}
 
 {{ chart_labels_json|json_script:"report-labels" }}
 {{ revenue_data_json|json_script:"report-revenue" }}

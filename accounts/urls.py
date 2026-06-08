@@ -12,8 +12,10 @@ from accounts.views import (
     FosuaLoginView,
     FosuaLogoutView,
     admin_dashboard,
+    admin_reports_export_all_excel,
     admin_reports_export_balances_csv,
     admin_reports_export_daily_csv,
+    admin_reports_export_section_excel,
     admin_reports,
     dashboard,
     global_search,
@@ -81,6 +83,16 @@ urlpatterns = [
     path("dashboard/", dashboard, name="dashboard"),
     path("dashboard/admin/", admin_dashboard, name="admin-dashboard"),
     path("dashboard/admin/reports/", admin_reports, name="admin-reports"),
+    path(
+        "dashboard/admin/reports/export/all/xlsx/",
+        admin_reports_export_all_excel,
+        name="admin-reports-export-all",
+    ),
+    path(
+        "dashboard/admin/reports/export/<slug:section>/xlsx/",
+        admin_reports_export_section_excel,
+        name="admin-reports-export-section",
+    ),
     path(
         "dashboard/admin/reports/export/daily/",
         admin_reports_export_daily_csv,

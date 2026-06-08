@@ -1,8 +1,9 @@
+from io import BytesIO
 import shutil
 import tempfile
 
 from accounts.forms import LeaveRequestForm
-from accounts.models import AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, Rota, RolePermission, UserAccessProfile
+from accounts.models import AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
@@ -12,7 +13,9 @@ from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
 from guests.models import Guest
-from rooms.models import Room
+from inventory.models import Sale
+from openpyxl import load_workbook
+from rooms.models import HousekeepingItem, HousekeepingItemLog, Room
 from django.utils import timezone
 from urllib.parse import quote_plus
 
@@ -172,6 +175,9 @@ class AdminReportExportTests(TestCase):
         self.admin_user = User.objects.create_user(username="admin3", password="pass123456")
         self.admin_user.groups.add(self.admin_group)
         self.client.force_login(self.admin_user)
+        self.today = timezone.localdate()
+        self.start_date = self.today - timedelta(days=1)
+        self.end_date = self.today + timedelta(days=1)
 
         self.room = Room.objects.create(
             room_number="301",
@@ -187,8 +193,8 @@ class AdminReportExportTests(TestCase):
         self.booking = Booking.objects.create(
             guest=self.guest,
             room=self.room,
-            check_in=date(2026, 5, 20),
-            check_out=date(2026, 5, 22),
+            check_in=self.today,
+            check_out=self.today + timedelta(days=2),
             status=Booking.BookingStatus.CONFIRMED,
             total_amount=500,
             created_by=self.admin_user,
@@ -199,11 +205,103 @@ class AdminReportExportTests(TestCase):
             method=Payment.PaymentMethod.CASH,
             received_by=self.admin_user,
         )
+        self.event_booking = EventBooking.objects.create(
+            guest=self.guest,
+            event_title="Conference",
+            purpose="Team training",
+            expected_guests=30,
+            event_start=timezone.now(),
+            event_end=timezone.now() + timedelta(hours=4),
+            total_amount=450,
+            created_by=self.admin_user,
+        )
+        EventPayment.objects.create(
+            event_booking=self.event_booking,
+            amount=150,
+            method=EventPayment.PaymentMethod.CARD,
+            received_by=self.admin_user,
+        )
+        self.housekeeping_item = HousekeepingItem.objects.create(
+            name="Laundry Detergent",
+            initial_quantity=50,
+            quantity_in_stock=45,
+            unit="litres",
+            created_by=self.admin_user,
+        )
+        HousekeepingItemLog.objects.create(
+            item=self.housekeeping_item,
+            item_name=self.housekeeping_item.name,
+            initial_quantity=self.housekeeping_item.initial_quantity,
+            quantity_used=5,
+            quantity_in_stock=self.housekeeping_item.quantity_in_stock,
+            low_stock_threshold=self.housekeeping_item.low_stock_threshold,
+            unit=self.housekeeping_item.unit,
+            room=self.room,
+            used_at=timezone.now(),
+            created_by=self.admin_user,
+        )
+        Sale.objects.create(
+            cashier=self.admin_user,
+            payment_method=Sale.PaymentMethod.CARD,
+            grand_total=75,
+            amount_paid=75,
+            status=Sale.SaleStatus.COMPLETED,
+        )
+        self.employee = Employee.objects.create(
+            title="mr",
+            first_name="Kojo",
+            last_name="Owusu",
+            date_of_birth=date(1994, 4, 10),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-123456789-0",
+            contact_number="0200000000",
+            department="Front Office",
+            start_date=self.today - timedelta(days=120),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        Rota.objects.create(
+            employee=self.employee,
+            period="Kojo Owusu weekly duty roster",
+            period_start=self.start_date,
+            period_end=self.end_date,
+            opening_time=time(8, 0),
+            closing_time=time(16, 0),
+        )
+        LeaveRequest.objects.create(
+            employee=self.employee,
+            leave_type=LeaveRequest.LeaveType.ANNUAL,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            return_to_work_date=self.end_date + timedelta(days=1),
+            reason="Annual leave",
+            approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            approving_manager=self.employee,
+        )
+        AttendanceRecord.objects.create(
+            employee=self.employee,
+            work_date=self.today,
+            status=AttendanceRecord.AttendanceStatus.PRESENT,
+        )
+        PayrollRecord.objects.create(
+            employee=self.employee,
+            pay_period_start=self.start_date,
+            pay_period_end=self.end_date,
+            net_pay=1200,
+        )
+        TrainingRecord.objects.create(
+            employee=self.employee,
+            training_name="Guest Relations",
+            provider="Fosua Academy",
+            start_date=self.today,
+        )
 
     def test_daily_report_csv_export_returns_csv(self):
         response = self.client.get(
             reverse("admin-reports-export-daily"),
-            {"start_date": "2026-05-19", "end_date": "2026-05-23"},
+            {"start_date": self.start_date.isoformat(), "end_date": self.end_date.isoformat()},
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv")
@@ -216,6 +314,60 @@ class AdminReportExportTests(TestCase):
         content = response.content.decode()
         self.assertIn("balance_due", content)
         self.assertIn("Efua Sarpong", content)
+
+    def test_admin_reports_page_lists_system_sections_and_export_actions(self):
+        response = self.client.get(
+            reverse("admin-reports"),
+            {"start_date": self.start_date.isoformat(), "end_date": self.end_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Export All")
+        self.assertContains(response, "Bookings")
+        self.assertContains(response, "Revenue &amp; Payments")
+        self.assertContains(response, "Housekeeping")
+        self.assertContains(response, "Duty Roster")
+        self.assertContains(response, "Rooms")
+        self.assertContains(response, "Staff &amp; HR")
+
+    def test_section_excel_export_returns_selected_section_workbook(self):
+        response = self.client.get(
+            reverse("admin-reports-export-section", args=["bookings"]),
+            {"start_date": self.start_date.isoformat(), "end_date": self.end_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn(
+            f"bookings-report-{self.start_date.strftime('%d-%m-%Y')}-to-{self.end_date.strftime('%d-%m-%Y')}.xlsx",
+            response["Content-Disposition"],
+        )
+
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, ["Bookings"])
+        self.assertEqual(workbook.active["A1"].value, "Bookings")
+        self.assertTrue(
+            any(cell.value == "Daily booking activity" for row in workbook.active.iter_rows() for cell in row)
+        )
+
+    def test_export_all_excel_creates_sheet_per_report_section(self):
+        response = self.client.get(
+            reverse("admin-reports-export-all"),
+            {"start_date": self.start_date.isoformat(), "end_date": self.end_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            f"full-report-{self.start_date.strftime('%d-%m-%Y')}-to-{self.end_date.strftime('%d-%m-%Y')}.xlsx",
+            response["Content-Disposition"],
+        )
+
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(
+            workbook.sheetnames,
+            ["Bookings", "Revenue Payments", "Housekeeping", "Duty Roster", "Rooms", "Staff HR"],
+        )
+        self.assertEqual(workbook["Housekeeping"]["A1"].value, "Housekeeping")
 
 
 class RotaViewTests(TestCase):

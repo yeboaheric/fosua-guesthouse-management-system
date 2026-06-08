@@ -1,6 +1,9 @@
 import csv
 import json
+from collections import defaultdict
 from datetime import date, timedelta
+from decimal import Decimal
+from io import BytesIO
 from calendar import monthrange
 from itertools import chain
 from urllib.parse import quote_plus, unquote_plus
@@ -11,7 +14,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
 from django.db import IntegrityError, transaction
-from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum, Value
+from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Q, Sum, Value
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
@@ -23,6 +26,7 @@ from django.utils import timezone
 
 from accounts.audit import log_audit_event
 from accounts.decorators import group_required
+from accounts.formatting import format_quantity
 from accounts.forms import (
     AttendanceRecordForm,
     DisciplinaryRecordForm,
@@ -69,7 +73,7 @@ from bookings.models import Booking, EventBooking, Payment
 from bookings.models import EventPayment
 from guests.models import Guest
 from inventory.models import InventoryItem, Sale
-from rooms.models import Room
+from rooms.models import HousekeepingItem, HousekeepingItemLog, MaintenanceRequest, Room
 
 
 class FosuaLoginView(LoginView):
@@ -1668,72 +1672,30 @@ def hr_rota_detail(request, pk):
 
 @group_required("Admin")
 def admin_reports(request):
-    start_date, end_date = _parse_report_range(request)
-    today = timezone.localdate()
-    total_rooms = Room.objects.count()
-    occupied_rooms = Room.objects.filter(status=Room.RoomStatus.OCCUPIED).count()
-    active_bookings = Booking.objects.filter(
-        status__in=[
-            Booking.BookingStatus.PENDING,
-            Booking.BookingStatus.CONFIRMED,
-            Booking.BookingStatus.CHECKED_IN,
-        ]
-    ).count()
-    payments_total = Payment.objects.aggregate(
-        total=Coalesce(
-            Sum("amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        )
-    )["total"]
-
-    bookings_with_balance = Booking.objects.annotate(
-        paid_total=Coalesce(
-            Sum("payments__amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        ),
-        balance=ExpressionWrapper(
-            F("total_amount") - F("paid_total"),
-            output_field=DecimalField(max_digits=10, decimal_places=2),
-        ),
+    report_window = _report_window_from_request(request)
+    sections = _build_admin_report_sections(
+        report_window["start_date"],
+        report_window["end_date"],
     )
-    outstanding_total = bookings_with_balance.aggregate(
-        total=Coalesce(
-            Sum("balance", filter=Q(balance__gt=0)),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        )
-    )["total"]
-
-    daily_rows = _daily_report_rows(start_date, end_date, total_rooms)
-    event_bookings_total = EventBooking.objects.filter(
-        event_start__date__range=[start_date, end_date]
-    ).count()
-    chart_labels = [row["date"] for row in daily_rows]
-    revenue_data = [float(row["revenue_collected"]) for row in daily_rows]
-    occupancy_data = [row["occupied_rooms"] for row in daily_rows]
-    period_revenue_total = sum(revenue_data)
-
-    outstanding_bookings = (
-        bookings_with_balance.filter(balance__gt=0)
-        .select_related("guest", "room")
-        .order_by("-balance")[:20]
+    chart_rows = _daily_report_rows(
+        report_window["start_date"],
+        report_window["end_date"],
+        Room.objects.count(),
     )
 
     context = {
-        "today": today,
-        "total_rooms": total_rooms,
-        "occupied_rooms": occupied_rooms,
-        "active_bookings": active_bookings,
-        "payments_total": payments_total,
-        "outstanding_total": outstanding_total,
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "daily_rows": daily_rows,
-        "period_revenue_total": period_revenue_total,
-        "event_bookings_total": event_bookings_total,
-        "chart_labels_json": json.dumps(chart_labels),
-        "revenue_data_json": json.dumps(revenue_data),
-        "occupancy_data_json": json.dumps(occupancy_data),
-        "outstanding_bookings": outstanding_bookings,
+        "today": timezone.localdate(),
+        "report_window": report_window,
+        "report_period": report_window["period"],
+        "report_label": report_window["label"],
+        "display_range": report_window["display_range"],
+        "start_date": report_window["start_date"].isoformat(),
+        "end_date": report_window["end_date"].isoformat(),
+        "sections": sections,
+        "summary_metrics": _build_admin_report_summary_metrics(sections),
+        "chart_labels_json": json.dumps([row["date"] for row in chart_rows]),
+        "revenue_data_json": json.dumps([float(row["revenue_collected"]) for row in chart_rows]),
+        "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in chart_rows]),
     }
     return render(request, "accounts/admin_reports.html", context)
 
@@ -1805,28 +1767,999 @@ def admin_reports_export_balances_csv(request):
 
 
 def _parse_report_range(request):
-    end_date = timezone.localdate()
-    start_date = end_date - timedelta(days=13)
+    report_window = _report_window_from_request(request)
+    return report_window["start_date"], report_window["end_date"]
+
+
+@group_required("Admin")
+def admin_reports_export_section_excel(request, section):
+    workbook = _create_reports_workbook_or_none(request)
+    if workbook is None:
+        return redirect("admin-reports")
+
+    report_window = _report_window_from_request(request)
+    sections = _build_admin_report_sections(
+        report_window["start_date"],
+        report_window["end_date"],
+    )
+    section_map = {section_data["key"]: section_data for section_data in sections}
+    section_data = section_map.get(section)
+    if section_data is None:
+        messages.error(request, "That report section could not be found.")
+        return redirect("admin-reports")
+
+    workbook.active.title = section_data["sheet_title"]
+    _write_report_section_sheet(workbook.active, section_data, report_window["display_range"])
+    return _xlsx_response(
+        workbook,
+        f"{section_data['filename_prefix']}-report-{report_window['filename_range']}.xlsx",
+    )
+
+
+@group_required("Admin")
+def admin_reports_export_all_excel(request):
+    workbook = _create_reports_workbook_or_none(request)
+    if workbook is None:
+        return redirect("admin-reports")
+
+    report_window = _report_window_from_request(request)
+    sections = _build_admin_report_sections(
+        report_window["start_date"],
+        report_window["end_date"],
+    )
+
+    workbook.remove(workbook.active)
+    for section in sections:
+        sheet = workbook.create_sheet(title=section["sheet_title"])
+        _write_report_section_sheet(sheet, section, report_window["display_range"])
+
+    return _xlsx_response(
+        workbook,
+        f"full-report-{report_window['filename_range']}.xlsx",
+    )
+
+
+REPORT_PRESET_LABELS = {
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "custom": "Custom",
+}
+
+
+def _report_window_from_request(request):
+    today = timezone.localdate()
+    period = (request.GET.get("period") or "weekly").strip().lower()
+    if period not in {"daily", "weekly", "monthly", "yearly"}:
+        period = "weekly"
 
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
 
-    try:
-        if start_date_str:
-            start_date = date.fromisoformat(start_date_str)
-        if end_date_str:
-            end_date = date.fromisoformat(end_date_str)
-    except ValueError:
-        pass
+    if start_date_str or end_date_str:
+        start_date = today
+        end_date = today
+        try:
+            if start_date_str:
+                start_date = date.fromisoformat(start_date_str)
+            if end_date_str:
+                end_date = date.fromisoformat(end_date_str)
+        except ValueError:
+            start_date = today
+            end_date = today
+        period = "custom"
+    else:
+        start_date, end_date = _report_window_for_period(period, today)
 
     if start_date > end_date:
         start_date, end_date = end_date, start_date
 
-    max_days = 92
-    if (end_date - start_date).days > max_days:
-        start_date = end_date - timedelta(days=max_days)
+    display_range = f"{start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+    label = f"{REPORT_PRESET_LABELS.get(period, 'Custom')} report for {display_range}"
 
-    return start_date, end_date
+    return {
+        "period": period,
+        "start_date": start_date,
+        "end_date": end_date,
+        "display_range": display_range,
+        "label": label,
+        "filename_range": f"{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}",
+    }
+
+
+def _report_window_for_period(period, today):
+    if period == "daily":
+        return today, today
+    if period == "monthly":
+        month_start = today.replace(day=1)
+        month_end = today.replace(day=monthrange(today.year, today.month)[1])
+        return month_start, month_end
+    if period == "yearly":
+        return today.replace(month=1, day=1), today.replace(month=12, day=31)
+
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+    return week_start, week_end
+
+
+def _report_days(start_date, end_date):
+    return [start_date + timedelta(days=index) for index in range((end_date - start_date).days + 1)]
+
+
+def _display_date(value):
+    return value.strftime("%d/%m/%Y") if value else "-"
+
+
+def _display_money(value):
+    return f"GHS {Decimal(str(value or 0)):,.2f}"
+
+
+def _display_quantity(value):
+    return format_quantity(value or 0) or "0"
+
+
+def _display_percent(value):
+    return f"{float(value or 0):.2f}%"
+
+
+def _money_total(queryset, field_name):
+    return queryset.aggregate(
+        total=Coalesce(
+            Sum(field_name),
+            Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        )
+    )["total"]
+
+
+def _quantity_total(queryset, field_name):
+    return queryset.aggregate(
+        total=Coalesce(
+            Sum(field_name),
+            Value(0, output_field=DecimalField(max_digits=12, decimal_places=3)),
+        )
+    )["total"]
+
+
+def _build_admin_report_sections(start_date, end_date):
+    total_rooms = Room.objects.count()
+    return [
+        _build_bookings_report_section(start_date, end_date, total_rooms),
+        _build_revenue_report_section(start_date, end_date),
+        _build_housekeeping_report_section(start_date, end_date),
+        _build_roster_report_section(start_date, end_date),
+        _build_rooms_report_section(start_date, end_date, total_rooms),
+        _build_staff_report_section(start_date, end_date),
+    ]
+
+
+def _build_admin_report_summary_metrics(sections):
+    section_map = {section["key"]: section for section in sections}
+    return [
+        {"label": "Reservations", "value": section_map["bookings"]["summary"]["reservations"]},
+        {
+            "label": "Revenue",
+            "value": _display_money(section_map["revenue-payments"]["summary"]["total_revenue"]),
+        },
+        {
+            "label": "Items Used",
+            "value": _display_quantity(section_map["housekeeping"]["summary"]["items_used"]),
+        },
+        {
+            "label": "Avg Occupancy",
+            "value": _display_percent(section_map["rooms"]["summary"]["average_occupancy"]),
+        },
+    ]
+
+
+def _build_bookings_report_section(start_date, end_date, total_rooms):
+    money_field = DecimalField(max_digits=12, decimal_places=2)
+    reservations_by_day = {
+        row["day"]: row["count"]
+        for row in Booking.objects.filter(created_at__date__range=[start_date, end_date])
+        .annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    }
+    check_ins_by_day = {
+        row["check_in"]: row["count"]
+        for row in Booking.objects.filter(check_in__range=[start_date, end_date])
+        .values("check_in")
+        .annotate(count=Count("id"))
+        .order_by("check_in")
+    }
+    check_outs_by_day = {
+        row["check_out"]: row["count"]
+        for row in Booking.objects.filter(check_out__range=[start_date, end_date])
+        .values("check_out")
+        .annotate(count=Count("id"))
+        .order_by("check_out")
+    }
+    cancellations_by_day = {
+        row["day"]: row["count"]
+        for row in Booking.objects.filter(
+            status=Booking.BookingStatus.CANCELLED,
+            updated_at__date__range=[start_date, end_date],
+        )
+        .annotate(day=TruncDate("updated_at"))
+        .values("day")
+        .annotate(count=Count("id"))
+        .order_by("day")
+    }
+
+    occupancy_lookup = {
+        date.fromisoformat(row["date"]): row for row in _daily_report_rows(start_date, end_date, total_rooms)
+    }
+
+    display_rows = []
+    export_rows = []
+    total_occupied_room_days = 0
+    total_occupancy_percent = 0
+    for current_day in _report_days(start_date, end_date):
+        occupied_rooms = occupancy_lookup.get(current_day, {}).get("occupied_rooms", 0)
+        occupancy_percent = occupancy_lookup.get(current_day, {}).get("occupancy_percent", 0)
+        reservations = reservations_by_day.get(current_day, 0)
+        check_ins = check_ins_by_day.get(current_day, 0)
+        check_outs = check_outs_by_day.get(current_day, 0)
+        cancellations = cancellations_by_day.get(current_day, 0)
+        total_occupied_room_days += occupied_rooms
+        total_occupancy_percent += occupancy_percent
+
+        display_rows.append(
+            [
+                _display_date(current_day),
+                reservations,
+                check_ins,
+                check_outs,
+                cancellations,
+                occupied_rooms,
+                _display_percent(occupancy_percent),
+            ]
+        )
+        export_rows.append(
+            [
+                current_day,
+                reservations,
+                check_ins,
+                check_outs,
+                cancellations,
+                occupied_rooms,
+                float(occupancy_percent),
+            ]
+        )
+
+    report_days = _report_days(start_date, end_date)
+    average_occupancy = round(total_occupancy_percent / len(report_days), 2) if report_days else 0
+    reservations_total = Booking.objects.filter(created_at__date__range=[start_date, end_date]).count()
+    check_ins_total = Booking.objects.filter(check_in__range=[start_date, end_date]).count()
+    check_outs_total = Booking.objects.filter(check_out__range=[start_date, end_date]).count()
+    cancellations_total = Booking.objects.filter(
+        status=Booking.BookingStatus.CANCELLED,
+        updated_at__date__range=[start_date, end_date],
+    ).count()
+    event_bookings_total = EventBooking.objects.filter(event_start__date__range=[start_date, end_date]).count()
+    booking_revenue = Payment.objects.filter(paid_at__date__range=[start_date, end_date]).aggregate(
+        total=Coalesce(Sum("amount"), Value(0, output_field=money_field))
+    )["total"]
+
+    return {
+        "key": "bookings",
+        "title": "Bookings",
+        "sheet_title": "Bookings",
+        "filename_prefix": "bookings",
+        "subtitle": "Reservations, arrivals, departures, cancellations, and occupancy for the selected period.",
+        "summary": {
+            "reservations": reservations_total,
+            "check_ins": check_ins_total,
+            "check_outs": check_outs_total,
+            "cancellations": cancellations_total,
+            "average_occupancy": average_occupancy,
+            "event_bookings": event_bookings_total,
+            "booking_revenue": booking_revenue,
+        },
+        "metrics": [
+            {"label": "Reservations", "value": reservations_total, "export_value": reservations_total},
+            {"label": "Check-ins", "value": check_ins_total, "export_value": check_ins_total},
+            {"label": "Check-outs", "value": check_outs_total, "export_value": check_outs_total},
+            {"label": "Cancellations", "value": cancellations_total, "export_value": cancellations_total},
+            {
+                "label": "Average occupancy",
+                "value": _display_percent(average_occupancy),
+                "export_value": float(average_occupancy),
+            },
+            {"label": "Event bookings", "value": event_bookings_total, "export_value": event_bookings_total},
+        ],
+        "tables": [
+            {
+                "title": "Daily booking activity",
+                "headers": [
+                    "Date",
+                    "Reservations",
+                    "Check-ins",
+                    "Check-outs",
+                    "Cancellations",
+                    "Occupied Rooms",
+                    "Occupancy %",
+                ],
+                "rows": display_rows,
+                "export_rows": export_rows,
+                "summary_row": [
+                    "TOTALS",
+                    reservations_total,
+                    check_ins_total,
+                    check_outs_total,
+                    cancellations_total,
+                    total_occupied_room_days,
+                    _display_percent(average_occupancy),
+                ],
+                "export_summary_row": [
+                    "TOTALS",
+                    reservations_total,
+                    check_ins_total,
+                    check_outs_total,
+                    cancellations_total,
+                    total_occupied_room_days,
+                    float(average_occupancy),
+                ],
+            }
+        ],
+    }
+
+
+def _build_revenue_report_section(start_date, end_date):
+    money_field = DecimalField(max_digits=12, decimal_places=2)
+    booking_payments = Payment.objects.filter(paid_at__date__range=[start_date, end_date])
+    event_payments = EventPayment.objects.filter(paid_at__date__range=[start_date, end_date])
+    pos_sales = Sale.objects.filter(
+        created_at__date__range=[start_date, end_date],
+        status=Sale.SaleStatus.COMPLETED,
+    )
+
+    booking_payments_total = _money_total(booking_payments, "amount")
+    event_payments_total = _money_total(event_payments, "amount")
+    pos_sales_total = _money_total(pos_sales, "grand_total")
+    total_revenue = booking_payments_total + event_payments_total + pos_sales_total
+    payments_received = booking_payments_total + event_payments_total
+
+    bookings_with_balance = Booking.objects.filter(check_in__lte=end_date, check_out__gt=start_date).annotate(
+        paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
+        balance=ExpressionWrapper(F("total_amount") - F("paid_total"), output_field=money_field),
+    )
+    event_bookings_with_balance = EventBooking.objects.filter(event_start__date__range=[start_date, end_date]).annotate(
+        paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
+        balance=ExpressionWrapper(F("total_amount") - F("paid_total"), output_field=money_field),
+    )
+
+    outstanding_total = bookings_with_balance.aggregate(
+        total=Coalesce(Sum("balance", filter=Q(balance__gt=0)), Value(0, output_field=money_field))
+    )["total"] + event_bookings_with_balance.aggregate(
+        total=Coalesce(Sum("balance", filter=Q(balance__gt=0)), Value(0, output_field=money_field))
+    )["total"]
+
+    payment_labels = {
+        **dict(Payment.PaymentMethod.choices),
+        **dict(EventPayment.PaymentMethod.choices),
+        **dict(Sale.PaymentMethod.choices),
+    }
+    payment_breakdown = defaultdict(
+        lambda: {"booking": Decimal("0.00"), "event": Decimal("0.00"), "pos": Decimal("0.00")}
+    )
+
+    for row in booking_payments.values("method").annotate(total=Coalesce(Sum("amount"), Value(0, output_field=money_field))):
+        payment_breakdown[payment_labels.get(row["method"], row["method"] or "Other")]["booking"] += Decimal(str(row["total"] or 0))
+    for row in event_payments.values("method").annotate(total=Coalesce(Sum("amount"), Value(0, output_field=money_field))):
+        payment_breakdown[payment_labels.get(row["method"], row["method"] or "Other")]["event"] += Decimal(str(row["total"] or 0))
+    for row in pos_sales.values("payment_method").annotate(total=Coalesce(Sum("grand_total"), Value(0, output_field=money_field))):
+        payment_breakdown[payment_labels.get(row["payment_method"], row["payment_method"] or "Other")]["pos"] += Decimal(str(row["total"] or 0))
+
+    payment_rows = []
+    payment_export_rows = []
+    for method_name in sorted(payment_breakdown):
+        booking_total = payment_breakdown[method_name]["booking"]
+        event_total = payment_breakdown[method_name]["event"]
+        pos_total = payment_breakdown[method_name]["pos"]
+        grand_total = booking_total + event_total + pos_total
+        payment_rows.append(
+            [
+                method_name,
+                _display_money(booking_total),
+                _display_money(event_total),
+                _display_money(pos_total),
+                _display_money(grand_total),
+            ]
+        )
+        payment_export_rows.append([method_name, float(booking_total), float(event_total), float(pos_total), float(grand_total)])
+
+    outstanding_rows = []
+    outstanding_export_rows = []
+    outstanding_items = []
+    for booking in bookings_with_balance.filter(balance__gt=0).select_related("guest", "room"):
+        outstanding_items.append(
+            {
+                "source": "Reservation",
+                "reference": f"Booking #{booking.pk}",
+                "subject": str(booking.guest),
+                "status": booking.get_status_display(),
+                "total_amount": booking.total_amount,
+                "paid_total": booking.paid_total,
+                "balance": booking.balance,
+            }
+        )
+    for event_booking in event_bookings_with_balance.filter(balance__gt=0).select_related("guest"):
+        outstanding_items.append(
+            {
+                "source": "Event",
+                "reference": f"Event #{event_booking.pk}",
+                "subject": event_booking.event_title,
+                "status": event_booking.get_status_display(),
+                "total_amount": event_booking.total_amount,
+                "paid_total": event_booking.paid_total,
+                "balance": event_booking.balance,
+            }
+        )
+    outstanding_items.sort(key=lambda row: row["balance"], reverse=True)
+    for row in outstanding_items[:20]:
+        outstanding_rows.append(
+            [
+                row["source"],
+                row["reference"],
+                row["subject"],
+                row["status"],
+                _display_money(row["total_amount"]),
+                _display_money(row["paid_total"]),
+                _display_money(row["balance"]),
+            ]
+        )
+        outstanding_export_rows.append(
+            [
+                row["source"],
+                row["reference"],
+                row["subject"],
+                row["status"],
+                float(row["total_amount"] or 0),
+                float(row["paid_total"] or 0),
+                float(row["balance"] or 0),
+            ]
+        )
+
+    return {
+        "key": "revenue-payments",
+        "title": "Revenue & Payments",
+        "sheet_title": "Revenue Payments",
+        "filename_prefix": "revenue-payments",
+        "subtitle": "Revenue collected, payment channels, and balances still outstanding across reservations, events, and POS sales.",
+        "summary": {
+            "total_revenue": total_revenue,
+            "payments_received": payments_received,
+            "pos_sales_total": pos_sales_total,
+            "outstanding_total": outstanding_total,
+        },
+        "metrics": [
+            {"label": "Total revenue", "value": _display_money(total_revenue), "export_value": float(total_revenue)},
+            {"label": "Payments received", "value": _display_money(payments_received), "export_value": float(payments_received)},
+            {"label": "POS sales", "value": _display_money(pos_sales_total), "export_value": float(pos_sales_total)},
+            {"label": "Outstanding balances", "value": _display_money(outstanding_total), "export_value": float(outstanding_total)},
+        ],
+        "tables": [
+            {
+                "title": "Payment method breakdown",
+                "headers": ["Method", "Reservation Payments", "Event Payments", "POS Sales", "Total"],
+                "rows": payment_rows,
+                "export_rows": payment_export_rows,
+                "summary_row": [
+                    "TOTALS",
+                    _display_money(booking_payments_total),
+                    _display_money(event_payments_total),
+                    _display_money(pos_sales_total),
+                    _display_money(total_revenue),
+                ],
+                "export_summary_row": ["TOTALS", float(booking_payments_total), float(event_payments_total), float(pos_sales_total), float(total_revenue)],
+            },
+            {
+                "title": "Outstanding balances",
+                "headers": ["Source", "Reference", "Guest / Event", "Status", "Total Amount", "Paid", "Balance"],
+                "rows": outstanding_rows,
+                "export_rows": outstanding_export_rows,
+                "summary_row": ["TOTALS", "", "", "", "", "", _display_money(outstanding_total)],
+                "export_summary_row": ["TOTALS", "", "", "", "", "", float(outstanding_total)],
+            },
+        ],
+    }
+
+
+def _build_housekeeping_report_section(start_date, end_date):
+    quantity_field = DecimalField(max_digits=12, decimal_places=3)
+    money_field = DecimalField(max_digits=12, decimal_places=2)
+    logs = HousekeepingItemLog.objects.select_related("room", "item").filter(used_at__date__range=[start_date, end_date])
+    current_items = list(HousekeepingItem.objects.order_by("name"))
+    low_stock_items = [item for item in current_items if item.is_low_stock]
+
+    usage_item_rows = []
+    usage_item_export_rows = []
+    for row in (
+        logs.values("item_name", "unit")
+        .annotate(
+            total_used=Coalesce(Sum("quantity_used"), Value(0, output_field=quantity_field)),
+            entries=Count("id"),
+            current_stock=Coalesce(Max("item__quantity_in_stock"), Value(0, output_field=quantity_field)),
+            initial_quantity=Coalesce(Max("item__initial_quantity"), Value(0, output_field=quantity_field)),
+        )
+        .order_by("item_name")
+    ):
+        usage_item_rows.append(
+            [
+                row["item_name"],
+                _display_quantity(row["initial_quantity"]),
+                _display_quantity(row["total_used"]),
+                _display_quantity(row["current_stock"]),
+                row["unit"],
+                row["entries"],
+            ]
+        )
+        usage_item_export_rows.append([row["item_name"], float(row["initial_quantity"] or 0), float(row["total_used"] or 0), float(row["current_stock"] or 0), row["unit"], row["entries"]])
+
+    usage_room_rows = []
+    usage_room_export_rows = []
+    for row in (
+        logs.filter(room__isnull=False)
+        .values("room__room_number")
+        .annotate(total_used=Coalesce(Sum("quantity_used"), Value(0, output_field=quantity_field)), entries=Count("id"))
+        .order_by("room__room_number")
+    ):
+        usage_room_rows.append([row["room__room_number"], _display_quantity(row["total_used"]), row["entries"]])
+        usage_room_export_rows.append([row["room__room_number"], float(row["total_used"] or 0), row["entries"]])
+
+    usage_day_rows = []
+    usage_day_export_rows = []
+    for row in (
+        logs.annotate(day=TruncDate("used_at"))
+        .values("day")
+        .annotate(total_used=Coalesce(Sum("quantity_used"), Value(0, output_field=quantity_field)), entries=Count("id"))
+        .order_by("day")
+    ):
+        usage_day_rows.append([_display_date(row["day"]), _display_quantity(row["total_used"]), row["entries"]])
+        usage_day_export_rows.append([row["day"], float(row["total_used"] or 0), row["entries"]])
+
+    low_stock_rows = []
+    low_stock_export_rows = []
+    for item in low_stock_items:
+        low_stock_rows.append([item.name, _display_quantity(item.initial_quantity), _display_quantity(item.quantity_in_stock), item.unit, _display_quantity(item.effective_low_stock_threshold)])
+        low_stock_export_rows.append([item.name, float(item.initial_quantity or 0), float(item.quantity_in_stock or 0), item.unit, float(item.effective_low_stock_threshold or 0)])
+
+    pos_sales = Sale.objects.filter(created_at__date__range=[start_date, end_date], status=Sale.SaleStatus.COMPLETED)
+    pos_rows = []
+    pos_export_rows = []
+    for row in (
+        pos_sales.values("payment_method")
+        .annotate(sales_total=Coalesce(Sum("grand_total"), Value(0, output_field=money_field)), transactions=Count("id"))
+        .order_by("payment_method")
+    ):
+        label = dict(Sale.PaymentMethod.choices).get(row["payment_method"], row["payment_method"] or "Other")
+        pos_rows.append([label, row["transactions"], _display_money(row["sales_total"])])
+        pos_export_rows.append([label, row["transactions"], float(row["sales_total"] or 0)])
+
+    total_items_used = _quantity_total(logs, "quantity_used")
+    total_stock = sum((Decimal(str(item.quantity_in_stock or 0)) for item in current_items), Decimal("0"))
+    total_initial_stock = sum((Decimal(str(item.initial_quantity or 0)) for item in current_items), Decimal("0"))
+    pos_sales_total = _money_total(pos_sales, "grand_total")
+
+    return {
+        "key": "housekeeping",
+        "title": "Housekeeping",
+        "sheet_title": "Housekeeping",
+        "filename_prefix": "housekeeping",
+        "subtitle": "Hotel item usage, live stock position, low-stock alerts, room-by-room consumption, and POS sales for the selected period.",
+        "summary": {
+            "items_used": total_items_used,
+            "stock_total": total_stock,
+            "initial_stock_total": total_initial_stock,
+            "low_stock_count": len(low_stock_items),
+            "usage_entries": logs.count(),
+            "pos_sales_total": pos_sales_total,
+        },
+        "metrics": [
+            {"label": "Items used", "value": _display_quantity(total_items_used), "export_value": float(total_items_used)},
+            {"label": "Current stock", "value": _display_quantity(total_stock), "export_value": float(total_stock)},
+            {"label": "Initial stock", "value": _display_quantity(total_initial_stock), "export_value": float(total_initial_stock)},
+            {"label": "Low stock alerts", "value": len(low_stock_items), "export_value": len(low_stock_items)},
+            {"label": "POS sales", "value": _display_money(pos_sales_total), "export_value": float(pos_sales_total)},
+        ],
+        "tables": [
+            {
+                "title": "Usage by item",
+                "headers": ["Item", "Initial Qty", "Used", "Qty in Stock", "Unit", "Entries"],
+                "rows": usage_item_rows,
+                "export_rows": usage_item_export_rows,
+                "summary_row": ["TOTALS", _display_quantity(total_initial_stock), _display_quantity(total_items_used), _display_quantity(total_stock), "", logs.count()],
+                "export_summary_row": ["TOTALS", float(total_initial_stock), float(total_items_used), float(total_stock), "", logs.count()],
+            },
+            {
+                "title": "Usage by room",
+                "headers": ["Room", "Total Used", "Entries"],
+                "rows": usage_room_rows,
+                "export_rows": usage_room_export_rows,
+                "summary_row": ["TOTALS", _display_quantity(total_items_used), logs.count()],
+                "export_summary_row": ["TOTALS", float(total_items_used), logs.count()],
+            },
+            {
+                "title": "Usage by day",
+                "headers": ["Date", "Total Used", "Entries"],
+                "rows": usage_day_rows,
+                "export_rows": usage_day_export_rows,
+                "summary_row": ["TOTALS", _display_quantity(total_items_used), logs.count()],
+                "export_summary_row": ["TOTALS", float(total_items_used), logs.count()],
+            },
+            {
+                "title": "Low stock alerts",
+                "headers": ["Item", "Initial Qty", "Qty in Stock", "Unit", "Alert Threshold"],
+                "rows": low_stock_rows,
+                "export_rows": low_stock_export_rows,
+                "summary_row": ["TOTALS", "", "", "", len(low_stock_items)],
+                "export_summary_row": ["TOTALS", "", "", "", len(low_stock_items)],
+            },
+            {
+                "title": "POS sales by payment method",
+                "headers": ["Method", "Transactions", "Sales Total"],
+                "rows": pos_rows,
+                "export_rows": pos_export_rows,
+                "summary_row": ["TOTALS", pos_sales.count(), _display_money(pos_sales_total)],
+                "export_summary_row": ["TOTALS", pos_sales.count(), float(pos_sales_total)],
+            },
+        ],
+    }
+
+
+def _build_roster_report_section(start_date, end_date):
+    rotas = (
+        Rota.objects.select_related("employee")
+        .filter(employee__isnull=False, period_end__gte=start_date, period_start__lte=end_date)
+        .order_by("employee__last_name", "employee__first_name", "period_start")
+    )
+
+    employee_rollup = {}
+    department_rollup = {}
+    total_hours = Decimal("0")
+    for rota in rotas:
+        if not rota.employee_id or not rota.period_start or not rota.period_end:
+            continue
+        overlap_start = max(rota.period_start, start_date)
+        overlap_end = min(rota.period_end, end_date)
+        if overlap_start > overlap_end:
+            continue
+        assigned_days = (overlap_end - overlap_start).days + 1
+        assigned_hours = Decimal(str(rota.daily_hours)) * Decimal(str(assigned_days))
+        total_hours += assigned_hours
+
+        employee_key = rota.employee_id
+        if employee_key not in employee_rollup:
+            employee_rollup[employee_key] = {
+                "employee": rota.employee.full_name,
+                "department": rota.employee.department or "-",
+                "role": rota.employee.job_title or rota.employee.get_position_display(),
+                "rota_entries": 0,
+                "assigned_days": 0,
+                "assigned_hours": Decimal("0"),
+            }
+        employee_rollup[employee_key]["rota_entries"] += 1
+        employee_rollup[employee_key]["assigned_days"] += assigned_days
+        employee_rollup[employee_key]["assigned_hours"] += assigned_hours
+
+        department_key = rota.employee.department or "Unassigned"
+        if department_key not in department_rollup:
+            department_rollup[department_key] = {
+                "department": department_key,
+                "employees": set(),
+                "rota_entries": 0,
+                "assigned_days": 0,
+                "assigned_hours": Decimal("0"),
+            }
+        department_rollup[department_key]["employees"].add(rota.employee_id)
+        department_rollup[department_key]["rota_entries"] += 1
+        department_rollup[department_key]["assigned_days"] += assigned_days
+        department_rollup[department_key]["assigned_hours"] += assigned_hours
+
+    employee_rows = []
+    employee_export_rows = []
+    for row in sorted(employee_rollup.values(), key=lambda item: (item["department"], item["employee"])):
+        employee_rows.append([row["employee"], row["department"], row["role"], row["rota_entries"], row["assigned_days"], _display_quantity(row["assigned_hours"])])
+        employee_export_rows.append([row["employee"], row["department"], row["role"], row["rota_entries"], row["assigned_days"], float(row["assigned_hours"])])
+
+    department_rows = []
+    department_export_rows = []
+    for row in sorted(department_rollup.values(), key=lambda item: item["department"]):
+        department_rows.append([row["department"], len(row["employees"]), row["rota_entries"], row["assigned_days"], _display_quantity(row["assigned_hours"])])
+        department_export_rows.append([row["department"], len(row["employees"]), row["rota_entries"], row["assigned_days"], float(row["assigned_hours"])])
+
+    return {
+        "key": "duty-roster",
+        "title": "Duty Roster",
+        "sheet_title": "Duty Roster",
+        "filename_prefix": "duty-roster",
+        "subtitle": "Employee shift coverage and department staffing pulled from the same weekly rosters used in staff management.",
+        "summary": {
+            "rota_entries": rotas.count(),
+            "employees_scheduled": len(employee_rollup),
+            "departments_covered": len(department_rollup),
+            "assigned_hours": total_hours,
+        },
+        "metrics": [
+            {"label": "Rota entries", "value": rotas.count(), "export_value": rotas.count()},
+            {"label": "Employees scheduled", "value": len(employee_rollup), "export_value": len(employee_rollup)},
+            {"label": "Departments covered", "value": len(department_rollup), "export_value": len(department_rollup)},
+            {"label": "Assigned hours", "value": _display_quantity(total_hours), "export_value": float(total_hours)},
+        ],
+        "tables": [
+            {
+                "title": "Shifts assigned per employee",
+                "headers": ["Employee", "Department", "Role", "Rota Entries", "Assigned Days", "Assigned Hours"],
+                "rows": employee_rows,
+                "export_rows": employee_export_rows,
+                "summary_row": ["TOTALS", "", "", rotas.count(), sum((row["assigned_days"] for row in employee_rollup.values()), 0), _display_quantity(total_hours)],
+                "export_summary_row": ["TOTALS", "", "", rotas.count(), sum((row["assigned_days"] for row in employee_rollup.values()), 0), float(total_hours)],
+            },
+            {
+                "title": "Department coverage",
+                "headers": ["Department", "Employees", "Rota Entries", "Assigned Days", "Assigned Hours"],
+                "rows": department_rows,
+                "export_rows": department_export_rows,
+                "summary_row": ["TOTALS", len(employee_rollup), rotas.count(), "", _display_quantity(total_hours)],
+                "export_summary_row": ["TOTALS", len(employee_rollup), rotas.count(), "", float(total_hours)],
+            },
+        ],
+    }
+
+
+def _build_rooms_report_section(start_date, end_date, total_rooms):
+    bookings = list(
+        Booking.objects.select_related("room")
+        .filter(check_in__lte=end_date, check_out__gt=start_date)
+        .order_by("room__room_number", "check_in")
+    )
+    daily_rows = _daily_report_rows(start_date, end_date, total_rooms)
+    occupied_room_days = sum((row["occupied_rooms"] for row in daily_rows), 0)
+    average_occupancy = round(sum((row["occupancy_percent"] for row in daily_rows), 0) / len(daily_rows), 2) if daily_rows else 0
+    maintenance_requests = MaintenanceRequest.objects.filter(created_at__date__range=[start_date, end_date])
+    cleaned_rooms = HousekeepingItemLog.objects.filter(used_at__date__range=[start_date, end_date], room__isnull=False).values("room_id").distinct().count()
+
+    room_booking_rollup = {}
+    for booking in bookings:
+        overlap_start = max(booking.check_in, start_date)
+        overlap_end_exclusive = min(booking.check_out, end_date + timedelta(days=1))
+        booked_nights = max((overlap_end_exclusive - overlap_start).days, 0)
+        room_key = booking.room_id
+        if room_key not in room_booking_rollup:
+            room_booking_rollup[room_key] = {
+                "room_number": booking.room.room_number,
+                "room_type": booking.room.get_room_type_display(),
+                "bookings": 0,
+                "booked_nights": 0,
+            }
+        room_booking_rollup[room_key]["bookings"] += 1
+        room_booking_rollup[room_key]["booked_nights"] += booked_nights
+
+    ranked_rooms = sorted(
+        room_booking_rollup.values(),
+        key=lambda row: (row["bookings"], row["booked_nights"], row["room_number"]),
+        reverse=True,
+    )
+    most_booked_rows = [[row["room_number"], row["room_type"], row["bookings"], row["booked_nights"]] for row in ranked_rooms[:10]]
+    most_booked_export_rows = [row[:] for row in most_booked_rows]
+
+    daily_display_rows = []
+    daily_export_rows = []
+    for row in daily_rows:
+        daily_display_rows.append([
+            _display_date(date.fromisoformat(row["date"])),
+            row["occupied_rooms"],
+            _display_percent(row["occupancy_percent"]),
+            _display_money(row["revenue_collected"]),
+        ])
+        daily_export_rows.append([date.fromisoformat(row["date"]), row["occupied_rooms"], float(row["occupancy_percent"]), float(row["revenue_collected"] or 0)])
+
+    status_rows = [
+        ["Total rooms", total_rooms],
+        ["Occupied room-days", occupied_room_days],
+        ["Available room-days", max((total_rooms * len(daily_rows)) - occupied_room_days, 0)],
+        ["Maintenance requests", maintenance_requests.count()],
+        ["Rooms with housekeeping activity", cleaned_rooms],
+    ]
+
+    return {
+        "key": "rooms",
+        "title": "Rooms",
+        "sheet_title": "Rooms",
+        "filename_prefix": "rooms",
+        "subtitle": "Room occupancy, maintenance activity, and the most booked rooms across the selected range.",
+        "summary": {
+            "average_occupancy": average_occupancy,
+            "occupied_room_days": occupied_room_days,
+            "maintenance_requests": maintenance_requests.count(),
+            "rooms_cleaned": cleaned_rooms,
+        },
+        "metrics": [
+            {"label": "Average occupancy", "value": _display_percent(average_occupancy), "export_value": float(average_occupancy)},
+            {"label": "Occupied room-days", "value": occupied_room_days, "export_value": occupied_room_days},
+            {"label": "Maintenance requests", "value": maintenance_requests.count(), "export_value": maintenance_requests.count()},
+            {"label": "Rooms cleaned", "value": cleaned_rooms, "export_value": cleaned_rooms},
+        ],
+        "tables": [
+            {
+                "title": "Room status overview",
+                "headers": ["Metric", "Value"],
+                "rows": status_rows,
+                "export_rows": status_rows,
+                "summary_row": ["TOTALS", ""],
+                "export_summary_row": ["TOTALS", ""],
+            },
+            {
+                "title": "Daily occupancy",
+                "headers": ["Date", "Occupied Rooms", "Occupancy %", "Revenue"],
+                "rows": daily_display_rows,
+                "export_rows": daily_export_rows,
+                "summary_row": ["AVERAGE / TOTAL", occupied_room_days, _display_percent(average_occupancy), _display_money(sum((row["revenue_collected"] for row in daily_rows), 0))],
+                "export_summary_row": ["AVERAGE / TOTAL", occupied_room_days, float(average_occupancy), float(sum((row["revenue_collected"] for row in daily_rows), 0))],
+            },
+            {
+                "title": "Most booked rooms",
+                "headers": ["Room", "Type", "Bookings", "Booked Nights"],
+                "rows": most_booked_rows,
+                "export_rows": most_booked_export_rows,
+                "summary_row": ["TOTALS", "", len(room_booking_rollup), sum((row["booked_nights"] for row in ranked_rooms), 0)],
+                "export_summary_row": ["TOTALS", "", len(room_booking_rollup), sum((row["booked_nights"] for row in ranked_rooms), 0)],
+            },
+        ],
+    }
+
+
+def _build_staff_report_section(start_date, end_date):
+    active_employees = Employee.objects.filter(employment_status="active").count()
+    terminated_employees = Employee.objects.filter(employment_status="terminated").count()
+    on_leave_employees = Employee.objects.filter(employment_status__in=list(LEAVE_TYPE_TO_EMPLOYMENT_STATUS.values())).count()
+
+    leave_requests = LeaveRequest.objects.filter(start_date__lte=end_date, end_date__gte=start_date)
+    attendance_records = AttendanceRecord.objects.filter(work_date__range=[start_date, end_date])
+    payroll_records = PayrollRecord.objects.filter(pay_period_end__gte=start_date, pay_period_start__lte=end_date)
+    training_records = TrainingRecord.objects.filter(
+        Q(start_date__range=[start_date, end_date])
+        | Q(completion_date__range=[start_date, end_date])
+        | Q(created_at__date__range=[start_date, end_date])
+    )
+
+    leave_totals = leave_requests.aggregate(total_days=Coalesce(Sum("days"), Value(0)))
+    leave_rows = []
+    leave_export_rows = []
+    for row in (
+        leave_requests.values("leave_type", "approval_status")
+        .annotate(total_requests=Count("id"), total_days=Coalesce(Sum("days"), Value(0)))
+        .order_by("leave_type", "approval_status")
+    ):
+        leave_rows.append([
+            dict(LeaveRequest.LeaveType.choices).get(row["leave_type"], row["leave_type"]),
+            dict(LeaveRequest.ApprovalStatus.choices).get(row["approval_status"], row["approval_status"]),
+            row["total_requests"],
+            row["total_days"],
+        ])
+        leave_export_rows.append(leave_rows[-1][:])
+
+    attendance_rows = []
+    attendance_export_rows = []
+    for row in attendance_records.values("status").annotate(total_entries=Count("id")).order_by("status"):
+        label = dict(AttendanceRecord.AttendanceStatus.choices).get(row["status"], row["status"])
+        attendance_rows.append([label, row["total_entries"]])
+        attendance_export_rows.append([label, row["total_entries"]])
+
+    payroll_total = _money_total(payroll_records, "net_pay")
+
+    return {
+        "key": "staff-hr",
+        "title": "Staff & HR",
+        "sheet_title": "Staff HR",
+        "filename_prefix": "staff-hr",
+        "subtitle": "Headcount, leave activity, attendance, payroll, and training records for the selected period.",
+        "summary": {
+            "active_employees": active_employees,
+            "terminated_employees": terminated_employees,
+            "on_leave_employees": on_leave_employees,
+            "leave_requests": leave_requests.count(),
+            "attendance_entries": attendance_records.count(),
+            "payroll_total": payroll_total,
+            "training_records": training_records.count(),
+        },
+        "metrics": [
+            {"label": "Active employees", "value": active_employees, "export_value": active_employees},
+            {"label": "On leave", "value": on_leave_employees, "export_value": on_leave_employees},
+            {"label": "Terminated", "value": terminated_employees, "export_value": terminated_employees},
+            {"label": "Payroll total", "value": _display_money(payroll_total), "export_value": float(payroll_total)},
+            {"label": "Training records", "value": training_records.count(), "export_value": training_records.count()},
+        ],
+        "tables": [
+            {
+                "title": "Leave summary",
+                "headers": ["Leave Type", "Approval Status", "Requests", "Days"],
+                "rows": leave_rows,
+                "export_rows": leave_export_rows,
+                "summary_row": ["TOTALS", "", leave_requests.count(), leave_totals["total_days"]],
+                "export_summary_row": ["TOTALS", "", leave_requests.count(), leave_totals["total_days"]],
+            },
+            {
+                "title": "Attendance summary",
+                "headers": ["Status", "Entries"],
+                "rows": attendance_rows,
+                "export_rows": attendance_export_rows,
+                "summary_row": ["TOTALS", attendance_records.count()],
+                "export_summary_row": ["TOTALS", attendance_records.count()],
+            },
+        ],
+    }
+
+
+def _create_reports_workbook_or_none(request):
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        messages.error(request, "openpyxl is required for report exports.")
+        return None
+    return Workbook()
+
+
+def _write_report_section_sheet(worksheet, section, display_range):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    subheader_font = Font(bold=True, size=11)
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet.append([section["title"]])
+    worksheet["A1"].font = title_font
+    worksheet.append([section["subtitle"]])
+    worksheet.append([f"Range: {display_range}"])
+    worksheet.append([])
+    worksheet.append(["Summary", "Value"])
+    for cell in worksheet[5]:
+        cell.font = header_font
+        cell.fill = header_fill
+    for metric in section["metrics"]:
+        worksheet.append([metric["label"], metric["export_value"]])
+
+    for table in section["tables"]:
+        worksheet.append([])
+        worksheet.append([table["title"]])
+        worksheet.cell(row=worksheet.max_row, column=1).font = subheader_font
+        worksheet.append(table["headers"])
+        for cell in worksheet[worksheet.max_row]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+        for row in table.get("export_rows", table["rows"]):
+            worksheet.append(row)
+        if table.get("export_summary_row"):
+            worksheet.append(table["export_summary_row"])
+            for cell in worksheet[worksheet.max_row]:
+                cell.font = Font(bold=True)
+                cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 12), 30)
+
+
+def _xlsx_response(workbook, filename):
+    buffer = BytesIO()
+    workbook.save(buffer)
+    buffer.seek(0)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 def _parse_rota_range(request):

@@ -204,9 +204,9 @@
         <div class="d-grid gap-2">
           {% if user|can_access_module:'staff_management' %}
             <a class="topbar-pill justify-content-center" href="{% url 'hr-rota-list' %}"><i data-lucide="calendar-range"></i> Weekly duty roster</a>
+            <a class="topbar-pill justify-content-center" href="{% url 'roster-report' %}"><i data-lucide="clipboard-check"></i> Duty roster report</a>
           {% endif %}
           {% if user|can_access_module:'handovers' %}
-            <a class="topbar-pill justify-content-center" href="{% url 'roster-report' %}"><i data-lucide="clipboard-check"></i> Duty roster report</a>
             <a class="topbar-pill justify-content-center" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i> Shift handovers</a>
           {% endif %}
         </div>

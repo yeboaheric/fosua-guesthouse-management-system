@@ -1509,7 +1509,7 @@ def hr_employee_list(request):
 
 @group_required("Admin", "Super Administrator", module="staff_management")
 def hr_employee_create(request):
-    form = EmployeeForm(request.POST or None, request.FILES or None)
+    form = EmployeeForm(request.POST or None, request.FILES or None, for_create=True)
     if form.is_valid():
         form.save()
         messages.success(request, "Employee saved successfully.")
@@ -1517,7 +1517,7 @@ def hr_employee_create(request):
     return render(
         request,
         "accounts/hr_employee_form.html",
-        {"form": form, "form_title": "Add New Employee"},
+        {"form": form, "form_title": "Add New Employee", "is_create": True},
     )
 
 
@@ -1532,7 +1532,7 @@ def hr_employee_update(request, pk):
     return render(
         request,
         "accounts/hr_employee_form.html",
-        {"form": form, "form_title": "Update Employee"},
+        {"form": form, "form_title": "Update Employee", "is_create": False},
     )
 
 

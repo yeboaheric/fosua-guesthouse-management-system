@@ -850,6 +850,20 @@ class StaffManagementTests(TestCase):
         created_employee = Employee.objects.get(ghana_card_number="GHA-666666666-6")
         self.assertEqual(created_employee.employee_id, "EMP0005")
 
+    def test_employee_create_form_hides_job_title_and_termination_fields(self):
+        response = self.client.get(reverse("hr-create"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Job title", html=False)
+        self.assertNotContains(response, "Termination Date", html=False)
+        self.assertNotContains(response, "Termination reason", html=False)
+        self.assertNotContains(response, "Termination notes", html=False)
+        self.assertNotContains(response, "Exit interview notes", html=False)
+        self.assertNotContains(response, 'name="job_title"', html=False)
+        self.assertNotContains(response, 'name="termination_date"', html=False)
+        self.assertNotContains(response, 'name="termination_reason_choice"', html=False)
+        self.assertNotContains(response, 'name="termination_reason"', html=False)
+
     def test_leave_request_form_uses_active_employees_as_approvers(self):
         form = LeaveRequestForm()
         approvers = list(form.fields["approving_manager"].queryset)

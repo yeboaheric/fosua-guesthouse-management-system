@@ -44,6 +44,17 @@ class EmployeePhotoInput(forms.ClearableFileInput):
 
 
 class EmployeeForm(forms.ModelForm):
+    CREATE_ONLY_EXCLUDED_FIELDS = {
+        "job_title",
+        "termination_date",
+        "termination_reason_choice",
+        "termination_approved_by",
+        "termination_exit_interview_notes",
+        "company_assets_returned",
+        "termination_remarks",
+        "termination_reason",
+    }
+
     class Meta:
         model = Employee
         fields = [
@@ -128,12 +139,17 @@ class EmployeeForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        for_create = kwargs.pop("for_create", False)
         super().__init__(*args, **kwargs)
+        if for_create:
+            for field_name in self.CREATE_ONLY_EXCLUDED_FIELDS:
+                self.fields.pop(field_name, None)
         supervisor_queryset = Employee.objects.order_by("last_name", "first_name")
         if self.instance and self.instance.pk:
             supervisor_queryset = supervisor_queryset.exclude(pk=self.instance.pk)
         self.fields["supervisor"].queryset = supervisor_queryset
-        self.fields["termination_approved_by"].queryset = User.objects.order_by("username")
+        if "termination_approved_by" in self.fields:
+            self.fields["termination_approved_by"].queryset = User.objects.order_by("username")
         self.fields["employee_id"].required = False
         self.fields["employee_id"].widget.attrs["readonly"] = "readonly"
         if self.instance and self.instance.pk and self.instance.employee_id:

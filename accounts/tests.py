@@ -259,6 +259,17 @@ class RotaViewTests(TestCase):
         self.assertContains(response, "Kwame Mensah")
         self.assertContains(response, "Daily roster report")
 
+    def test_rota_list_supports_start_and_end_date_range_filtering(self):
+        response = self.client.get(
+            reverse("hr-rota-list"),
+            {"start_date": "2026-05-18", "end_date": "2026-05-24", "employee": str(self.employee.pk)},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="start_date"', html=False)
+        self.assertContains(response, 'name="end_date"', html=False)
+        self.assertNotContains(response, "Reference date", html=False)
+        self.assertEqual(list(response.context["rotas"]), [self.rota])
+
     def test_rota_detail_shows_daily_breakdown(self):
         response = self.client.get(reverse("hr-rota-detail", args=[self.rota.pk]))
         self.assertEqual(response.status_code, 200)

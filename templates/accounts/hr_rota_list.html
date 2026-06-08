@@ -29,8 +29,12 @@
         </select>
       </div>
       <div class="col-md-3">
-        <label class="form-label">Reference date</label>
-        <input type="date" class="form-control" name="date" value="{{ reference_date|date:'Y-m-d' }}">
+        <label class="form-label">Start date</label>
+        <input type="date" class="form-control" name="start_date" value="{{ start_date|date:'Y-m-d' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">End date</label>
+        <input type="date" class="form-control" name="end_date" value="{{ end_date|date:'Y-m-d' }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">Search employee or notes</label>
@@ -51,9 +55,9 @@
     </form>
 
     <div class="d-flex flex-wrap gap-2 mt-3">
-      <a class="status-pill neutral" href="?period=week&date={{ reference_date|date:'Y-m-d' }}{% if query %}&q={{ query|urlencode }}{% endif %}">Week</a>
-      <a class="status-pill neutral" href="?period=month&date={{ reference_date|date:'Y-m-d' }}{% if query %}&q={{ query|urlencode }}{% endif %}">Month</a>
-      <a class="status-pill neutral" href="?period=year&date={{ reference_date|date:'Y-m-d' }}{% if query %}&q={{ query|urlencode }}{% endif %}">Year</a>
+      <a class="status-pill neutral" href="?period=week{% if start_date %}&start_date={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&end_date={{ end_date|date:'Y-m-d' }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if selected_employee %}&employee={{ selected_employee|urlencode }}{% endif %}">Week</a>
+      <a class="status-pill neutral" href="?period=month{% if start_date %}&start_date={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&end_date={{ end_date|date:'Y-m-d' }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if selected_employee %}&employee={{ selected_employee|urlencode }}{% endif %}">Month</a>
+      <a class="status-pill neutral" href="?period=year{% if start_date %}&start_date={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&end_date={{ end_date|date:'Y-m-d' }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if selected_employee %}&employee={{ selected_employee|urlencode }}{% endif %}">Year</a>
     </div>
   </div>
 

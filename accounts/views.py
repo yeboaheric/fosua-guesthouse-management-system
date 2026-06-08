@@ -1831,14 +1831,39 @@ def _parse_report_range(request):
 
 def _parse_rota_range(request):
     period = request.GET.get("period", "week").strip().lower() or "week"
+    start_date_str = request.GET.get("start_date")
+    end_date_str = request.GET.get("end_date")
     reference_date_str = request.GET.get("date")
     reference_date = timezone.localdate()
+    custom_start_date = None
+    custom_end_date = None
+
+    try:
+        if start_date_str:
+            custom_start_date = date.fromisoformat(start_date_str)
+    except ValueError:
+        custom_start_date = None
+
+    try:
+        if end_date_str:
+            custom_end_date = date.fromisoformat(end_date_str)
+    except ValueError:
+        custom_end_date = None
 
     try:
         if reference_date_str:
             reference_date = date.fromisoformat(reference_date_str)
     except ValueError:
         reference_date = timezone.localdate()
+
+    if custom_start_date and custom_end_date:
+        if custom_start_date > custom_end_date:
+            custom_start_date, custom_end_date = custom_end_date, custom_start_date
+        return period, custom_start_date, custom_start_date, custom_end_date
+    if custom_start_date:
+        return period, custom_start_date, custom_start_date, custom_start_date
+    if custom_end_date:
+        return period, custom_end_date, custom_end_date, custom_end_date
 
     if period == "month":
         start_date = reference_date.replace(day=1)

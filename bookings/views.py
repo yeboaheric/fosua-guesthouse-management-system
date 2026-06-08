@@ -1,6 +1,8 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta
+from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import DecimalField, Q, Sum, Value
@@ -26,6 +28,117 @@ def _parse_filter_date(raw_value):
         return value, date.fromisoformat(value)
     except ValueError:
         return value, None
+
+
+def _parse_week_value(raw_value):
+    value = (raw_value or "").strip()
+    if not value:
+        return "", None
+    try:
+        iso_year, iso_week = value.split("-W", 1)
+        return value, date.fromisocalendar(int(iso_year), int(iso_week), 1)
+    except (TypeError, ValueError):
+        return value, None
+
+
+def _build_operations_url(view_mode, selected_date=None, selected_week=None, range_start="", range_end=""):
+    params = {"view": view_mode}
+    if selected_date:
+        params["date"] = selected_date
+    if selected_week:
+        params["week"] = selected_week
+    if range_start:
+        params["range_start"] = range_start
+    if range_end:
+        params["range_end"] = range_end
+    query = urlencode({key: value for key, value in params.items() if value})
+    return f"?{query}" if query else ""
+
+
+def _room_status_at(room, target_moment):
+    history_entries = list(room.status_history.order_by("changed_at"))
+    relevant_history = [entry for entry in history_entries if entry.changed_at <= target_moment]
+    if relevant_history:
+        return relevant_history[-1].new_status
+    if history_entries and history_entries[0].changed_at > target_moment:
+        return history_entries[0].previous_status or None
+    if room.created_at and room.created_at <= target_moment:
+        return room.status
+    return None
+
+
+def _rooms_in_status_on_date(target_date, status_value):
+    target_moment = timezone.make_aware(datetime.combine(target_date, time.max))
+    room_type = ContentType.objects.get_for_model(Room)
+    rooms = list(
+        Room.objects.prefetch_related(
+            "status_history",
+        ).filter(
+            Q(created_at__date__lte=target_date)
+            | Q(status_history__content_type=room_type)
+        ).distinct().order_by("room_number")
+    )
+    matching_rooms = []
+    for room in rooms:
+        if _room_status_at(room, target_moment) == status_value:
+            matching_rooms.append(room)
+    return matching_rooms
+
+
+def _operations_snapshot_for_date(target_date):
+    check_in_statuses = [
+        Booking.BookingStatus.PENDING,
+        Booking.BookingStatus.CONFIRMED,
+        Booking.BookingStatus.CHECKED_IN,
+    ]
+    check_out_statuses = [
+        Booking.BookingStatus.CHECKED_IN,
+        Booking.BookingStatus.CHECKED_OUT,
+    ]
+
+    today_check_ins = Booking.objects.select_related("guest", "room").filter(
+        check_in=target_date,
+        status__in=check_in_statuses,
+    )
+    today_check_outs = Booking.objects.select_related("guest", "room").filter(
+        check_out=target_date,
+        status__in=check_out_statuses,
+    )
+    reservations_made = Booking.objects.select_related("guest", "room").filter(
+        created_at__date=target_date
+    )
+    cancelled_bookings = Booking.objects.select_related("guest", "room").filter(
+        status=Booking.BookingStatus.CANCELLED,
+        updated_at__date=target_date,
+    )
+    maintenance_rooms = _rooms_in_status_on_date(target_date, Room.RoomStatus.MAINTENANCE)
+    cleaning_rooms = _rooms_in_status_on_date(target_date, Room.RoomStatus.CLEANING)
+    today_event_bookings = EventBooking.objects.select_related("guest").filter(
+        event_start__date=target_date
+    )
+    cancelled_event_bookings = EventBooking.objects.select_related("guest").filter(
+        status=EventBooking.EventBookingStatus.CANCELLED,
+        updated_at__date=target_date,
+    )
+    return {
+        "date": target_date,
+        "today_check_ins": today_check_ins,
+        "today_check_outs": today_check_outs,
+        "reservations_made": reservations_made,
+        "cancelled_bookings": cancelled_bookings,
+        "maintenance_rooms": maintenance_rooms,
+        "cleaning_rooms": cleaning_rooms,
+        "today_event_bookings": today_event_bookings,
+        "cancelled_event_bookings": cancelled_event_bookings,
+        "check_ins_count": today_check_ins.count(),
+        "check_outs_count": today_check_outs.count(),
+        "reservations_count": reservations_made.count(),
+        "cancelled_count": cancelled_bookings.count(),
+        "maintenance_count": len(maintenance_rooms),
+        "cleaning_count": len(cleaning_rooms),
+        "events_count": today_event_bookings.count(),
+        "cancelled_events_count": cancelled_event_bookings.count(),
+    }
 
 
 @group_required("Admin", "Receptionist", module="reservations")
@@ -404,53 +517,138 @@ def event_booking_payments(request, pk):
 @group_required("Admin", "Receptionist", module="housekeeping")
 def operations_overview(request):
     today = timezone.localdate()
+    view_mode = request.GET.get("view", "daily").strip().lower() or "daily"
+    if view_mode not in {"daily", "weekly"}:
+        view_mode = "daily"
 
-    check_in_statuses = [
-        Booking.BookingStatus.PENDING,
-        Booking.BookingStatus.CONFIRMED,
-        Booking.BookingStatus.CHECKED_IN,
-    ]
-    check_out_statuses = [
-        Booking.BookingStatus.CHECKED_IN,
-        Booking.BookingStatus.CHECKED_OUT,
-    ]
+    date_input, selected_date = _parse_filter_date(request.GET.get("date"))
+    week_input, selected_week_start = _parse_week_value(request.GET.get("week"))
+    range_start_input, range_start = _parse_filter_date(request.GET.get("range_start"))
+    range_end_input, range_end = _parse_filter_date(request.GET.get("range_end"))
 
-    today_check_ins = Booking.objects.select_related("guest", "room").filter(
-        check_in=today,
-        status__in=check_in_statuses,
-    )
-    today_check_outs = Booking.objects.select_related("guest", "room").filter(
-        check_out=today,
-        status__in=check_out_statuses,
-    )
-    reservations_made = Booking.objects.select_related("guest", "room").filter(
-        created_at__date=today
-    )
-    cancelled_bookings = Booking.objects.select_related("guest", "room").filter(
-        status=Booking.BookingStatus.CANCELLED,
-        updated_at__date=today,
-    )
-    maintenance_rooms = Room.objects.filter(status=Room.RoomStatus.MAINTENANCE)
-    cleaning_rooms = Room.objects.filter(status=Room.RoomStatus.CLEANING)
-    today_event_bookings = EventBooking.objects.select_related("guest").filter(
-        event_start__date=today
-    )
-    cancelled_event_bookings = EventBooking.objects.select_related("guest").filter(
-        status=EventBooking.EventBookingStatus.CANCELLED,
-        updated_at__date=today,
-    )
+    if date_input and selected_date is None:
+        messages.error(request, "Enter a valid date for Operations Overview.")
+    if week_input and selected_week_start is None:
+        messages.error(request, "Enter a valid week for Operations Overview.")
+    if range_start_input and range_start is None:
+        messages.error(request, "Enter a valid range start date.")
+    if range_end_input and range_end is None:
+        messages.error(request, "Enter a valid range end date.")
+
+    using_custom_range = False
+    if view_mode == "weekly":
+        if range_start and range_end:
+            if range_end < range_start:
+                range_start, range_end = range_end, range_start
+            start_date = range_start
+            end_date = range_end
+            using_custom_range = True
+        else:
+            base_date = selected_week_start or selected_date or today
+            start_date = base_date - timedelta(days=base_date.weekday())
+            end_date = start_date + timedelta(days=6)
+        selected_day = selected_date or start_date
+        daily_snapshot = None
+        week_days = []
+        current_day = start_date
+        while current_day <= end_date:
+            snapshot = _operations_snapshot_for_date(current_day)
+            week_days.append(
+                {
+                    "date": current_day,
+                    "day_name": current_day.strftime("%A"),
+                    "snapshot": snapshot,
+                }
+            )
+            current_day += timedelta(days=1)
+        totals = {
+            "check_ins": sum(day["snapshot"]["check_ins_count"] for day in week_days),
+            "check_outs": sum(day["snapshot"]["check_outs_count"] for day in week_days),
+            "reservations": sum(day["snapshot"]["reservations_count"] for day in week_days),
+            "cancelled": sum(day["snapshot"]["cancelled_count"] for day in week_days),
+            "maintenance": sum(day["snapshot"]["maintenance_count"] for day in week_days),
+            "cleaning": sum(day["snapshot"]["cleaning_count"] for day in week_days),
+            "events": sum(day["snapshot"]["events_count"] for day in week_days),
+            "cancelled_events": sum(day["snapshot"]["cancelled_events_count"] for day in week_days),
+        }
+        range_label = (
+            f"{start_date:%d %b %Y} - {end_date:%d %b %Y}"
+            if using_custom_range or start_date != end_date
+            else start_date.strftime("%d %b %Y")
+        )
+        if using_custom_range:
+            previous_start = start_date - timedelta(days=(end_date - start_date).days + 1)
+            previous_end = end_date - timedelta(days=(end_date - start_date).days + 1)
+            next_start = start_date + timedelta(days=(end_date - start_date).days + 1)
+            next_end = end_date + timedelta(days=(end_date - start_date).days + 1)
+            previous_url = _build_operations_url(
+                "weekly",
+                selected_date="",
+                selected_week="",
+                range_start=previous_start.isoformat(),
+                range_end=previous_end.isoformat(),
+            )
+            next_url = _build_operations_url(
+                "weekly",
+                selected_date="",
+                selected_week="",
+                range_start=next_start.isoformat(),
+                range_end=next_end.isoformat(),
+            )
+        else:
+            previous_url = _build_operations_url(
+                "weekly",
+                selected_date=(start_date - timedelta(days=7)).isoformat(),
+                selected_week=(start_date - timedelta(days=7)).strftime("%G-W%V"),
+            )
+            next_url = _build_operations_url(
+                "weekly",
+                selected_date=(start_date + timedelta(days=7)).isoformat(),
+                selected_week=(start_date + timedelta(days=7)).strftime("%G-W%V"),
+            )
+    else:
+        selected_day = selected_date or today
+        daily_snapshot = _operations_snapshot_for_date(selected_day)
+        week_days = []
+        totals = None
+        start_date = selected_day
+        end_date = selected_day
+        range_label = selected_day.strftime("%d %b %Y")
+        previous_url = _build_operations_url(
+            "daily",
+            selected_date=(selected_day - timedelta(days=1)).isoformat(),
+        )
+        next_url = _build_operations_url(
+            "daily",
+            selected_date=(selected_day + timedelta(days=1)).isoformat(),
+        )
 
     context = {
         "today": today,
-        "today_check_ins": today_check_ins,
-        "today_check_outs": today_check_outs,
-        "reservations_made": reservations_made,
-        "cancelled_bookings": cancelled_bookings,
-        "maintenance_rooms": maintenance_rooms,
-        "cleaning_rooms": cleaning_rooms,
-        "today_event_bookings": today_event_bookings,
-        "cancelled_event_bookings": cancelled_event_bookings,
+        "view_mode": view_mode,
+        "selected_date": selected_day,
+        "selected_date_input": selected_day.isoformat(),
+        "selected_week_input": start_date.strftime("%G-W%V"),
+        "range_start_input": range_start_input or start_date.isoformat(),
+        "range_end_input": range_end_input or end_date.isoformat(),
+        "range_label": range_label,
+        "previous_url": previous_url,
+        "next_url": next_url,
+        "today_url": _build_operations_url("daily", selected_date=today.isoformat()),
+        "week_view_url": _build_operations_url(
+            "weekly",
+            selected_date=selected_day.isoformat(),
+            selected_week=(selected_week_start or start_date).strftime("%G-W%V"),
+            range_start=range_start_input if using_custom_range else "",
+            range_end=range_end_input if using_custom_range else "",
+        ),
+        "day_view_url": _build_operations_url("daily", selected_date=selected_day.isoformat()),
+        "week_days": week_days,
+        "weekly_totals": totals,
+        "using_custom_range": using_custom_range,
     }
+    if daily_snapshot is not None:
+        context.update(daily_snapshot)
     return render(request, "bookings/operations_overview.html", context)
 
 

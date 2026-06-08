@@ -1,4 +1,4 @@
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
@@ -196,6 +196,55 @@ class BookingWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Operations Overview")
         self.assertContains(response, "Cleaning")
+
+    def test_operations_overview_filters_daily_view_by_selected_date(self):
+        self.client.force_login(self.user)
+        self.booking.created_at = timezone.make_aware(datetime.combine(date(2026, 7, 1), time(9, 0)))
+        self.booking.updated_at = timezone.make_aware(datetime.combine(date(2026, 7, 1), time(9, 0)))
+        self.booking.save(update_fields=["created_at", "updated_at"])
+
+        response = self.client.get(
+            reverse("operations-overview"),
+            {"view": "daily", "date": "2026-07-01"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Daily view for Wed, 01 Jul 2026")
+        self.assertEqual(response.context["selected_date"], date(2026, 7, 1))
+        self.assertEqual(response.context["check_ins_count"], 2)
+        self.assertEqual(response.context["reservations_count"], 1)
+
+    def test_operations_overview_weekly_view_breaks_down_week(self):
+        self.client.force_login(self.user)
+        event_booking = EventBooking.objects.create(
+            guest=self.guest,
+            event_space_name="Main Event Space",
+            event_title="Conference",
+            purpose="Team event",
+            expected_guests=20,
+            event_start=timezone.make_aware(datetime.combine(date(2026, 7, 2), time(10, 0))),
+            event_end=timezone.make_aware(datetime.combine(date(2026, 7, 2), time(12, 0))),
+            status=EventBooking.EventBookingStatus.CONFIRMED,
+            created_by=self.user,
+        )
+        event_booking.created_at = timezone.make_aware(datetime.combine(date(2026, 7, 2), time(8, 0)))
+        event_booking.updated_at = timezone.make_aware(datetime.combine(date(2026, 7, 2), time(8, 0)))
+        event_booking.save(update_fields=["created_at", "updated_at"])
+
+        response = self.client.get(
+            reverse("operations-overview"),
+            {"view": "weekly", "week": "2026-W27"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Weekly view for 29 Jun 2026 - 05 Jul 2026")
+        self.assertContains(response, "Operations Breakdown by Day")
+        self.assertContains(response, "Monday")
+        self.assertContains(response, "Thursday")
+        self.assertEqual(len(response.context["week_days"]), 7)
+        thursday_snapshot = next(
+            row["snapshot"] for row in response.context["week_days"] if row["date"] == date(2026, 7, 2)
+        )
+        self.assertEqual(thursday_snapshot["events_count"], 1)
+        self.assertEqual(response.context["weekly_totals"]["events"], 1)
 
     def test_create_booking_for_multiple_rooms(self):
         self.client.force_login(self.user)

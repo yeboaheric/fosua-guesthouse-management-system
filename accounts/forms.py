@@ -39,6 +39,19 @@ GPS_ADDRESS_VALIDATOR = RegexValidator(
 )
 
 
+def _sync_user_access_profile(user):
+    defaults = access_defaults_for_roles(user.groups.values_list("name", flat=True))
+    profile, _ = UserAccessProfile.objects.get_or_create(user=user, defaults=defaults)
+    changed_fields = []
+    for field_name, value in defaults.items():
+        if getattr(profile, field_name) != value:
+            setattr(profile, field_name, value)
+            changed_fields.append(field_name)
+    if changed_fields:
+        profile.save(update_fields=changed_fields)
+    return profile
+
+
 class EmployeePhotoInput(forms.ClearableFileInput):
     template_name = "widgets/employee_photo_input.html"
 
@@ -512,7 +525,7 @@ class StaffUserForm(forms.Form):
         )
         roles = Group.objects.filter(name__in=self.cleaned_data["roles"])
         user.groups.set(roles)
-        UserAccessProfile.objects.create(user=user, **access_defaults_for_roles(self.cleaned_data["roles"]))
+        _sync_user_access_profile(user)
         StaffProfile.objects.update_or_create(
             user=user,
             defaults={
@@ -638,6 +651,9 @@ class RolePermissionForm(forms.Form):
             else:
                 RolePermission.objects.filter(role=self.role, module=module_name).delete()
 
+        for user in self.role.user_set.all().prefetch_related("groups"):
+            _sync_user_access_profile(user)
+
         return self.role
 
 
@@ -696,13 +712,7 @@ class StaffRoleForm(forms.Form):
         self.user.is_staff = self.cleaned_data.get("is_staff", False)
         self.user.save(update_fields=["first_name", "last_name", "email", "is_active", "is_staff"])
 
-        profile, _ = UserAccessProfile.objects.get_or_create(
-            user=self.user,
-            defaults=access_defaults_for_roles(self.cleaned_data.get("roles", [])),
-        )
-        for field_name, value in access_defaults_for_roles(self.cleaned_data.get("roles", [])).items():
-            setattr(profile, field_name, value)
-        profile.save()
+        _sync_user_access_profile(self.user)
         existing_profile = getattr(self.user, "staff_profile", None)
         profile_image = self.cleaned_data.get("profile_image") or getattr(existing_profile, "profile_image", None)
         StaffProfile.objects.update_or_create(

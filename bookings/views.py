@@ -514,7 +514,7 @@ def event_booking_payments(request, pk):
     )
 
 
-@group_required("Admin", "Receptionist", module="housekeeping")
+@group_required("Admin", "Receptionist", module="dashboard")
 def operations_overview(request):
     today = timezone.localdate()
     view_mode = request.GET.get("view", "daily").strip().lower() or "daily"

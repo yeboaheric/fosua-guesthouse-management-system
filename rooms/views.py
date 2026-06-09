@@ -269,7 +269,14 @@ def _dashboard_context(item_form, log_form, report_range, form_mode="log", editi
     }
 
 
-@group_required("Admin", "Receptionist", "Housekeeping", module="housekeeping")
+@group_required(
+    "Admin",
+    "Receptionist",
+    "Housekeeping",
+    module="housekeeping",
+    denied_redirect="dashboard",
+    denied_message="You are not authorized to access Housekeeping.",
+)
 def housekeeping_dashboard(request):
     report_range = request.GET.get("report", "daily")
     form_mode = request.GET.get("mode", "log")
@@ -303,7 +310,14 @@ def housekeeping_dashboard(request):
     )
 
 
-@group_required("Admin", "Receptionist", "Housekeeping", module="housekeeping")
+@group_required(
+    "Admin",
+    "Receptionist",
+    "Housekeeping",
+    module="housekeeping",
+    denied_redirect="dashboard",
+    denied_message="You are not authorized to access Housekeeping.",
+)
 def housekeeping_log_edit(request, pk):
     entry = get_object_or_404(HousekeepingItemLog, pk=pk)
     report_range = request.GET.get("report", "daily")
@@ -321,7 +335,14 @@ def housekeeping_log_edit(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", "Housekeeping", module="housekeeping")
+@group_required(
+    "Admin",
+    "Receptionist",
+    "Housekeeping",
+    module="housekeeping",
+    denied_redirect="dashboard",
+    denied_message="You are not authorized to access Housekeeping.",
+)
 def housekeeping_log_delete(request, pk):
     entry = get_object_or_404(HousekeepingItemLog, pk=pk)
     report_range = request.GET.get("report", "daily")
@@ -330,7 +351,14 @@ def housekeeping_log_delete(request, pk):
     return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}&mode=log")
 
 
-@group_required("Admin", "Receptionist", "Housekeeping", module="housekeeping")
+@group_required(
+    "Admin",
+    "Receptionist",
+    "Housekeeping",
+    module="housekeeping",
+    denied_redirect="dashboard",
+    denied_message="You are not authorized to access Housekeeping.",
+)
 def housekeeping_report_export(request, report_range):
     try:
         from openpyxl import Workbook

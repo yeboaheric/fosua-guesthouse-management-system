@@ -37,6 +37,7 @@ MODULE_FIELDS = {
 }
 
 PERMISSION_SNAPSHOT_SESSION_KEY = "fg_permission_snapshot"
+PERMISSION_SNAPSHOT_REQUEST_ATTR = "_fg_permission_snapshot"
 
 DEFAULT_ROLE_PRESETS = {
     "Super Administrator": {module: {action for action, _ in ACTION_CHOICES} for module, _ in ACCESS_MODULE_CHOICES},
@@ -65,7 +66,7 @@ DEFAULT_ROLE_PRESETS = {
         "guests": {"view", "create", "edit"},
         "payments": {"view", "create", "print"},
         "services": {"view", "create", "edit"},
-        "housekeeping": {"view"},
+        "housekeeping": set(),
         "inventory": set(),
         "pos": {"view", "create", "print"},
         "notifications": {"view"},
@@ -188,28 +189,33 @@ def build_permission_snapshot(user) -> dict:
 
 
 def store_permission_snapshot(request, user):
-    if request is None or not hasattr(request, "session"):
-        return None
     snapshot = build_permission_snapshot(user)
-    request.session[PERMISSION_SNAPSHOT_SESSION_KEY] = snapshot
-    request.session.modified = True
+    if request is None:
+        return snapshot
+    setattr(request, PERMISSION_SNAPSHOT_REQUEST_ATTR, snapshot)
+    if hasattr(request, "session"):
+        request.session.pop(PERMISSION_SNAPSHOT_SESSION_KEY, None)
+        request.session.modified = True
     return snapshot
 
 
 def clear_permission_snapshot(request):
-    if request is None or not hasattr(request, "session"):
+    if request is None:
         return
-    request.session.pop(PERMISSION_SNAPSHOT_SESSION_KEY, None)
-    request.session.modified = True
+    if hasattr(request, PERMISSION_SNAPSHOT_REQUEST_ATTR):
+        delattr(request, PERMISSION_SNAPSHOT_REQUEST_ATTR)
+    if hasattr(request, "session"):
+        request.session.pop(PERMISSION_SNAPSHOT_SESSION_KEY, None)
+        request.session.modified = True
 
 
 def get_permission_snapshot(user):
     from accounts.audit import get_current_request
 
     request = get_current_request()
-    if request is None or not hasattr(request, "session"):
+    if request is None:
         return None
-    snapshot = request.session.get(PERMISSION_SNAPSHOT_SESSION_KEY)
+    snapshot = getattr(request, PERMISSION_SNAPSHOT_REQUEST_ATTR, None)
     if not snapshot or snapshot.get("user_id") != getattr(user, "pk", None):
         return None
     return snapshot
@@ -247,19 +253,17 @@ def user_has_permission(user, module_name: str, action: str = "view") -> bool:
     if user.groups.filter(name__in=["Admin", "Super Administrator"]).exists():
         return True
 
-    access_profile = getattr(user, "access_profile", None)
     snapshot = get_permission_snapshot(user)
     if snapshot is None:
-        if action == "view" and access_profile is not None:
-            if not getattr(access_profile, MODULE_FIELDS.get(module_name, ""), False):
-                return False
         snapshot = build_permission_snapshot(user)
         from accounts.audit import get_current_request
 
         request = get_current_request()
-        if request is not None and hasattr(request, "session"):
-            request.session[PERMISSION_SNAPSHOT_SESSION_KEY] = snapshot
-            request.session.modified = True
+        if request is not None:
+            setattr(request, PERMISSION_SNAPSHOT_REQUEST_ATTR, snapshot)
+            if hasattr(request, "session"):
+                request.session.pop(PERMISSION_SNAPSHOT_SESSION_KEY, None)
+                request.session.modified = True
 
     module_access = snapshot.get("module_access", {})
     module_actions = snapshot.get("module_actions", {})

@@ -70,7 +70,7 @@ def module_from_url_name(url_name: str | None) -> str:
         "housekeeping-log-edit": "housekeeping",
         "housekeeping-log-delete": "housekeeping",
         "housekeeping-report-export": "housekeeping",
-        "operations-overview": "housekeeping",
+        "operations-overview": "dashboard",
         "inventory-dashboard": "inventory",
         "inventory-categories": "inventory",
         "inventory-subcategories": "inventory",

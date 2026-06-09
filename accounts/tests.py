@@ -9,7 +9,7 @@ from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
 from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.test import override_settings
 from django.urls import reverse
 from guests.models import Guest
@@ -167,6 +167,92 @@ class DashboardRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Upcoming check-in")
         self.assertEqual(Notification.objects.filter(user=user).count(), 1)
+
+    def test_receptionist_cannot_see_or_access_housekeeping(self):
+        receptionist_user = User.objects.create_user(
+            username="reception-housekeeping", password="pass123456"
+        )
+        receptionist_user.groups.add(self.receptionist_group)
+        self.client.force_login(receptionist_user)
+
+        nav_response = self.client.get(reverse("room-list"))
+        self.assertEqual(nav_response.status_code, 200)
+        self.assertNotContains(nav_response, ">Housekeeping<", html=False)
+        self.assertContains(nav_response, "Operations Overview")
+
+        access_response = self.client.get(reverse("housekeeping-dashboard"), follow=True)
+        self.assertRedirects(access_response, reverse("reception-dashboard"))
+        messages = [str(message) for message in access_response.context["messages"]]
+        self.assertIn("You are not authorized to access Housekeeping.", messages)
+
+        operations_response = self.client.get(reverse("operations-overview"))
+        self.assertEqual(operations_response.status_code, 200)
+
+
+class UsersRolesPermissionPropagationTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.admin_user = User.objects.create_user(username="permissions-admin", password="pass123456")
+        self.admin_user.groups.add(self.admin_group)
+        self.client.force_login(self.admin_user)
+
+        self.custom_role = Group.objects.create(name="Custom Operations")
+        self.staff_user = User.objects.create_user(username="permissions-user", password="pass123456")
+        self.staff_user.groups.add(self.custom_role)
+        UserAccessProfile.objects.create(
+            user=self.staff_user,
+            dashboard_access=True,
+            reservations_access=False,
+            rooms_access=False,
+            guests_access=False,
+            payments_access=False,
+            services_access=False,
+            housekeeping_access=False,
+            inventory_access=False,
+            pos_access=False,
+            notifications_access=False,
+            analytics_access=False,
+            reports_access=False,
+            settings_access=False,
+            staff_management_access=False,
+            handovers_access=False,
+            users_roles_access=False,
+        )
+        self.staff_client = Client()
+        self.staff_client.force_login(self.staff_user)
+
+    def _save_role_permissions(self, **enabled_fields):
+        payload = {
+            "action": "save_role_permissions",
+            "role_id": self.custom_role.pk,
+            "role_name": self.custom_role.name,
+        }
+        payload.update(enabled_fields)
+        return self.client.post(reverse("users-roles-center"), payload)
+
+    def test_role_permission_changes_apply_immediately_without_relogin(self):
+        denied_response = self.staff_client.get(reverse("inventory-dashboard"))
+        self.assertEqual(denied_response.status_code, 403)
+
+        update_response = self._save_role_permissions(inventory_view="on")
+        self.assertRedirects(update_response, reverse("users-roles-center"))
+
+        self.staff_user.access_profile.refresh_from_db()
+        self.assertTrue(self.staff_user.access_profile.inventory_access)
+        self.assertTrue(user_has_permission(self.staff_user, "inventory"))
+
+        allowed_response = self.staff_client.get(reverse("inventory-dashboard"))
+        self.assertEqual(allowed_response.status_code, 200)
+
+        revoke_response = self._save_role_permissions()
+        self.assertRedirects(revoke_response, reverse("users-roles-center"))
+
+        self.staff_user.access_profile.refresh_from_db()
+        self.assertFalse(self.staff_user.access_profile.inventory_access)
+        self.assertFalse(user_has_permission(self.staff_user, "inventory"))
+
+        denied_again_response = self.staff_client.get(reverse("inventory-dashboard"))
+        self.assertEqual(denied_again_response.status_code, 403)
 
 
 class AdminReportExportTests(TestCase):
@@ -1339,7 +1425,7 @@ class StaffManagementTests(TestCase):
 
 
 class PermissionSnapshotTests(TestCase):
-    def test_permission_changes_take_effect_after_logout_and_signin(self):
+    def test_permission_changes_take_effect_immediately_and_after_relogin(self):
         role = Group.objects.create(name="Temp Reception")
         RolePermission.objects.create(
             role=role,
@@ -1365,7 +1451,7 @@ class PermissionSnapshotTests(TestCase):
         permission.save(update_fields=["can_view", "can_create", "updated_at"])
 
         response = self.client.get(reverse("booking-list"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
 
         self.client.logout()
         self.assertTrue(

@@ -553,7 +553,13 @@ def services_center(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="housekeeping")
+@group_required(
+    "Admin",
+    "Receptionist",
+    module="housekeeping",
+    denied_redirect="dashboard",
+    denied_message="You are not authorized to access Housekeeping.",
+)
 def housekeeping_center(request):
     report_range = request.GET.get("report", "daily")
     return redirect(f"{reverse('housekeeping-dashboard')}?report={report_range}")

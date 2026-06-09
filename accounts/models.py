@@ -378,11 +378,11 @@ class Rota(models.Model):
         if not all([self.period_start, self.period_end, self.opening_time, self.closing_time]):
             return 0
 
+        if self.period_end < self.period_start:
+            return 0
+
         day_count = (self.period_end - self.period_start).days + 1
-        opening_minutes = self.opening_time.hour * 60 + self.opening_time.minute
-        closing_minutes = self.closing_time.hour * 60 + self.closing_time.minute
-        shift_minutes = max(closing_minutes - opening_minutes, 0)
-        return round((shift_minutes / 60) * day_count, 2)
+        return round(self.daily_hours * day_count, 2)
 
     @property
     def daily_hours(self):
@@ -391,7 +391,9 @@ class Rota(models.Model):
 
         opening_minutes = self.opening_time.hour * 60 + self.opening_time.minute
         closing_minutes = self.closing_time.hour * 60 + self.closing_time.minute
-        shift_minutes = max(closing_minutes - opening_minutes, 0)
+        shift_minutes = closing_minutes - opening_minutes
+        if shift_minutes <= 0:
+            shift_minutes += 24 * 60
         return round(shift_minutes / 60, 2)
 
 

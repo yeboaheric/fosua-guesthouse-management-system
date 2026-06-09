@@ -430,6 +430,19 @@ class RotaViewTests(TestCase):
         self.assertContains(response, "Monday")
         self.assertContains(response, "8.00")
 
+    def test_overnight_rota_hours_are_counted_across_midnight(self):
+        overnight_rota = Rota.objects.create(
+            employee=self.employee,
+            period="Night shift rota",
+            period_start=date(2026, 5, 18),
+            period_end=date(2026, 5, 24),
+            opening_time=time(22, 0),
+            closing_time=time(6, 0),
+        )
+
+        self.assertEqual(overnight_rota.daily_hours, 8)
+        self.assertEqual(overnight_rota.total_hours, 56)
+
 
 class CustomRolePermissionTests(TestCase):
     def setUp(self):

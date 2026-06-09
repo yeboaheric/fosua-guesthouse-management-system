@@ -42,6 +42,7 @@ class Room(StatusTrackingMixin, models.Model):
 
     def save(self, *args, **kwargs):
         now = timezone.now()
+        update_fields = kwargs.get("update_fields")
         if self.pk:
             previous = Room.objects.filter(pk=self.pk).values(
                 "status",
@@ -49,10 +50,19 @@ class Room(StatusTrackingMixin, models.Model):
                 "last_status_changed_at",
             ).first()
             if previous:
-                if not self.status_started_at:
-                    self.status_started_at = previous["status_started_at"] or now
-
-                self.last_status_changed_at = now
+                previous_started_at = previous["status_started_at"] or now
+                previous_changed_at = previous["last_status_changed_at"] or previous_started_at
+                if self.status != previous["status"]:
+                    self.status_started_at = now
+                    self.last_status_changed_at = now
+                    if update_fields is not None:
+                        kwargs["update_fields"] = set(update_fields) | {
+                            "status_started_at",
+                            "last_status_changed_at",
+                        }
+                else:
+                    self.status_started_at = previous_started_at
+                    self.last_status_changed_at = previous_changed_at
         else:
             self.status_started_at = self.status_started_at or now
             self.last_status_changed_at = self.last_status_changed_at or now

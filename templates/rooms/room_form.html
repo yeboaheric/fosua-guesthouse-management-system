@@ -9,6 +9,11 @@
     </div>
     <div class="card shadow-sm">
       <div class="card-body">
+        {% if status_only %}
+          <div class="alert alert-info" role="alert">
+            Only the room status can be changed with a receptionist account. All other room details are locked.
+          </div>
+        {% endif %}
         <form method="post">
           {% csrf_token %}
           {{ form.non_field_errors }}
@@ -16,6 +21,9 @@
             <div class="mb-3">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
+              {% if status_only and field.name != "status" %}
+                <div class="form-text">Read-only for receptionist accounts.</div>
+              {% endif %}
               {% if field.errors %}
                 <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
               {% endif %}

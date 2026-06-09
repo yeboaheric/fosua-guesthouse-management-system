@@ -12,6 +12,8 @@ class TrimmedDecimalNumberInput(forms.NumberInput):
 
 
 class RoomForm(forms.ModelForm):
+    STATUS_ONLY_FIELDS = {"status"}
+
     class Meta:
         model = Room
         fields = ["room_number", "room_type", "status", "base_rate", "notes"]
@@ -20,7 +22,9 @@ class RoomForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        status_only = kwargs.pop("status_only", False)
         super().__init__(*args, **kwargs)
+        self.status_only = status_only
         for field in self.fields.values():
             css_class = (
                 "form-select"
@@ -28,6 +32,26 @@ class RoomForm(forms.ModelForm):
                 else "form-control"
             )
             field.widget.attrs["class"] = css_class
+        if self.status_only:
+            for field_name, field in self.fields.items():
+                if field_name in self.STATUS_ONLY_FIELDS:
+                    continue
+                field.disabled = True
+                field.widget.attrs["readonly"] = "readonly"
+                field.widget.attrs["aria-disabled"] = "true"
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.status_only and self.instance.pk:
+            original = self._meta.model.objects.get(pk=self.instance.pk)
+            for field_name in self.fields:
+                if field_name in self.STATUS_ONLY_FIELDS:
+                    continue
+                setattr(instance, field_name, getattr(original, field_name))
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 class HousekeepingItemLogForm(forms.ModelForm):

@@ -73,6 +73,85 @@ class RoomTimestampTests(TestCase):
         self.assertGreater(room.last_status_changed_at, original_changed)
 
 
+class RoomEditPermissionTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.manager_group = Group.objects.create(name="Manager")
+        self.receptionist_group = Group.objects.create(name="Receptionist")
+        self.room = Room.objects.create(
+            room_number="250",
+            room_type=Room.RoomType.DELUXE,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=275,
+            notes="Ocean-facing room",
+        )
+
+    def test_receptionist_can_open_edit_form_but_only_change_status(self):
+        user = User.objects.create_user(username="reception_room", password="pass123456")
+        user.groups.add(self.receptionist_group)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("room-update", args=[self.room.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Only the room status can be changed", html=False)
+        self.assertTrue(response.context["status_only"])
+        self.assertTrue(response.context["form"].fields["room_number"].disabled)
+        self.assertTrue(response.context["form"].fields["room_type"].disabled)
+        self.assertTrue(response.context["form"].fields["base_rate"].disabled)
+        self.assertTrue(response.context["form"].fields["notes"].disabled)
+        self.assertFalse(response.context["form"].fields["status"].disabled)
+        self.assertContains(response, 'name="room_number"', html=False)
+        self.assertContains(response, 'disabled id="id_room_number"', html=False)
+        self.assertContains(response, 'name="status"', html=False)
+
+        response = self.client.post(
+            reverse("room-update", args=[self.room.pk]),
+            {
+                "room_number": "999",
+                "room_type": Room.RoomType.STANDARD,
+                "status": Room.RoomStatus.CLEANING,
+                "base_rate": "999.00",
+                "notes": "Changed by receptionist",
+            },
+        )
+        self.assertRedirects(response, reverse("room-list"))
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.status, Room.RoomStatus.CLEANING)
+        self.assertEqual(self.room.room_number, "250")
+        self.assertEqual(self.room.room_type, Room.RoomType.DELUXE)
+        self.assertEqual(self.room.base_rate, 275)
+        self.assertEqual(self.room.notes, "Ocean-facing room")
+
+    def test_manager_keeps_full_room_edit_access(self):
+        user = User.objects.create_user(username="manager_room", password="pass123456")
+        user.groups.add(self.manager_group)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("room-update", args=[self.room.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Only the room status can be changed", html=False)
+        self.assertFalse(response.context["status_only"])
+        self.assertFalse(response.context["form"].fields["room_number"].disabled)
+
+        response = self.client.post(
+            reverse("room-update", args=[self.room.pk]),
+            {
+                "room_number": "251",
+                "room_type": Room.RoomType.STANDARD,
+                "status": Room.RoomStatus.MAINTENANCE,
+                "base_rate": "325.00",
+                "notes": "Manager update",
+            },
+        )
+        self.assertRedirects(response, reverse("room-list"))
+        self.room.refresh_from_db()
+        self.assertEqual(self.room.room_number, "251")
+        self.assertEqual(self.room.room_type, Room.RoomType.STANDARD)
+        self.assertEqual(self.room.status, Room.RoomStatus.MAINTENANCE)
+        self.assertEqual(self.room.base_rate, 325)
+        self.assertEqual(self.room.notes, "Manager update")
+
+
 class HousekeepingUsageLoggerTests(TestCase):
     def setUp(self):
         admin_group = Group.objects.create(name="Admin")

@@ -4,6 +4,7 @@ from decimal import Decimal
 from io import BytesIO
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Sum, Value
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse
@@ -13,6 +14,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.decorators import group_required
+from accounts.permissions import user_has_permission
 from bookings.models import Booking
 from rooms.forms import HousekeepingItemForm, HousekeepingItemLogForm, RoomForm
 from rooms.models import HousekeepingItem, HousekeepingItemLog, Room
@@ -73,18 +75,36 @@ def room_create(request):
     return render(request, "rooms/room_form.html", {"form": form, "title": "Add Room"})
 
 
-@group_required("Admin")
+@group_required(module="rooms")
 def room_update(request, pk):
     room = get_object_or_404(Room, pk=pk)
+    is_receptionist = request.user.groups.filter(name="Receptionist").exists()
+    can_full_edit = user_has_permission(request.user, "rooms", "edit")
+
+    if not is_receptionist and not can_full_edit:
+        raise PermissionDenied
+
+    status_only = is_receptionist
     if request.method == "POST":
-        form = RoomForm(request.POST, instance=room)
+        form = RoomForm(request.POST, instance=room, status_only=status_only)
         if form.is_valid():
             form.save()
-            messages.success(request, "Room updated successfully.")
+            if status_only:
+                messages.success(request, "Room status updated successfully.")
+            else:
+                messages.success(request, "Room updated successfully.")
             return redirect("room-list")
     else:
-        form = RoomForm(instance=room)
-    return render(request, "rooms/room_form.html", {"form": form, "title": "Edit Room"})
+        form = RoomForm(instance=room, status_only=status_only)
+    return render(
+        request,
+        "rooms/room_form.html",
+        {
+            "form": form,
+            "title": "Edit Room",
+            "status_only": status_only,
+        },
+    )
 
 
 @group_required("Admin", "Receptionist", module="rooms")

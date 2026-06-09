@@ -1,7 +1,7 @@
 import csv
 import json
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from io import BytesIO
 from calendar import monthrange
@@ -13,6 +13,7 @@ from django.contrib.auth.models import Group
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Q, Sum, Value
 from django.db.models.deletion import ProtectedError
@@ -733,30 +734,55 @@ def users_roles_center(request):
 
 @group_required("Admin", "Receptionist", module="analytics")
 def analytics_center(request):
-    start_date, end_date = _parse_report_range(request)
-    total_rooms = Room.objects.count()
-    daily_rows = _daily_report_rows(start_date, end_date, total_rooms)
-    period_revenue_total = sum((row["revenue_collected"] for row in daily_rows), 0)
+    filters = _analytics_filters_from_request(request)
+    sections = _build_analytics_sections(filters)
+    charts = [chart for section in sections for chart in section["charts"]]
     return render(
         request,
         "accounts/analytics_center.html",
         {
-            "start_date": start_date,
-            "end_date": end_date,
-            "daily_rows": daily_rows,
-            "period_revenue_total": period_revenue_total,
-            "active_bookings": Booking.objects.filter(
-                status__in=[
-                    Booking.BookingStatus.PENDING,
-                    Booking.BookingStatus.CONFIRMED,
-                    Booking.BookingStatus.CHECKED_IN,
-                ]
-            ).count(),
-            "chart_labels_json": json.dumps([row["date"] for row in daily_rows]),
-            "revenue_data_json": json.dumps([float(row["revenue_collected"]) for row in daily_rows]),
-            "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in daily_rows]),
+            "report_window": filters["report_window"],
+            "start_date": filters["start_date"].isoformat(),
+            "end_date": filters["end_date"].isoformat(),
+            "selected_period": filters["period"],
+            "selected_department": filters["department"],
+            "selected_room_type": filters["room_type"],
+            "selected_staff_role": filters["staff_role"],
+            "department_options": _analytics_department_options(),
+            "room_type_options": list(Room.RoomType.choices),
+            "staff_role_options": _system_role_filter_options(),
+            "summary_metrics": _build_analytics_summary_metrics(sections),
+            "sections": sections,
+            "charts_json": json.dumps(charts),
+            "export_xlsx_url": f"{reverse('analytics-export', args=['xlsx'])}?{filters['query_string']}",
+            "export_pdf_url": f"{reverse('analytics-export', args=['pdf'])}?{filters['query_string']}",
         },
     )
+
+
+@group_required("Admin", "Receptionist", module="analytics")
+def analytics_export(request, fmt):
+    filters = _analytics_filters_from_request(request)
+    sections = _build_analytics_sections(filters)
+    filename_base = f"analytics-{filters['report_window']['filename_range']}"
+
+    if fmt == "xlsx":
+        workbook = _create_reports_workbook_or_none(request)
+        if workbook is None:
+            return redirect("analytics-center")
+        overview_sheet = workbook.active
+        overview_sheet.title = "Overview"
+        _write_report_overview_sheet(overview_sheet, sections, filters["report_window"]["display_range"])
+        for section in sections:
+            sheet = workbook.create_sheet(title=section["sheet_title"])
+            _write_report_section_sheet(sheet, section, filters["report_window"]["display_range"])
+        return _xlsx_response(workbook, f"{filename_base}.xlsx")
+
+    if fmt == "pdf":
+        return _analytics_pdf_response(sections, filters, f"{filename_base}.pdf")
+
+    messages.error(request, "Unsupported analytics export format.")
+    return redirect("analytics-center")
 
 
 STAFF_FILTER_QUERY_KEYS = (
@@ -1953,6 +1979,1235 @@ def _build_admin_report_summary_metrics(sections):
         },
     ]
 
+
+def _analytics_filters_from_request(request):
+    report_window = _report_window_from_request(request)
+    query = QueryDict("", mutable=True)
+    query["period"] = report_window["period"]
+    query["start_date"] = report_window["start_date"].isoformat()
+    query["end_date"] = report_window["end_date"].isoformat()
+
+    department = request.GET.get("department", "").strip()
+    room_type = request.GET.get("room_type", "").strip()
+    staff_role = request.GET.get("staff_role", "").strip()
+
+    if department:
+        query["department"] = department
+    if room_type:
+        query["room_type"] = room_type
+    if staff_role:
+        query["staff_role"] = staff_role
+
+    return {
+        "report_window": report_window,
+        "period": report_window["period"],
+        "start_date": report_window["start_date"],
+        "end_date": report_window["end_date"],
+        "department": department,
+        "room_type": room_type,
+        "staff_role": staff_role,
+        "query_string": query.urlencode(),
+    }
+
+
+def _analytics_department_options():
+    return sorted(
+        set(
+            Employee.objects.exclude(department="")
+            .values_list("department", flat=True)
+            .distinct()
+        )
+    )
+
+
+def _analytics_room_floor(room_number):
+    digits = "".join(char for char in str(room_number or "") if char.isdigit())
+    if not digits:
+        return "Unknown"
+    if len(digits) >= 3:
+        floor_number = int(digits[:-2] or 0)
+    else:
+        floor_number = int(digits[0] or 0)
+    return "Ground Floor" if floor_number == 0 else f"Floor {floor_number}"
+
+
+def _analytics_granularity(period, start_date, end_date):
+    day_span = max((end_date - start_date).days + 1, 1)
+    if period == "yearly" or day_span > 180:
+        return "month"
+    if period == "monthly" or day_span > 45:
+        return "week"
+    return "day"
+
+
+def _analytics_bucket_key(day, granularity):
+    if granularity == "month":
+        return day.replace(day=1)
+    if granularity == "week":
+        return day - timedelta(days=day.weekday())
+    return day
+
+
+def _analytics_bucket_label(bucket_key, granularity):
+    if granularity == "month":
+        return bucket_key.strftime("%b %Y")
+    if granularity == "week":
+        return f"Week of {bucket_key.strftime('%d %b')}"
+    return bucket_key.strftime("%d %b")
+
+
+def _analytics_aggregate_points(points, period, start_date, end_date, sum_fields, avg_fields=()):
+    granularity = _analytics_granularity(period, start_date, end_date)
+    buckets = {}
+    counts = defaultdict(int)
+    field_names = list(sum_fields) + list(avg_fields)
+
+    for point in points:
+        bucket_key = _analytics_bucket_key(point["date"], granularity)
+        if bucket_key not in buckets:
+            buckets[bucket_key] = {field_name: Decimal("0") for field_name in field_names}
+        counts[bucket_key] += 1
+        for field_name in field_names:
+            buckets[bucket_key][field_name] += Decimal(str(point.get(field_name, 0) or 0))
+
+    labels = []
+    values = {field_name: [] for field_name in field_names}
+    for bucket_key in sorted(buckets):
+        labels.append(_analytics_bucket_label(bucket_key, granularity))
+        for field_name in sum_fields:
+            values[field_name].append(float(buckets[bucket_key][field_name]))
+        for field_name in avg_fields:
+            divisor = counts[bucket_key] or 1
+            values[field_name].append(float(buckets[bucket_key][field_name] / Decimal(divisor)))
+    return {"labels": labels, "values": values, "granularity": granularity}
+
+
+def _analytics_room_queryset(room_type=""):
+    queryset = Room.objects.all().order_by("room_number")
+    if room_type:
+        queryset = queryset.filter(room_type=room_type)
+    return queryset
+
+
+def _analytics_employee_queryset(department="", staff_role=""):
+    queryset = Employee.objects.all().order_by("last_name", "first_name")
+    if department:
+        queryset = queryset.filter(department=department)
+    if staff_role:
+        queryset = queryset.filter(position=staff_role)
+    return queryset
+
+
+def _analytics_booking_creation_queryset(start_date, end_date, room_type=""):
+    queryset = Booking.objects.select_related("guest", "room").filter(
+        created_at__date__range=[start_date, end_date]
+    )
+    if room_type:
+        queryset = queryset.filter(room__room_type=room_type)
+    return queryset
+
+
+def _analytics_booking_stay_queryset(start_date, end_date, room_type=""):
+    queryset = Booking.objects.select_related("guest", "room").filter(
+        check_in__lte=end_date,
+        check_out__gt=start_date,
+    )
+    if room_type:
+        queryset = queryset.filter(room__room_type=room_type)
+    return queryset
+
+
+def _analytics_room_status_at(room, target_moment):
+    history_entries = sorted(
+        list(room.status_history.all()),
+        key=lambda entry: entry.changed_at,
+    )
+    relevant_history = [entry for entry in history_entries if entry.changed_at <= target_moment]
+    if relevant_history:
+        return relevant_history[-1].new_status
+    if history_entries and history_entries[0].changed_at > target_moment:
+        return history_entries[0].previous_status or None
+    if room.created_at and room.created_at <= target_moment:
+        return room.status
+    return None
+
+
+def _analytics_room_status_points(start_date, end_date, room_type=""):
+    room_type_ct = ContentType.objects.get_for_model(Room)
+    rooms = list(
+        _analytics_room_queryset(room_type).prefetch_related("status_history").filter(
+            Q(created_at__date__lte=end_date)
+            | Q(status_history__content_type=room_type_ct)
+        ).distinct()
+    )
+    points = []
+    for current_day in _report_days(start_date, end_date):
+        target_moment = timezone.make_aware(
+            datetime.combine(current_day, time.max)
+        )
+        status_counts = {
+            Room.RoomStatus.AVAILABLE: 0,
+            Room.RoomStatus.OCCUPIED: 0,
+            Room.RoomStatus.MAINTENANCE: 0,
+            Room.RoomStatus.CLEANING: 0,
+        }
+        for room in rooms:
+            status_value = _analytics_room_status_at(room, target_moment)
+            if status_value in status_counts:
+                status_counts[status_value] += 1
+        points.append(
+            {
+                "date": current_day,
+                "available": status_counts[Room.RoomStatus.AVAILABLE],
+                "occupied": status_counts[Room.RoomStatus.OCCUPIED],
+                "maintenance": status_counts[Room.RoomStatus.MAINTENANCE],
+                "cleaning": status_counts[Room.RoomStatus.CLEANING],
+            }
+        )
+    return points
+
+
+def _analytics_daily_occupancy_rows(start_date, end_date, room_type=""):
+    rooms = list(_analytics_room_queryset(room_type))
+    room_ids = {room.pk for room in rooms}
+    total_rooms = len(room_ids)
+    active_statuses = [
+        Booking.BookingStatus.PENDING,
+        Booking.BookingStatus.CONFIRMED,
+        Booking.BookingStatus.CHECKED_IN,
+    ]
+    bookings = list(
+        Booking.objects.filter(
+            room_id__in=room_ids,
+            status__in=active_statuses,
+            check_in__lte=end_date,
+            check_out__gt=start_date,
+        ).values("room_id", "check_in", "check_out")
+    ) if room_ids else []
+    occupied_sets = {current_day: set() for current_day in _report_days(start_date, end_date)}
+    for booking in bookings:
+        overlap_start = max(booking["check_in"], start_date)
+        overlap_end = min(booking["check_out"] - timedelta(days=1), end_date)
+        current_day = overlap_start
+        while current_day <= overlap_end:
+            occupied_sets[current_day].add(booking["room_id"])
+            current_day += timedelta(days=1)
+
+    revenue_by_day = {
+        row["day"]: Decimal(str(row["total"] or 0))
+        for row in Payment.objects.filter(
+            paid_at__date__range=[start_date, end_date],
+            booking__room_id__in=room_ids,
+        )
+        .annotate(day=TruncDate("paid_at"))
+        .values("day")
+        .annotate(total=Coalesce(Sum("amount"), Value(0, output_field=DecimalField(max_digits=12, decimal_places=2))))
+    } if room_ids else {}
+
+    rows = []
+    for current_day in _report_days(start_date, end_date):
+        occupied_rooms = len(occupied_sets[current_day])
+        occupancy_percent = round((occupied_rooms / total_rooms) * 100, 2) if total_rooms else 0
+        rows.append(
+            {
+                "date": current_day,
+                "occupied_rooms": occupied_rooms,
+                "occupancy_percent": occupancy_percent,
+                "revenue_collected": revenue_by_day.get(current_day, Decimal("0")),
+            }
+        )
+    return rows
+
+
+def _analytics_chart(chart_id, title, chart_type, labels, datasets):
+    return {
+        "id": chart_id,
+        "title": title,
+        "type": chart_type,
+        "labels": labels,
+        "datasets": datasets,
+    }
+
+
+def _build_rooms_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    room_type = filters["room_type"]
+
+    rooms = list(_analytics_room_queryset(room_type))
+    bookings = list(_analytics_booking_stay_queryset(start_date, end_date, room_type))
+    occupancy_rows = _analytics_daily_occupancy_rows(start_date, end_date, room_type)
+    status_points = _analytics_room_status_points(start_date, end_date, room_type)
+
+    type_rollup = defaultdict(int)
+    floor_rollup = defaultdict(int)
+    for room in rooms:
+        type_rollup[room.get_room_type_display()] += 1
+        floor_rollup[_analytics_room_floor(room.room_number)] += 1
+
+    room_type_booking_rollup = defaultdict(int)
+    total_nights = 0
+    for booking in bookings:
+        overlap_start = max(booking.check_in, start_date)
+        overlap_end = min(booking.check_out, end_date + timedelta(days=1))
+        stay_nights = max((overlap_end - overlap_start).days, 0)
+        total_nights += stay_nights
+        room_type_booking_rollup[booking.room.get_room_type_display()] += 1
+
+    average_occupancy = round(
+        sum((row["occupancy_percent"] for row in occupancy_rows), 0) / len(occupancy_rows),
+        2,
+    ) if occupancy_rows else 0
+    average_length_of_stay = round(total_nights / len(bookings), 2) if bookings else 0
+
+    occupancy_series = _analytics_aggregate_points(
+        [{"date": row["date"], "occupancy_percent": row["occupancy_percent"]} for row in occupancy_rows],
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=(),
+        avg_fields=("occupancy_percent",),
+    )
+    status_series = _analytics_aggregate_points(
+        status_points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("available", "occupied", "maintenance", "cleaning"),
+    )
+
+    type_rows = [[label, count] for label, count in sorted(type_rollup.items())]
+    floor_rows = [[label, count] for label, count in sorted(floor_rollup.items())]
+    booked_type_rows = [[label, count] for label, count in sorted(room_type_booking_rollup.items(), key=lambda item: item[1], reverse=True)]
+
+    return {
+        "key": "rooms-analytics",
+        "title": "Rooms Analytics",
+        "sheet_title": "Rooms Analytics",
+        "filename_prefix": "rooms-analytics",
+        "subtitle": "Room inventory, occupancy, booking mix, maintenance, and average stay length across the selected period.",
+        "summary": {
+            "rooms": len(rooms),
+            "average_occupancy": average_occupancy,
+            "average_length_of_stay": average_length_of_stay,
+        },
+        "metrics": [
+            {"label": "Total rooms", "value": len(rooms), "export_value": len(rooms)},
+            {"label": "Average occupancy", "value": _display_percent(average_occupancy), "export_value": float(average_occupancy)},
+            {"label": "Average stay", "value": f"{average_length_of_stay:.2f} nights", "export_value": float(average_length_of_stay)},
+            {"label": "Most booked room type", "value": booked_type_rows[0][0] if booked_type_rows else "-", "export_value": booked_type_rows[0][0] if booked_type_rows else ""},
+        ],
+        "charts": [
+            _analytics_chart(
+                "rooms-by-type-chart",
+                "Rooms by type",
+                "doughnut",
+                [row[0] for row in type_rows],
+                [{"label": "Rooms", "data": [row[1] for row in type_rows], "backgroundColor": ["#23444B", "#3D7DFF", "#F4B942", "#78C0A8"]}],
+            ),
+            _analytics_chart(
+                "rooms-occupancy-chart",
+                "Occupancy trend",
+                "line",
+                occupancy_series["labels"],
+                [{"label": "Occupancy %", "data": occupancy_series["values"]["occupancy_percent"], "borderColor": "#3D7DFF", "backgroundColor": "rgba(61,125,255,0.14)", "fill": True, "tension": 0.35}],
+            ),
+            _analytics_chart(
+                "rooms-status-chart",
+                "Room status over time",
+                "bar",
+                status_series["labels"],
+                [
+                    {"label": "Available", "data": status_series["values"]["available"], "backgroundColor": "#78C0A8"},
+                    {"label": "Occupied", "data": status_series["values"]["occupied"], "backgroundColor": "#3D7DFF"},
+                    {"label": "Maintenance", "data": status_series["values"]["maintenance"], "backgroundColor": "#D95D39"},
+                    {"label": "Cleaning", "data": status_series["values"]["cleaning"], "backgroundColor": "#F4B942"},
+                ],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Rooms by type",
+                "headers": ["Room Type", "Total Rooms"],
+                "rows": type_rows,
+                "export_rows": type_rows,
+                "summary_row": ["TOTALS", len(rooms)],
+                "export_summary_row": ["TOTALS", len(rooms)],
+            },
+            {
+                "title": "Rooms by floor",
+                "headers": ["Floor", "Total Rooms"],
+                "rows": floor_rows,
+                "export_rows": floor_rows,
+                "summary_row": ["TOTALS", len(rooms)],
+                "export_summary_row": ["TOTALS", len(rooms)],
+            },
+            {
+                "title": "Most booked room types",
+                "headers": ["Room Type", "Bookings"],
+                "rows": booked_type_rows,
+                "export_rows": booked_type_rows,
+                "summary_row": ["TOTALS", len(bookings)],
+                "export_summary_row": ["TOTALS", len(bookings)],
+            },
+        ],
+    }
+
+
+def _build_bookings_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    room_type = filters["room_type"]
+
+    bookings_created = list(_analytics_booking_creation_queryset(start_date, end_date, room_type))
+    stay_bookings = list(_analytics_booking_stay_queryset(start_date, end_date, room_type))
+
+    status_rollup = defaultdict(int)
+    bookings_by_day = defaultdict(int)
+    cancellations = 0
+    weekday_rollup = defaultdict(int)
+    month_rollup = defaultdict(int)
+    new_guest_ids = set()
+    returning_guest_ids = set()
+
+    for booking in bookings_created:
+        status_rollup[booking.get_status_display()] += 1
+        bookings_by_day[booking.created_at.date()] += 1
+        weekday_rollup[booking.created_at.strftime("%A")] += 1
+        month_rollup[booking.created_at.strftime("%b %Y")] += 1
+        if booking.status == Booking.BookingStatus.CANCELLED:
+            cancellations += 1
+        prior_exists = Booking.objects.filter(
+            guest_id=booking.guest_id,
+            created_at__lt=booking.created_at,
+        ).exists()
+        if prior_exists:
+            returning_guest_ids.add(booking.guest_id)
+        else:
+            new_guest_ids.add(booking.guest_id)
+
+    day_points = [
+        {"date": current_day, "bookings": bookings_by_day.get(current_day, 0)}
+        for current_day in _report_days(start_date, end_date)
+    ]
+    booking_series = _analytics_aggregate_points(
+        day_points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("bookings",),
+    )
+
+    cancellation_rate = round((cancellations / len(bookings_created)) * 100, 2) if bookings_created else 0
+    average_length_of_stay = round(
+        sum((booking.nights for booking in stay_bookings), 0) / len(stay_bookings),
+        2,
+    ) if stay_bookings else 0
+    status_rows = [[label, count] for label, count in sorted(status_rollup.items())]
+    peak_period_rows = sorted(weekday_rollup.items(), key=lambda item: item[1], reverse=True)
+    peak_season_rows = sorted(month_rollup.items(), key=lambda item: item[1], reverse=True)
+
+    return {
+        "key": "bookings-analytics",
+        "title": "Bookings Analytics",
+        "sheet_title": "Bookings Analytics",
+        "filename_prefix": "bookings-analytics",
+        "subtitle": "Booking volumes, statuses, cancellations, guest mix, and peak periods based on live reservation data.",
+        "summary": {
+            "total_bookings": len(bookings_created),
+            "cancellation_rate": cancellation_rate,
+            "new_guests": len(new_guest_ids),
+            "returning_guests": len(returning_guest_ids),
+        },
+        "metrics": [
+            {"label": "Total bookings", "value": len(bookings_created), "export_value": len(bookings_created)},
+            {"label": "Cancellation rate", "value": _display_percent(cancellation_rate), "export_value": float(cancellation_rate)},
+            {"label": "New guests", "value": len(new_guest_ids), "export_value": len(new_guest_ids)},
+            {"label": "Returning guests", "value": len(returning_guest_ids), "export_value": len(returning_guest_ids)},
+            {"label": "Average stay", "value": f"{average_length_of_stay:.2f} nights", "export_value": float(average_length_of_stay)},
+        ],
+        "charts": [
+            _analytics_chart(
+                "bookings-volume-chart",
+                "Bookings over time",
+                "line",
+                booking_series["labels"],
+                [{"label": "Bookings", "data": booking_series["values"]["bookings"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.12)", "fill": True, "tension": 0.3}],
+            ),
+            _analytics_chart(
+                "bookings-status-chart",
+                "Bookings by status",
+                "pie",
+                [row[0] for row in status_rows],
+                [{"label": "Bookings", "data": [row[1] for row in status_rows], "backgroundColor": ["#3D7DFF", "#F4B942", "#D95D39", "#78C0A8", "#6C757D"]}],
+            ),
+            _analytics_chart(
+                "bookings-guest-mix-chart",
+                "New vs returning guests",
+                "bar",
+                ["Guests"],
+                [
+                    {"label": "New", "data": [len(new_guest_ids)], "backgroundColor": "#78C0A8"},
+                    {"label": "Returning", "data": [len(returning_guest_ids)], "backgroundColor": "#3D7DFF"},
+                ],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Booking statuses",
+                "headers": ["Status", "Bookings"],
+                "rows": status_rows,
+                "export_rows": status_rows,
+                "summary_row": ["TOTALS", len(bookings_created)],
+                "export_summary_row": ["TOTALS", len(bookings_created)],
+            },
+            {
+                "title": "Peak booking periods",
+                "headers": ["Day / Period", "Bookings"],
+                "rows": [[label, count] for label, count in peak_period_rows[:7]],
+                "export_rows": [[label, count] for label, count in peak_period_rows[:7]],
+                "summary_row": ["TOTALS", len(bookings_created)],
+                "export_summary_row": ["TOTALS", len(bookings_created)],
+            },
+            {
+                "title": "Peak booking seasons",
+                "headers": ["Month", "Bookings"],
+                "rows": [[label, count] for label, count in peak_season_rows[:12]],
+                "export_rows": [[label, count] for label, count in peak_season_rows[:12]],
+                "summary_row": ["TOTALS", len(bookings_created)],
+                "export_summary_row": ["TOTALS", len(bookings_created)],
+            },
+        ],
+    }
+
+
+def _build_revenue_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    room_type = filters["room_type"]
+    money_field = DecimalField(max_digits=12, decimal_places=2)
+
+    booking_payments = Payment.objects.filter(paid_at__date__range=[start_date, end_date])
+    booking_stays = Booking.objects.filter(check_in__lte=end_date, check_out__gt=start_date)
+    if room_type:
+        booking_payments = booking_payments.filter(booking__room__room_type=room_type)
+        booking_stays = booking_stays.filter(room__room_type=room_type)
+
+    event_payments = EventPayment.objects.filter(paid_at__date__range=[start_date, end_date])
+    pos_sales = Sale.objects.filter(created_at__date__range=[start_date, end_date], status=Sale.SaleStatus.COMPLETED)
+
+    booking_total = _money_total(booking_payments, "amount")
+    event_total = _money_total(event_payments, "amount")
+    pos_total = _money_total(pos_sales, "grand_total")
+    total_revenue = booking_total + event_total + pos_total
+
+    fully_paid_bookings = booking_stays.annotate(
+        paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
+        balance=ExpressionWrapper(F("total_amount") - F("paid_total"), output_field=money_field),
+    )
+    outstanding_total = fully_paid_bookings.aggregate(
+        total=Coalesce(Sum("balance", filter=Q(balance__gt=0)), Value(0, output_field=money_field))
+    )["total"]
+    fully_paid_count = fully_paid_bookings.filter(balance__lte=0).count()
+
+    revenue_points = []
+    room_type_rollup = defaultdict(Decimal)
+    for current_day in _report_days(start_date, end_date):
+        booking_value = booking_payments.filter(paid_at__date=current_day).aggregate(
+            total=Coalesce(Sum("amount"), Value(0, output_field=money_field))
+        )["total"]
+        event_value = event_payments.filter(paid_at__date=current_day).aggregate(
+            total=Coalesce(Sum("amount"), Value(0, output_field=money_field))
+        )["total"]
+        pos_value = pos_sales.filter(created_at__date=current_day).aggregate(
+            total=Coalesce(Sum("grand_total"), Value(0, output_field=money_field))
+        )["total"]
+        revenue_points.append(
+            {
+                "date": current_day,
+                "revenue": Decimal(str(booking_value or 0)) + Decimal(str(event_value or 0)) + Decimal(str(pos_value or 0)),
+            }
+        )
+
+    for row in (
+        booking_payments.values("booking__room__room_type")
+        .annotate(total=Coalesce(Sum("amount"), Value(0, output_field=money_field)))
+        .order_by("booking__room__room_type")
+    ):
+        label = dict(Room.RoomType.choices).get(row["booking__room__room_type"], row["booking__room__room_type"] or "Unknown")
+        room_type_rollup[label] += Decimal(str(row["total"] or 0))
+
+    revenue_series = _analytics_aggregate_points(
+        revenue_points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("revenue",),
+    )
+
+    average_revenue_per_booking = round(
+        float(booking_total) / booking_stays.count(),
+        2,
+    ) if booking_stays.exists() else 0
+
+    room_type_rows = [
+        [label, _display_money(total)]
+        for label, total in sorted(room_type_rollup.items(), key=lambda item: item[1], reverse=True)
+    ]
+    room_type_export_rows = [
+        [label, float(total)]
+        for label, total in sorted(room_type_rollup.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    expense_available = False
+    expense_note = "No expense data available in the current system."
+
+    return {
+        "key": "revenue-analytics",
+        "title": "Revenue Analytics",
+        "sheet_title": "Revenue Analytics",
+        "filename_prefix": "revenue-analytics",
+        "subtitle": "Revenue performance, room-type breakdowns, booking yield, and payment completion based on live payments and sales.",
+        "summary": {
+            "total_revenue": total_revenue,
+            "outstanding_total": outstanding_total,
+            "fully_paid_count": fully_paid_count,
+        },
+        "metrics": [
+            {"label": "Total revenue", "value": _display_money(total_revenue), "export_value": float(total_revenue)},
+            {"label": "Average revenue per booking", "value": _display_money(average_revenue_per_booking), "export_value": float(average_revenue_per_booking)},
+            {"label": "Outstanding payments", "value": _display_money(outstanding_total), "export_value": float(outstanding_total)},
+            {"label": "Fully paid bookings", "value": fully_paid_count, "export_value": fully_paid_count},
+            {"label": "Expenses", "value": expense_note if not expense_available else "-", "export_value": expense_note if not expense_available else ""},
+        ],
+        "charts": [
+            _analytics_chart(
+                "revenue-trend-chart",
+                "Revenue over time",
+                "line",
+                revenue_series["labels"],
+                [{"label": "Revenue", "data": revenue_series["values"]["revenue"], "borderColor": "#3D7DFF", "backgroundColor": "rgba(61,125,255,0.14)", "fill": True, "tension": 0.35}],
+            ),
+            _analytics_chart(
+                "revenue-room-type-chart",
+                "Revenue by room type",
+                "doughnut",
+                list(room_type_rollup.keys()),
+                [{"label": "Revenue", "data": [float(total) for total in room_type_rollup.values()], "backgroundColor": ["#23444B", "#3D7DFF", "#F4B942", "#78C0A8"]}],
+            ),
+            _analytics_chart(
+                "revenue-payment-status-chart",
+                "Payment completion",
+                "pie",
+                ["Outstanding", "Fully Paid"],
+                [{"label": "Bookings", "data": [float(outstanding_total), fully_paid_count], "backgroundColor": ["#D95D39", "#78C0A8"]}],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Revenue by room type",
+                "headers": ["Room Type", "Revenue"],
+                "rows": room_type_rows,
+                "export_rows": room_type_export_rows,
+                "summary_row": ["TOTALS", _display_money(booking_total)],
+                "export_summary_row": ["TOTALS", float(booking_total)],
+            },
+            {
+                "title": "Revenue overview",
+                "headers": ["Metric", "Value"],
+                "rows": [
+                    ["Reservation payments", _display_money(booking_total)],
+                    ["Event payments", _display_money(event_total)],
+                    ["POS sales", _display_money(pos_total)],
+                    ["Outstanding balances", _display_money(outstanding_total)],
+                    ["Revenue vs expenses", expense_note],
+                ],
+                "export_rows": [
+                    ["Reservation payments", float(booking_total)],
+                    ["Event payments", float(event_total)],
+                    ["POS sales", float(pos_total)],
+                    ["Outstanding balances", float(outstanding_total)],
+                    ["Revenue vs expenses", expense_note],
+                ],
+                "summary_row": ["TOTALS", _display_money(total_revenue)],
+                "export_summary_row": ["TOTALS", float(total_revenue)],
+            },
+        ],
+    }
+
+
+def _build_staff_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    department = filters["department"]
+    staff_role = filters["staff_role"]
+
+    employees = list(_analytics_employee_queryset(department, staff_role))
+    employee_ids = [employee.pk for employee in employees]
+    status_rollup = defaultdict(int)
+    department_rollup = defaultdict(int)
+    role_rollup = defaultdict(int)
+    for employee in employees:
+        status_rollup[employee.get_employment_status_display()] += 1
+        department_rollup[employee.department or "Unassigned"] += 1
+        role_rollup[employee.get_position_display()] += 1
+
+    leave_requests = LeaveRequest.objects.filter(
+        employee_id__in=employee_ids,
+        start_date__lte=end_date,
+        end_date__gte=start_date,
+    )
+    hires_points = [
+        {"date": current_day, "hires": 0, "terminations": 0}
+        for current_day in _report_days(start_date, end_date)
+    ]
+    hire_lookup = {row["date"]: row for row in hires_points}
+    for employee in employees:
+        if start_date <= employee.start_date <= end_date:
+            hire_lookup[employee.start_date]["hires"] += 1
+        if employee.termination_date and start_date <= employee.termination_date <= end_date:
+            hire_lookup[employee.termination_date]["terminations"] += 1
+
+    hire_series = _analytics_aggregate_points(
+        hires_points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("hires", "terminations"),
+    )
+
+    leave_employee_rows = []
+    leave_department_rollup = defaultdict(lambda: {"requests": 0, "days": 0})
+    for row in (
+        leave_requests.values("employee__first_name", "employee__last_name", "employee__department")
+        .annotate(total_requests=Count("id"), total_days=Coalesce(Sum("days"), Value(0)))
+        .order_by("-total_requests", "employee__last_name")
+    ):
+        full_name = f"{row['employee__first_name']} {row['employee__last_name']}".strip()
+        leave_employee_rows.append([full_name, row["employee__department"] or "Unassigned", row["total_requests"], row["total_days"]])
+        department_key = row["employee__department"] or "Unassigned"
+        leave_department_rollup[department_key]["requests"] += row["total_requests"]
+        leave_department_rollup[department_key]["days"] += row["total_days"]
+
+    leave_department_rows = [
+        [dept, values["requests"], values["days"]]
+        for dept, values in sorted(leave_department_rollup.items())
+    ]
+
+    return {
+        "key": "staff-analytics",
+        "title": "Staff Analytics",
+        "sheet_title": "Staff Analytics",
+        "filename_prefix": "staff-analytics",
+        "subtitle": "Headcount, employment status, leave frequency, hires, and terminations driven directly from HR records.",
+        "summary": {
+            "staff_total": len(employees),
+            "leave_requests": leave_requests.count(),
+        },
+        "metrics": [
+            {"label": "Total staff", "value": len(employees), "export_value": len(employees)},
+            {"label": "Departments", "value": len(department_rollup), "export_value": len(department_rollup)},
+            {"label": "Roles", "value": len(role_rollup), "export_value": len(role_rollup)},
+            {"label": "Leave requests", "value": leave_requests.count(), "export_value": leave_requests.count()},
+        ],
+        "charts": [
+            _analytics_chart(
+                "staff-department-chart",
+                "Staff by department",
+                "bar",
+                list(department_rollup.keys()),
+                [{"label": "Employees", "data": list(department_rollup.values()), "backgroundColor": "#23444B"}],
+            ),
+            _analytics_chart(
+                "staff-status-chart",
+                "Staff status breakdown",
+                "doughnut",
+                list(status_rollup.keys()),
+                [{"label": "Employees", "data": list(status_rollup.values()), "backgroundColor": ["#78C0A8", "#D95D39", "#3D7DFF", "#F4B942", "#6C757D", "#A06CD5"]}],
+            ),
+            _analytics_chart(
+                "staff-hires-chart",
+                "New hires vs terminations",
+                "line",
+                hire_series["labels"],
+                [
+                    {"label": "New hires", "data": hire_series["values"]["hires"], "borderColor": "#78C0A8", "backgroundColor": "rgba(120,192,168,0.16)", "fill": False, "tension": 0.3},
+                    {"label": "Terminations", "data": hire_series["values"]["terminations"], "borderColor": "#D95D39", "backgroundColor": "rgba(217,93,57,0.16)", "fill": False, "tension": 0.3},
+                ],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Staff by role",
+                "headers": ["Role", "Employees"],
+                "rows": [[role, count] for role, count in sorted(role_rollup.items(), key=lambda item: item[1], reverse=True)],
+                "export_rows": [[role, count] for role, count in sorted(role_rollup.items(), key=lambda item: item[1], reverse=True)],
+                "summary_row": ["TOTALS", len(employees)],
+                "export_summary_row": ["TOTALS", len(employees)],
+            },
+            {
+                "title": "Leave frequency per employee",
+                "headers": ["Employee", "Department", "Requests", "Days"],
+                "rows": leave_employee_rows[:20],
+                "export_rows": leave_employee_rows,
+                "summary_row": ["TOTALS", "", leave_requests.count(), sum((row[3] for row in leave_employee_rows), 0)],
+                "export_summary_row": ["TOTALS", "", leave_requests.count(), sum((row[3] for row in leave_employee_rows), 0)],
+            },
+            {
+                "title": "Leave frequency per department",
+                "headers": ["Department", "Requests", "Days"],
+                "rows": leave_department_rows,
+                "export_rows": leave_department_rows,
+                "summary_row": ["TOTALS", leave_requests.count(), sum((row[2] for row in leave_department_rows), 0)],
+                "export_summary_row": ["TOTALS", leave_requests.count(), sum((row[2] for row in leave_department_rows), 0)],
+            },
+        ],
+    }
+
+
+def _build_housekeeping_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    room_type = filters["room_type"]
+
+    logs = HousekeepingItemLog.objects.select_related("item", "room").filter(
+        used_at__date__range=[start_date, end_date]
+    )
+    if room_type:
+        logs = logs.filter(Q(room__room_type=room_type) | Q(room__isnull=True))
+
+    items = list(HousekeepingItem.objects.order_by("name"))
+    low_stock_items = [item for item in items if item.is_low_stock]
+    usage_points = []
+    usage_by_item = defaultdict(lambda: {"used": Decimal("0"), "entries": 0, "initial": Decimal("0"), "stock": Decimal("0")})
+
+    for current_day in _report_days(start_date, end_date):
+        day_total = logs.filter(used_at__date=current_day).aggregate(
+            total=Coalesce(Sum("quantity_used"), Value(0, output_field=DecimalField(max_digits=12, decimal_places=3)))
+        )["total"]
+        usage_points.append({"date": current_day, "used": Decimal(str(day_total or 0))})
+
+    for row in (
+        logs.values("item_name", "unit")
+        .annotate(
+            total_used=Coalesce(Sum("quantity_used"), Value(0, output_field=DecimalField(max_digits=12, decimal_places=3))),
+            entries=Count("id"),
+            initial_quantity=Coalesce(Max("initial_quantity"), Value(0, output_field=DecimalField(max_digits=12, decimal_places=3))),
+            stock=Coalesce(Max("item__quantity_in_stock"), Value(0, output_field=DecimalField(max_digits=12, decimal_places=3))),
+        )
+        .order_by("-total_used", "item_name")
+    ):
+        usage_by_item[row["item_name"]] = {
+            "used": Decimal(str(row["total_used"] or 0)),
+            "entries": row["entries"],
+            "initial": Decimal(str(row["initial_quantity"] or 0)),
+            "stock": Decimal(str(row["stock"] or 0)),
+            "unit": row["unit"],
+        }
+
+    total_used = sum((values["used"] for values in usage_by_item.values()), Decimal("0"))
+    total_initial = sum((Decimal(str(item.initial_quantity or 0)) for item in items), Decimal("0"))
+    total_stock = sum((Decimal(str(item.quantity_in_stock or 0)) for item in items), Decimal("0"))
+
+    depletion_rows = []
+    for item_name, values in usage_by_item.items():
+        depletion_rate = round((float(values["used"]) / float(values["initial"])) * 100, 2) if values["initial"] else 0
+        depletion_rows.append([item_name, _display_quantity(values["initial"]), _display_quantity(values["used"]), _display_quantity(values["stock"]), values["unit"], _display_percent(depletion_rate)])
+
+    usage_series = _analytics_aggregate_points(
+        usage_points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("used",),
+    )
+
+    most_consumed = list(usage_by_item.items())[:10]
+
+    return {
+        "key": "housekeeping-analytics",
+        "title": "Housekeeping Analytics",
+        "sheet_title": "Housekeeping Analytics",
+        "filename_prefix": "housekeeping-analytics",
+        "subtitle": "Consumption trends, low-stock items, depletion rate, and the overall stock picture from housekeeping logs.",
+        "summary": {
+            "used": total_used,
+            "low_stock": len(low_stock_items),
+        },
+        "metrics": [
+            {"label": "Initial stock", "value": _display_quantity(total_initial), "export_value": float(total_initial)},
+            {"label": "Current stock", "value": _display_quantity(total_stock), "export_value": float(total_stock)},
+            {"label": "Items used", "value": _display_quantity(total_used), "export_value": float(total_used)},
+            {"label": "Low stock alerts", "value": len(low_stock_items), "export_value": len(low_stock_items)},
+        ],
+        "charts": [
+            _analytics_chart(
+                "housekeeping-usage-chart",
+                "Items used over time",
+                "line",
+                usage_series["labels"],
+                [{"label": "Items used", "data": usage_series["values"]["used"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.12)", "fill": True, "tension": 0.35}],
+            ),
+            _analytics_chart(
+                "housekeeping-consumed-chart",
+                "Most consumed items",
+                "bar",
+                [item_name for item_name, _values in most_consumed],
+                [{"label": "Quantity used", "data": [float(values["used"]) for _item_name, values in most_consumed], "backgroundColor": "#3D7DFF"}],
+            ),
+            _analytics_chart(
+                "housekeeping-stock-chart",
+                "Initial vs current vs used",
+                "pie",
+                ["Initial Stock", "Current Stock", "Used"],
+                [{"label": "Stock", "data": [float(total_initial), float(total_stock), float(total_used)], "backgroundColor": ["#23444B", "#78C0A8", "#F4B942"]}],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Items running low",
+                "headers": ["Item", "Current Stock", "Threshold", "Unit"],
+                "rows": [[item.name, _display_quantity(item.quantity_in_stock), _display_quantity(item.effective_low_stock_threshold), item.unit] for item in low_stock_items],
+                "export_rows": [[item.name, float(item.quantity_in_stock or 0), float(item.effective_low_stock_threshold or 0), item.unit] for item in low_stock_items],
+                "summary_row": ["TOTALS", len(low_stock_items), "", ""],
+                "export_summary_row": ["TOTALS", len(low_stock_items), "", ""],
+            },
+            {
+                "title": "Stock depletion rate per item",
+                "headers": ["Item", "Initial Qty", "Used", "Current Stock", "Unit", "Depletion Rate"],
+                "rows": depletion_rows,
+                "export_rows": [
+                    [item_name, float(values["initial"]), float(values["used"]), float(values["stock"]), values["unit"], round((float(values["used"]) / float(values["initial"])) * 100, 2) if values["initial"] else 0]
+                    for item_name, values in usage_by_item.items()
+                ],
+                "summary_row": ["TOTALS", _display_quantity(total_initial), _display_quantity(total_used), _display_quantity(total_stock), "", ""],
+                "export_summary_row": ["TOTALS", float(total_initial), float(total_used), float(total_stock), "", ""],
+            },
+        ],
+    }
+
+
+def _build_roster_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    department = filters["department"]
+    staff_role = filters["staff_role"]
+
+    rotas = list(
+        _analytics_employee_queryset(department, staff_role)
+        .prefetch_related("rota_entries")
+    )
+    daily_counts = {current_day: 0 for current_day in _report_days(start_date, end_date)}
+    shift_rollup = defaultdict(int)
+    department_rollup = defaultdict(int)
+    employee_count_by_day = defaultdict(set)
+
+    rota_entries = list(
+        Rota.objects.select_related("employee").filter(
+            employee__in=[employee.pk for employee in rotas],
+            period_end__gte=start_date,
+            period_start__lte=end_date,
+        )
+    )
+    for rota in rota_entries:
+        shift_label = rota.operating_hours if rota.operating_hours != "-" else "Unspecified shift"
+        department_label = rota.employee.department or "Unassigned"
+        overlap_start = max(rota.period_start, start_date)
+        overlap_end = min(rota.period_end, end_date)
+        current_day = overlap_start
+        while current_day <= overlap_end:
+            daily_counts[current_day] += 1
+            employee_count_by_day[current_day].add(rota.employee_id)
+            current_day += timedelta(days=1)
+        shift_rollup[shift_label] += 1
+        department_rollup[department_label] += 1
+
+    coverage_points = [
+        {"date": current_day, "coverage": len(employee_count_by_day[current_day])}
+        for current_day in _report_days(start_date, end_date)
+    ]
+    coverage_series = _analytics_aggregate_points(
+        coverage_points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("coverage",),
+    )
+    average_coverage = (
+        sum((len(employee_count_by_day[current_day]) for current_day in _report_days(start_date, end_date)), 0)
+        / max(len(daily_counts), 1)
+    )
+    gap_rows = []
+    for current_day in _report_days(start_date, end_date):
+        employees_count = len(employee_count_by_day[current_day])
+        if employees_count == 0 or employees_count < average_coverage:
+            gap_rows.append([
+                _display_date(current_day),
+                employees_count,
+                "Gap" if employees_count == 0 else "Understaffed",
+            ])
+
+    return {
+        "key": "roster-analytics",
+        "title": "Duty Roster Analytics",
+        "sheet_title": "Duty Roster Analytics",
+        "filename_prefix": "duty-roster-analytics",
+        "subtitle": "Coverage by day and week, employee distribution by shift and department, plus gap and understaffing signals.",
+        "summary": {
+            "rota_entries": len(rota_entries),
+            "gap_days": len([row for row in gap_rows if row[2] == "Gap"]),
+        },
+        "metrics": [
+            {"label": "Rota entries", "value": len(rota_entries), "export_value": len(rota_entries)},
+            {"label": "Distinct shifts", "value": len(shift_rollup), "export_value": len(shift_rollup)},
+            {"label": "Departments covered", "value": len(department_rollup), "export_value": len(department_rollup)},
+            {"label": "Coverage gaps", "value": len([row for row in gap_rows if row[2] == "Gap"]), "export_value": len([row for row in gap_rows if row[2] == "Gap"])},
+        ],
+        "charts": [
+            _analytics_chart(
+                "roster-coverage-chart",
+                "Shift coverage by day",
+                "line",
+                coverage_series["labels"],
+                [{"label": "Employees scheduled", "data": coverage_series["values"]["coverage"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.12)", "fill": True, "tension": 0.3}],
+            ),
+            _analytics_chart(
+                "roster-shift-chart",
+                "Employees per shift",
+                "bar",
+                list(shift_rollup.keys()),
+                [{"label": "Rota entries", "data": list(shift_rollup.values()), "backgroundColor": "#3D7DFF"}],
+            ),
+            _analytics_chart(
+                "roster-department-chart",
+                "Department coverage",
+                "doughnut",
+                list(department_rollup.keys()),
+                [{"label": "Entries", "data": list(department_rollup.values()), "backgroundColor": ["#23444B", "#3D7DFF", "#F4B942", "#78C0A8", "#D95D39"]}],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Employees per shift",
+                "headers": ["Shift", "Rota Entries"],
+                "rows": [[shift, count] for shift, count in sorted(shift_rollup.items(), key=lambda item: item[1], reverse=True)],
+                "export_rows": [[shift, count] for shift, count in sorted(shift_rollup.items(), key=lambda item: item[1], reverse=True)],
+                "summary_row": ["TOTALS", len(rota_entries)],
+                "export_summary_row": ["TOTALS", len(rota_entries)],
+            },
+            {
+                "title": "Roster gaps or understaffed days",
+                "headers": ["Date", "Employees Scheduled", "Status"],
+                "rows": gap_rows,
+                "export_rows": gap_rows,
+                "summary_row": ["TOTALS", len(gap_rows), ""],
+                "export_summary_row": ["TOTALS", len(gap_rows), ""],
+            },
+        ],
+    }
+
+
+def _build_operations_analytics_section(filters):
+    start_date = filters["start_date"]
+    end_date = filters["end_date"]
+    room_type = filters["room_type"]
+    department = filters["department"]
+    staff_role = filters["staff_role"]
+
+    room_filter = Q()
+    if room_type:
+        room_filter = Q(room__room_type=room_type)
+
+    employee_filter = Q()
+    if department:
+        employee_filter &= Q(employee__department=department)
+    if staff_role:
+        employee_filter &= Q(employee__position=staff_role)
+
+    points = []
+    for current_day in _report_days(start_date, end_date):
+        reservations = Booking.objects.filter(created_at__date=current_day).filter(room_filter).count()
+        check_ins = Booking.objects.filter(check_in=current_day).filter(room_filter).count()
+        check_outs = Booking.objects.filter(check_out=current_day).filter(room_filter).count()
+        cancellations = Booking.objects.filter(status=Booking.BookingStatus.CANCELLED, updated_at__date=current_day).filter(room_filter).count()
+        housekeeping_entries = HousekeepingItemLog.objects.filter(used_at__date=current_day)
+        if room_type:
+            housekeeping_entries = housekeeping_entries.filter(Q(room__room_type=room_type) | Q(room__isnull=True))
+        housekeeping_count = housekeeping_entries.count()
+        payments_count = Payment.objects.filter(paid_at__date=current_day).filter(Q() if not room_type else Q(booking__room__room_type=room_type)).count()
+        staff_on_rota = Rota.objects.filter(period_start__lte=current_day, period_end__gte=current_day).filter(employee_filter).values("employee_id").distinct().count()
+        activity_score = reservations + check_ins + check_outs + cancellations + housekeeping_count + payments_count + staff_on_rota
+        points.append(
+            {
+                "date": current_day,
+                "reservations": reservations,
+                "check_ins": check_ins,
+                "check_outs": check_outs,
+                "housekeeping": housekeeping_count,
+                "payments": payments_count,
+                "staff": staff_on_rota,
+                "activity": activity_score,
+            }
+        )
+
+    busiest_rows = sorted(points, key=lambda row: row["activity"], reverse=True)
+    activity_series = _analytics_aggregate_points(
+        points,
+        filters["period"],
+        start_date,
+        end_date,
+        sum_fields=("reservations", "check_ins", "check_outs", "housekeeping", "payments", "staff", "activity"),
+    )
+
+    return {
+        "key": "operations-analytics",
+        "title": "Operations Overview Analytics",
+        "sheet_title": "Operations Analytics",
+        "filename_prefix": "operations-analytics",
+        "subtitle": "Cross-module operating load trends, busiest periods, and the daily activity mix across reservations, housekeeping, payments, and staffing.",
+        "summary": {
+            "busiest_day": busiest_rows[0]["date"] if busiest_rows else None,
+            "busiest_score": busiest_rows[0]["activity"] if busiest_rows else 0,
+        },
+        "metrics": [
+            {"label": "Busiest day", "value": _display_date(busiest_rows[0]["date"]) if busiest_rows else "-", "export_value": busiest_rows[0]["date"] if busiest_rows else ""},
+            {"label": "Peak activity score", "value": busiest_rows[0]["activity"] if busiest_rows else 0, "export_value": busiest_rows[0]["activity"] if busiest_rows else 0},
+            {"label": "Total reservation actions", "value": sum((row["reservations"] + row["check_ins"] + row["check_outs"] for row in points), 0), "export_value": sum((row["reservations"] + row["check_ins"] + row["check_outs"] for row in points), 0)},
+            {"label": "Housekeeping actions", "value": sum((row["housekeeping"] for row in points), 0), "export_value": sum((row["housekeeping"] for row in points), 0)},
+        ],
+        "charts": [
+            _analytics_chart(
+                "operations-activity-chart",
+                "Operations trend over time",
+                "line",
+                activity_series["labels"],
+                [{"label": "Activity score", "data": activity_series["values"]["activity"], "borderColor": "#D95D39", "backgroundColor": "rgba(217,93,57,0.14)", "fill": True, "tension": 0.35}],
+            ),
+            _analytics_chart(
+                "operations-module-chart",
+                "Module activity mix",
+                "bar",
+                activity_series["labels"],
+                [
+                    {"label": "Reservations", "data": activity_series["values"]["reservations"], "backgroundColor": "#23444B"},
+                    {"label": "Check-ins", "data": activity_series["values"]["check_ins"], "backgroundColor": "#3D7DFF"},
+                    {"label": "Check-outs", "data": activity_series["values"]["check_outs"], "backgroundColor": "#78C0A8"},
+                    {"label": "Housekeeping", "data": activity_series["values"]["housekeeping"], "backgroundColor": "#F4B942"},
+                    {"label": "Payments", "data": activity_series["values"]["payments"], "backgroundColor": "#A06CD5"},
+                ],
+            ),
+        ],
+        "tables": [
+            {
+                "title": "Busiest days and periods",
+                "headers": ["Date", "Activity Score", "Reservations", "Check-ins", "Check-outs", "Housekeeping", "Payments", "Staff on Rota"],
+                "rows": [
+                    [_display_date(row["date"]), row["activity"], row["reservations"], row["check_ins"], row["check_outs"], row["housekeeping"], row["payments"], row["staff"]]
+                    for row in busiest_rows[:15]
+                ],
+                "export_rows": [
+                    [row["date"], row["activity"], row["reservations"], row["check_ins"], row["check_outs"], row["housekeeping"], row["payments"], row["staff"]]
+                    for row in busiest_rows
+                ],
+                "summary_row": ["TOTALS", sum((row["activity"] for row in points), 0), "", "", "", "", "", ""],
+                "export_summary_row": ["TOTALS", sum((row["activity"] for row in points), 0), "", "", "", "", "", ""],
+            }
+        ],
+    }
+
+
+def _build_analytics_sections(filters):
+    return [
+        _build_rooms_analytics_section(filters),
+        _build_bookings_analytics_section(filters),
+        _build_revenue_analytics_section(filters),
+        _build_staff_analytics_section(filters),
+        _build_housekeeping_analytics_section(filters),
+        _build_roster_analytics_section(filters),
+        _build_operations_analytics_section(filters),
+    ]
+
+
+def _build_analytics_summary_metrics(sections):
+    section_map = {section["key"]: section for section in sections}
+    return [
+        {"label": "Revenue", "value": section_map["revenue-analytics"]["metrics"][0]["value"]},
+        {"label": "Bookings", "value": section_map["bookings-analytics"]["metrics"][0]["value"]},
+        {"label": "Avg Occupancy", "value": section_map["rooms-analytics"]["metrics"][1]["value"]},
+        {"label": "Staff", "value": section_map["staff-analytics"]["metrics"][0]["value"]},
+        {"label": "Low Stock", "value": section_map["housekeeping-analytics"]["metrics"][3]["value"]},
+    ]
+
+
+def _analytics_pdf_response(sections, filters, filename):
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError:
+        return redirect("analytics-center")
+
+    buffer = BytesIO()
+    document = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
+    styles = getSampleStyleSheet()
+    story = [
+        Paragraph("System Analytics", styles["Title"]),
+        Paragraph(filters["report_window"]["display_range"], styles["Normal"]),
+        Spacer(1, 12),
+    ]
+
+    for index, section in enumerate(sections):
+        story.append(Paragraph(section["title"], styles["Heading2"]))
+        story.append(Paragraph(section["subtitle"], styles["BodyText"]))
+        story.append(Spacer(1, 8))
+
+        metric_table = Table(
+            [["Metric", "Value"]] + [[metric["label"], str(metric["value"])] for metric in section["metrics"]],
+            repeatRows=1,
+        )
+        metric_table.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#23444B")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9E2E5")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
+            )
+        )
+        story.append(metric_table)
+        story.append(Spacer(1, 10))
+
+        for table in section["tables"]:
+            story.append(Paragraph(table["title"], styles["Heading3"]))
+            table_rows = [table["headers"]]
+            table_rows.extend([[str(cell) for cell in row] for row in table["rows"][:20]])
+            if table.get("summary_row"):
+                table_rows.append([str(cell) for cell in table["summary_row"]])
+            pdf_table = Table(table_rows, repeatRows=1)
+            pdf_table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#23444B")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D9E2E5")),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(pdf_table)
+            story.append(Spacer(1, 12))
+        if index < len(sections) - 1:
+            story.append(PageBreak())
+
+    document.build(story)
+    buffer.seek(0)
+    response = HttpResponse(buffer.getvalue(), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 def _build_bookings_report_section(start_date, end_date, total_rooms):
     money_field = DecimalField(max_digits=12, decimal_places=2)

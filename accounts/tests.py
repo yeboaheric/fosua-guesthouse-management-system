@@ -371,6 +371,227 @@ class AdminReportExportTests(TestCase):
         self.assertEqual(workbook["Housekeeping"]["A1"].value, "Housekeeping")
 
 
+class AnalyticsCenterTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.admin_user = User.objects.create_user(username="analytics_admin", password="pass123456")
+        self.admin_user.groups.add(self.admin_group)
+        self.client.force_login(self.admin_user)
+
+        self.today = timezone.localdate()
+        self.start_date = self.today - timedelta(days=6)
+        self.end_date = self.today
+
+        self.deluxe_room = Room.objects.create(
+            room_number="401",
+            room_type=Room.RoomType.DELUXE,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=300,
+        )
+        self.standard_room = Room.objects.create(
+            room_number="201",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.CLEANING,
+            base_rate=180,
+        )
+        self.guest_one = Guest.objects.create(
+            first_name="Ama",
+            last_name="Analytics",
+            phone_number="0241000001",
+        )
+        self.guest_two = Guest.objects.create(
+            first_name="Kojo",
+            last_name="Returning",
+            phone_number="0241000002",
+        )
+        self.deluxe_booking = Booking.objects.create(
+            guest=self.guest_one,
+            room=self.deluxe_room,
+            check_in=self.today - timedelta(days=2),
+            check_out=self.today + timedelta(days=1),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.admin_user,
+        )
+        self.standard_booking = Booking.objects.create(
+            guest=self.guest_two,
+            room=self.standard_room,
+            check_in=self.today - timedelta(days=1),
+            check_out=self.today + timedelta(days=2),
+            status=Booking.BookingStatus.CANCELLED,
+            created_by=self.admin_user,
+        )
+        Payment.objects.create(
+            booking=self.deluxe_booking,
+            amount=250,
+            method=Payment.PaymentMethod.CASH,
+            received_by=self.admin_user,
+        )
+        Payment.objects.create(
+            booking=self.standard_booking,
+            amount=100,
+            method=Payment.PaymentMethod.CARD,
+            received_by=self.admin_user,
+        )
+        self.event_booking = EventBooking.objects.create(
+            guest=self.guest_one,
+            event_title="Planning Session",
+            purpose="Strategy",
+            expected_guests=10,
+            event_start=timezone.now() - timedelta(days=1),
+            event_end=timezone.now() - timedelta(days=1) + timedelta(hours=4),
+            total_amount=400,
+            created_by=self.admin_user,
+        )
+        EventPayment.objects.create(
+            event_booking=self.event_booking,
+            amount=150,
+            method=EventPayment.PaymentMethod.MOBILE_MONEY,
+            received_by=self.admin_user,
+        )
+        self.reception_employee = Employee.objects.create(
+            title="mr",
+            first_name="Yaw",
+            last_name="Frontdesk",
+            date_of_birth=date(1992, 4, 4),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-121212121-1",
+            contact_number="0241111111",
+            department="Front Desk",
+            start_date=self.today - timedelta(days=2),
+            position="receptionist",
+            employment_status="active",
+            gender="male",
+            marital_status="single",
+        )
+        self.cleaner_employee = Employee.objects.create(
+            title="mrs",
+            first_name="Adwoa",
+            last_name="Cleaner",
+            date_of_birth=date(1990, 8, 8),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-232323232-2",
+            contact_number="0242222222",
+            department="Housekeeping",
+            start_date=self.today - timedelta(days=30),
+            position="cleaner",
+            employment_status="active",
+            gender="female",
+            marital_status="married",
+        )
+        LeaveRequest.objects.create(
+            employee=self.reception_employee,
+            leave_type=LeaveRequest.LeaveType.ANNUAL,
+            start_date=self.today - timedelta(days=1),
+            end_date=self.today + timedelta(days=1),
+            days=3,
+            return_to_work_date=self.today + timedelta(days=2),
+            reason="Break",
+            approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+        )
+        Rota.objects.create(
+            employee=self.reception_employee,
+            period="Front desk rota",
+            period_start=self.start_date,
+            period_end=self.end_date,
+            opening_time=time(8, 0),
+            closing_time=time(16, 0),
+        )
+        item = HousekeepingItem.objects.create(
+            name="Bed Sheet",
+            initial_quantity=20,
+            quantity_in_stock=15,
+            unit="pieces",
+            created_by=self.admin_user,
+        )
+        HousekeepingItemLog.objects.create(
+            item=item,
+            item_name=item.name,
+            initial_quantity=item.initial_quantity,
+            quantity_used=5,
+            quantity_in_stock=item.quantity_in_stock,
+            unit=item.unit,
+            room=self.deluxe_room,
+            used_at=timezone.now() - timedelta(days=1),
+            created_by=self.admin_user,
+        )
+
+    def test_analytics_center_renders_all_sections(self):
+        response = self.client.get(
+            reverse("analytics-center"),
+            {
+                "period": "custom",
+                "start_date": self.start_date.isoformat(),
+                "end_date": self.end_date.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Rooms Analytics")
+        self.assertContains(response, "Bookings Analytics")
+        self.assertContains(response, "Revenue Analytics")
+        self.assertContains(response, "Staff Analytics")
+        self.assertContains(response, "Housekeeping Analytics")
+        self.assertContains(response, "Duty Roster Analytics")
+        self.assertContains(response, "Operations Overview Analytics")
+
+    def test_analytics_filters_narrow_real_data(self):
+        response = self.client.get(
+            reverse("analytics-center"),
+            {
+                "period": "custom",
+                "start_date": self.start_date.isoformat(),
+                "end_date": self.end_date.isoformat(),
+                "room_type": Room.RoomType.DELUXE,
+                "department": "Front Desk",
+                "staff_role": "receptionist",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        section_map = {section["key"]: section for section in response.context["sections"]}
+        self.assertEqual(section_map["rooms-analytics"]["metrics"][0]["value"], 1)
+        self.assertEqual(section_map["staff-analytics"]["metrics"][0]["value"], 1)
+        self.assertEqual(section_map["bookings-analytics"]["metrics"][0]["value"], 1)
+
+    def test_analytics_export_xlsx_contains_all_section_sheets(self):
+        response = self.client.get(
+            reverse("analytics-export", args=["xlsx"]),
+            {
+                "period": "custom",
+                "start_date": self.start_date.isoformat(),
+                "end_date": self.end_date.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames[0], "Overview")
+        self.assertIn("Rooms Analytics", workbook.sheetnames)
+        self.assertIn("Bookings Analytics", workbook.sheetnames)
+        self.assertIn("Revenue Analytics", workbook.sheetnames)
+        self.assertIn("Staff Analytics", workbook.sheetnames)
+        self.assertIn("Housekeeping Analytics", workbook.sheetnames)
+        self.assertIn("Duty Roster Analytics", workbook.sheetnames)
+        self.assertIn("Operations Analytics", workbook.sheetnames)
+
+    def test_analytics_export_pdf_returns_pdf(self):
+        response = self.client.get(
+            reverse("analytics-export", args=["pdf"]),
+            {
+                "period": "custom",
+                "start_date": self.start_date.isoformat(),
+                "end_date": self.end_date.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+
+
 class RotaViewTests(TestCase):
     def setUp(self):
         self.admin_group = Group.objects.create(name="Admin")

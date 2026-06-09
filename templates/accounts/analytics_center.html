@@ -3,136 +3,187 @@
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
   <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
+    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
       <div>
         <div class="section-eyebrow mb-2">Analytics</div>
         <h1 class="page-title mb-2">Business intelligence</h1>
-        <div class="page-subtitle">{{ start_date }} to {{ end_date }}</div>
+        <div class="page-subtitle">{{ report_window.display_range }}</div>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{% url 'admin-reports-export-daily' %}?start_date={{ start_date }}&end_date={{ end_date }}"><i data-lucide="download"></i> Daily CSV</a>
-        <a class="topbar-pill" href="{% url 'admin-reports-export-balances' %}"><i data-lucide="download"></i> Balances CSV</a>
+        <a class="topbar-pill" href="{{ export_xlsx_url }}"><i data-lucide="download"></i> Export Excel</a>
+        <a class="topbar-pill" href="{{ export_pdf_url }}"><i data-lucide="file-text"></i> Export PDF</a>
       </div>
     </div>
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Period revenue</div>
-        <div class="metric-value">GHS {{ period_revenue_total }}</div>
-        <div class="text-muted small mt-2">Revenue collected across the selected date range</div>
+  <div class="surface-panel p-4 mb-3">
+    <form method="get" class="row g-3 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label">Period</label>
+        <select class="form-select" name="period">
+          <option value="daily" {% if selected_period == "daily" %}selected{% endif %}>Daily</option>
+          <option value="weekly" {% if selected_period == "weekly" %}selected{% endif %}>Weekly</option>
+          <option value="monthly" {% if selected_period == "monthly" %}selected{% endif %}>Monthly</option>
+          <option value="yearly" {% if selected_period == "yearly" %}selected{% endif %}>Yearly</option>
+          <option value="custom" {% if selected_period == "custom" %}selected{% endif %}>Custom</option>
+        </select>
       </div>
-    </div>
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Active bookings</div>
-        <div class="metric-value">{{ active_bookings }}</div>
-        <div class="text-muted small mt-2">Guests currently in the active pipeline</div>
+      <div class="col-md-2">
+        <label class="form-label">Start date</label>
+        <input class="form-control" type="date" name="start_date" value="{{ start_date }}">
       </div>
-    </div>
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Date range</div>
-        <div class="metric-value">{{ start_date }}</div>
-        <div class="text-muted small mt-2">To {{ end_date }}</div>
+      <div class="col-md-2">
+        <label class="form-label">End date</label>
+        <input class="form-control" type="date" name="end_date" value="{{ end_date }}">
       </div>
-    </div>
+      <div class="col-md-2">
+        <label class="form-label">Department</label>
+        <select class="form-select" name="department">
+          <option value="">All departments</option>
+          {% for option in department_options %}
+            <option value="{{ option }}" {% if selected_department == option %}selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Room type</label>
+        <select class="form-select" name="room_type">
+          <option value="">All room types</option>
+          {% for value, label in room_type_options %}
+            <option value="{{ value }}" {% if selected_room_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Staff role</label>
+        <select class="form-select" name="staff_role">
+          <option value="">All staff roles</option>
+          {% for value, label in staff_role_options %}
+            <option value="{{ value }}" {% if selected_staff_role == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2 flex-wrap">
+        <button class="btn btn-primary" type="submit">Apply filters</button>
+        <a class="btn btn-outline-secondary" href="{% url 'analytics-center' %}">Reset</a>
+      </div>
+    </form>
   </div>
 
   <div class="row g-3 mb-3">
-    <div class="col-xl-7">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Trends</div>
-        {{ chart_labels_json|json_script:"analytics-labels" }}
-        {{ revenue_data_json|json_script:"analytics-revenue" }}
-        {{ occupancy_data_json|json_script:"analytics-occupancy" }}
-        <div class="row g-3">
-          <div class="col-md-6"><canvas id="analyticsRevenueChart" height="180"></canvas></div>
-          <div class="col-md-6"><canvas id="analyticsOccupancyChart" height="180"></canvas></div>
+    {% for metric in summary_metrics %}
+      <div class="col-sm-6 col-xl">
+        <div class="mini-metric h-100">
+          <div class="metric-label">{{ metric.label }}</div>
+          <div class="metric-value">{{ metric.value }}</div>
         </div>
       </div>
-    </div>
-    <div class="col-xl-5">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Summary</div>
-        <div class="d-grid gap-2">
-          {% for row in daily_rows|slice:":7" %}
-            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border">
-              <span>{{ row.date }}</span>
-              <span class="status-pill neutral">{{ row.occupancy_percent }}% · GHS {{ row.revenue_collected }}</span>
+    {% endfor %}
+  </div>
+
+  {% for section in sections %}
+    <div class="surface-panel p-4 mb-3">
+      <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 align-items-lg-center mb-3">
+        <div>
+          <div class="section-eyebrow mb-2">{{ section.title }}</div>
+          <div class="text-muted">{{ section.subtitle }}</div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        {% for metric in section.metrics %}
+          <div class="col-sm-6 col-xl-3">
+            <div class="mini-metric h-100">
+              <div class="metric-label">{{ metric.label }}</div>
+              <div class="metric-value">{{ metric.value }}</div>
             </div>
-          {% empty %}
-            <div class="text-muted">No report data available yet.</div>
-          {% endfor %}
-        </div>
+          </div>
+        {% endfor %}
       </div>
-    </div>
-  </div>
 
-  <div class="surface-panel p-4">
-    <div class="section-eyebrow mb-2">Daily report table</div>
-    <div class="table-responsive soft-table">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Date</th>
-            <th>Occupied rooms</th>
-            <th>Occupancy</th>
-            <th>Revenue collected</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in daily_rows %}
-            <tr>
-              <td>{{ row.date }}</td>
-              <td>{{ row.occupied_rooms }}</td>
-              <td>{{ row.occupancy_percent }}%</td>
-              <td>GHS {{ row.revenue_collected }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="4" class="text-muted">No rows in this period.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="row g-3 mb-3">
+        {% for chart in section.charts %}
+          <div class="col-lg-{% if section.charts|length == 1 %}12{% elif section.charts|length == 2 %}6{% else %}4{% endif %}">
+            <div class="border rounded-4 p-3 h-100 bg-white">
+              <div class="fw-semibold mb-3">{{ chart.title }}</div>
+              <canvas id="{{ chart.id }}" height="220"></canvas>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      {% for table in section.tables %}
+        <div class="mb-3">
+          <div class="fw-semibold mb-2">{{ table.title }}</div>
+          <div class="table-responsive soft-table">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  {% for header in table.headers %}
+                    <th>{{ header }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in table.rows %}
+                  <tr>
+                    {% for cell in row %}
+                      <td>{{ cell }}</td>
+                    {% endfor %}
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="{{ table.headers|length }}" class="text-muted">No data available for this section.</td>
+                  </tr>
+                {% endfor %}
+                {% if table.summary_row %}
+                  <tr class="table-light fw-semibold">
+                    {% for cell in table.summary_row %}
+                      <td>{{ cell }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endfor %}
     </div>
-  </div>
+  {% endfor %}
 </div>
 
+{{ charts_json|json_script:"analytics-charts-data" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-  const labels = JSON.parse(document.getElementById("analytics-labels").textContent);
-  const revenue = JSON.parse(document.getElementById("analytics-revenue").textContent);
-  const occupancy = JSON.parse(document.getElementById("analytics-occupancy").textContent);
+  const analyticsCharts = JSON.parse(document.getElementById("analytics-charts-data").textContent);
 
-  new Chart(document.getElementById("analyticsRevenueChart"), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: "Revenue",
-        data: revenue,
-        borderColor: "#3d7dff",
-        backgroundColor: "rgba(61,125,255,0.14)",
-        fill: true,
-        tension: 0.35,
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } } }
-  });
-
-  new Chart(document.getElementById("analyticsOccupancyChart"), {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [{
-        label: "Occupancy",
-        data: occupancy,
-        backgroundColor: "#1f3b44",
-        borderRadius: 10,
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+  analyticsCharts.forEach((chart) => {
+    const element = document.getElementById(chart.id);
+    if (!element) {
+      return;
+    }
+    new Chart(element, {
+      type: chart.type,
+      data: {
+        labels: chart.labels,
+        datasets: chart.datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: chart.type === "pie" || chart.type === "doughnut" ? {} : {
+          y: {
+            beginAtZero: true,
+          }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: "bottom",
+          },
+        },
+      },
+    });
   });
 </script>
 {% endblock %}

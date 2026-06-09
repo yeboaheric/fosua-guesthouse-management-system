@@ -88,6 +88,7 @@ def module_from_url_name(url_name: str | None) -> str:
         "admin-reports-export-balances": "reports",
         "admin-reports-export-section": "reports",
         "analytics-center": "analytics",
+        "analytics-export": "analytics",
         "notifications-center": "notifications",
         "settings-center": "settings",
         "handover-list": "handovers",

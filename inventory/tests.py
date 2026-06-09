@@ -200,3 +200,54 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(item_list.status_code, 200)
         self.assertContains(item_list, "Min 2")
         self.assertNotContains(item_list, "Min 2.000")
+
+    def test_inventory_item_delete_removes_internal_history_only_records(self):
+        self.client.force_login(self.user)
+
+        create_response = self.client.post(
+            reverse("inventory-item-create"),
+            {
+                "name": "Delete Me",
+                "category": self.category.pk,
+                "subcategory": self.subcategory.pk,
+                "supplier": self.supplier.pk,
+                "purchase_price": "4.00",
+                "selling_price": "6.00",
+                "quantity_in_stock": "5.000",
+                "unit_of_measure": InventoryItem.UnitOfMeasure.BOTTLE,
+                "minimum_stock_threshold": "1.000",
+                "description": "Temporary stock item",
+                "is_active": "on",
+            },
+        )
+        self.assertEqual(create_response.status_code, 302)
+
+        created_item = InventoryItem.objects.get(name="Delete Me")
+        self.assertTrue(InventoryTransaction.objects.filter(item=created_item).exists())
+
+        delete_response = self.client.post(reverse("inventory-item-delete", args=[created_item.pk]))
+        self.assertEqual(delete_response.status_code, 302)
+        self.assertFalse(InventoryItem.objects.filter(pk=created_item.pk).exists())
+        self.assertFalse(InventoryTransaction.objects.filter(item_id=created_item.pk).exists())
+
+    def test_inventory_item_delete_stays_blocked_when_sale_history_exists(self):
+        self.client.force_login(self.user)
+        cart = json.dumps([{"id": self.item.pk, "quantity": 1}])
+        checkout_response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "10.00",
+                "notes": "Delete protection test",
+                "cart": cart,
+            },
+        )
+        self.assertEqual(checkout_response.status_code, 302)
+
+        delete_response = self.client.post(reverse("inventory-item-delete", args=[self.item.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertTrue(InventoryItem.objects.filter(pk=self.item.pk).exists())
+        messages = [str(message) for message in delete_response.context["messages"]]
+        self.assertIn("This item is linked to stock history or sales and cannot be deleted.", messages)

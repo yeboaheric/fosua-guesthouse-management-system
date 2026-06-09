@@ -312,7 +312,12 @@ def item_update(request, pk):
 def item_delete(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     try:
-        item.delete()
+        with transaction.atomic():
+            if item.sale_items.exists():
+                raise ProtectedError("sale-linked inventory item", [item])
+            item.transactions.all().delete()
+            item.adjustments.all().delete()
+            item.delete()
         messages.success(request, "Inventory item deleted.")
     except ProtectedError:
         messages.error(request, "This item is linked to stock history or sales and cannot be deleted.")

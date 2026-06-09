@@ -70,6 +70,34 @@
     }, 210);
   }
 
+  function clearSkeletonState() {
+    const content = getContentElement();
+    const skeleton = getSkeletonElement();
+    if (content) {
+      content.removeAttribute("aria-busy");
+    }
+    if (skeleton) {
+      skeleton.dataset.ready = "";
+      skeleton.innerHTML = "";
+    }
+  }
+
+  function resetLoadingUi() {
+    clearInterval(progressTimer);
+    progressValue = 0;
+    const { progressElement: element, progressBar: bar } = getProgressElements();
+    if (element) {
+      element.classList.remove("is-active", "is-complete");
+    }
+    if (bar) {
+      bar.style.transform = "scaleX(0)";
+    }
+    root.setAttribute("data-app-loading", "false");
+    root.removeAttribute("data-app-loading");
+    clearSkeletonState();
+    restoreAllLoadingControls();
+  }
+
   function actionLabelFor(element) {
     const explicit = element.getAttribute("data-loading-text");
     if (explicit) {
@@ -252,10 +280,7 @@
       return false;
     }
     if (isValidSubmittableControl(control)) {
-      const form = control.form || control.closest("form");
-      if (form && !form.noValidate && typeof form.checkValidity === "function" && !form.checkValidity()) {
-        return false;
-      }
+      return false;
     }
     return isPrimaryActionControl(control) || (control.tagName === "A" && isActionControl(control));
   }
@@ -475,18 +500,15 @@
     document.addEventListener(
       "click",
       function (event) {
-        const control = event.target.closest("button, input[type='submit'], input[type='button'], a[href]");
+        const control = event.target.closest("button[type='button'], input[type='button']");
         if (!control || !shouldActivateForControl(control)) {
           return;
         }
 
         setLoadingState(control);
-
-        if (control.tagName === "A") {
-          window.setTimeout(function () {
-            restoreLoadingState(control);
-          }, actionResetMs);
-        }
+        window.setTimeout(function () {
+          restoreLoadingState(control);
+        }, actionResetMs);
       },
       true
     );
@@ -547,7 +569,7 @@
       window.addEventListener("load", finishLoadingState, { once: true });
     }
 
-    window.addEventListener("pageshow", restoreAllLoadingControls);
+    window.addEventListener("pageshow", resetLoadingUi);
     window.addEventListener("focus", restoreAllLoadingControls);
   }
 

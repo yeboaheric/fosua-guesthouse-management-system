@@ -146,7 +146,13 @@
 
     element.classList.add("fg-loading-action");
     element.dataset.loadingActive = "true";
+    element.dataset.loadingGuard = "false";
     loadingControls.add(element);
+    window.setTimeout(function () {
+      if (element.dataset.loadingActive === "true") {
+        element.dataset.loadingGuard = "true";
+      }
+    }, 0);
   }
 
   function restoreLoadingState(element) {
@@ -170,6 +176,7 @@
 
     element.classList.remove("fg-loading-action");
     element.dataset.loadingActive = "false";
+    element.dataset.loadingGuard = "false";
     element.style.minWidth = "";
     loadingControls.delete(element);
   }
@@ -178,12 +185,79 @@
     Array.from(loadingControls).forEach(restoreLoadingState);
   }
 
-  function actionAnchor(element) {
-    if (!element || element.tagName !== "A" || !element.classList.contains("btn")) {
+  function actionPattern() {
+    return /save|submit|add|update|edit|delete|remove|export|download|excel|pdf|approve|confirm|create|print|send|complete|check\s?in|check\s?out|start|log/i;
+  }
+
+  function controlText(element) {
+    return (
+      element.dataset.originalLabel ||
+      element.getAttribute("value") ||
+      element.textContent ||
+      ""
+    ).trim();
+  }
+
+  function isActionControl(element) {
+    if (!element) {
       return false;
     }
-    const text = (element.textContent || "").trim().toLowerCase();
-    return /export|download|excel|pdf|print/.test(text);
+    if (element.hasAttribute("data-loading-text")) {
+      return true;
+    }
+
+    if (element.tagName === "INPUT") {
+      const type = (element.getAttribute("type") || "").toLowerCase();
+      return type === "submit" || type === "button";
+    }
+
+    if (element.tagName === "BUTTON") {
+      return true;
+    }
+
+    if (element.tagName === "A") {
+      const href = element.getAttribute("href") || "";
+      if (
+        /export|download|excel|pdf|csv|print/i.test(controlText(element)) ||
+        /export|download|xlsx|xls|csv|pdf|print/i.test(href)
+      ) {
+        return true;
+      }
+      return false;
+    }
+
+    return actionPattern().test(controlText(element));
+  }
+
+  function isPrimaryActionControl(element) {
+    return isActionControl(element) && actionPattern().test(controlText(element));
+  }
+
+  function isValidSubmittableControl(element) {
+    if (!element) {
+      return false;
+    }
+    if (element.tagName === "INPUT") {
+      return (element.getAttribute("type") || "").toLowerCase() === "submit";
+    }
+    if (element.tagName !== "BUTTON") {
+      return false;
+    }
+    const type = (element.getAttribute("type") || "submit").toLowerCase();
+    return type === "submit";
+  }
+
+  function shouldActivateForControl(control) {
+    if (!control || control.dataset.loadingActive === "true") {
+      return false;
+    }
+    if (isValidSubmittableControl(control)) {
+      const form = control.form || control.closest("form");
+      if (form && !form.noValidate && typeof form.checkValidity === "function" && !form.checkValidity()) {
+        return false;
+      }
+    }
+    return isPrimaryActionControl(control) || (control.tagName === "A" && isActionControl(control));
   }
 
   function shouldTrackNavigation(anchor, event) {
@@ -397,6 +471,27 @@
     );
   }
 
+  function bindControlLoading() {
+    document.addEventListener(
+      "click",
+      function (event) {
+        const control = event.target.closest("button, input[type='submit'], input[type='button'], a[href]");
+        if (!control || !shouldActivateForControl(control)) {
+          return;
+        }
+
+        setLoadingState(control);
+
+        if (control.tagName === "A") {
+          window.setTimeout(function () {
+            restoreLoadingState(control);
+          }, actionResetMs);
+        }
+      },
+      true
+    );
+  }
+
   function bindAnchorLoading() {
     document.addEventListener(
       "click",
@@ -406,7 +501,7 @@
           return;
         }
 
-        if (actionAnchor(anchor)) {
+        if (isActionControl(anchor)) {
           setLoadingState(anchor);
           window.setTimeout(function () {
             restoreLoadingState(anchor);
@@ -425,11 +520,11 @@
     document.addEventListener(
       "click",
       function (event) {
-        const control = event.target.closest("button, input[type='submit'], a.btn");
+        const control = event.target.closest("button, input[type='submit'], input[type='button'], a[href]");
         if (!control) {
           return;
         }
-        if (control.dataset.loadingActive === "true") {
+        if (control.dataset.loadingActive === "true" && control.dataset.loadingGuard === "true") {
           event.preventDefault();
           event.stopPropagation();
         }
@@ -441,6 +536,7 @@
   function boot() {
     prepareSkeleton();
     startProgress();
+    bindControlLoading();
     bindFormLoading();
     bindAnchorLoading();
     bindButtonProtection();

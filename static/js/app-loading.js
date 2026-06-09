@@ -6,6 +6,8 @@
   const loadingControls = new Set();
   let progressValue = 0;
   let progressTimer = null;
+  let finishTimer = null;
+  let completeTimer = null;
   let progressElement = null;
   let progressBar = null;
 
@@ -60,7 +62,8 @@
     }
     clearInterval(progressTimer);
     setProgress(100);
-    window.setTimeout(function () {
+    window.clearTimeout(completeTimer);
+    completeTimer = window.setTimeout(function () {
       element.classList.add("is-complete");
       element.classList.remove("is-active");
       progressValue = 0;
@@ -84,6 +87,8 @@
 
   function resetLoadingUi() {
     clearInterval(progressTimer);
+    window.clearTimeout(finishTimer);
+    window.clearTimeout(completeTimer);
     progressValue = 0;
     const { progressElement: element, progressBar: bar } = getProgressElements();
     if (element) {
@@ -459,24 +464,33 @@
 
   function finishLoadingState() {
     const delay = Math.max(0, minVisibleMs - (Date.now() - getLoadingStartedAt()));
-    window.setTimeout(function () {
+    window.clearTimeout(finishTimer);
+    finishTimer = window.setTimeout(function () {
       root.setAttribute("data-app-loading", "finishing");
       completeProgress();
       restoreAllLoadingControls();
-      window.setTimeout(function () {
+      completeTimer = window.setTimeout(function () {
         root.setAttribute("data-app-loading", "false");
         root.removeAttribute("data-app-loading");
-        const content = getContentElement();
-        const skeleton = getSkeletonElement();
-        if (content) {
-          content.removeAttribute("aria-busy");
-        }
-        if (skeleton) {
-          skeleton.dataset.ready = "";
-          skeleton.innerHTML = "";
-        }
+        clearSkeletonState();
       }, 250);
     }, delay);
+  }
+
+  function shouldResetForPageShow(event) {
+    if (event && event.persisted) {
+      return true;
+    }
+    if (
+      window.performance &&
+      typeof window.performance.getEntriesByType === "function"
+    ) {
+      const entries = window.performance.getEntriesByType("navigation");
+      if (entries.length > 0 && entries[0].type === "back_forward") {
+        return true;
+      }
+    }
+    return false;
   }
 
   function bindFormLoading() {
@@ -569,7 +583,11 @@
       window.addEventListener("load", finishLoadingState, { once: true });
     }
 
-    window.addEventListener("pageshow", resetLoadingUi);
+    window.addEventListener("pageshow", function (event) {
+      if (shouldResetForPageShow(event)) {
+        resetLoadingUi();
+      }
+    });
     window.addEventListener("focus", restoreAllLoadingControls);
   }
 

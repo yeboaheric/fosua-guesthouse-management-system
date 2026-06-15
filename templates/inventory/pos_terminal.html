@@ -42,7 +42,14 @@
       </div>
     </section>
 
-  <form id="checkoutForm" method="post" action="{% url 'inventory-pos-checkout' %}">
+  <form
+    id="checkoutForm"
+    method="post"
+    action="{% url 'inventory-pos-checkout' %}"
+    data-sale-completed="{{ pos_sale_completed|yesno:'true,false' }}"
+    data-reset-delay-ms="{{ pos_reset_delay_ms }}"
+    data-reset-url="{% url 'inventory-pos' %}"
+  >
     {% csrf_token %}
     {{ checkout_form.cart }}
     <div class="row g-3">
@@ -109,6 +116,18 @@
           {% if checkout_form.cart.errors %}
             <div class="alert alert-danger py-2">{{ checkout_form.cart.errors }}</div>
           {% endif %}
+          {% if pos_sale_completed %}
+            <div id="posSuccessNotice" class="alert alert-success py-2">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span>Sale completed successfully. The terminal will reset shortly.</span>
+                {% if pos_completed_sale %}
+                  <a class="btn btn-sm btn-outline-success" href="{% url 'inventory-sale-detail' pos_completed_sale.pk %}">
+                    View receipt {{ pos_completed_sale.receipt_number }}
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
           <div id="cartEmpty" class="text-muted mb-3">No items added yet.</div>
           <div class="module-table-wrap mb-3">
           <div class="table-responsive">
@@ -172,9 +191,17 @@
     const taxInput = document.getElementById("id_tax_amount");
     const discountInput = document.getElementById("id_discount_amount");
     const amountPaidInput = document.getElementById("id_amount_paid");
+    const paymentMethodInput = document.getElementById("id_payment_method");
+    const notesInput = document.getElementById("id_notes");
     const cartInput = document.getElementById("id_cart");
     const checkoutForm = document.getElementById("checkoutForm");
     const addButtons = document.querySelectorAll(".add-to-cart");
+    const saleCompleted = checkoutForm.dataset.saleCompleted === "true";
+    const resetDelayMs = Number(checkoutForm.dataset.resetDelayMs || 1800);
+    const resetUrl = checkoutForm.dataset.resetUrl || window.location.pathname;
+    const defaultPaymentMethod = paymentMethodInput && paymentMethodInput.options.length
+      ? paymentMethodInput.options[0].value
+      : "";
     let cart = JSON.parse(localStorage.getItem(cartKey) || "[]");
 
     function money(value) {
@@ -225,6 +252,30 @@
       localStorage.setItem(cartKey, JSON.stringify(cart));
     }
 
+    function resetTerminal() {
+      cart = [];
+      localStorage.removeItem(cartKey);
+      if (paymentMethodInput) {
+        paymentMethodInput.value = defaultPaymentMethod;
+      }
+      if (taxInput) {
+        taxInput.value = "0.00";
+      }
+      if (discountInput) {
+        discountInput.value = "0.00";
+      }
+      if (amountPaidInput) {
+        amountPaidInput.value = "0.00";
+      }
+      if (notesInput) {
+        notesInput.value = "";
+      }
+      renderCart();
+      if (window.history && typeof window.history.replaceState === "function") {
+        window.history.replaceState({}, document.title, resetUrl);
+      }
+    }
+
     addButtons.forEach(function (button) {
       button.addEventListener("click", function () {
         const id = Number(button.dataset.id);
@@ -272,6 +323,9 @@
     });
 
     renderCart();
+    if (saleCompleted) {
+      window.setTimeout(resetTerminal, resetDelayMs);
+    }
   })();
 </script>
 {% endblock %}

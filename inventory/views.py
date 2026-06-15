@@ -17,6 +17,7 @@ from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce, TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from reportlab.lib import colors
@@ -434,12 +435,20 @@ def _pos_terminal_context(request, checkout_form, items=None, query=None, catego
         query = request.GET.get("q", "").strip()
     if category_id is None:
         category_id = request.GET.get("category", "")
+    pos_sale_completed = request.GET.get("sale_success") == "1"
+    sale_id = request.GET.get("sale_id", "").strip()
+    pos_completed_sale = None
+    if pos_sale_completed and sale_id.isdigit():
+        pos_completed_sale = Sale.objects.only("pk", "receipt_number").filter(pk=int(sale_id)).first()
     return {
         "items": items[:100],
         "categories": InventoryCategory.objects.all(),
         "query": query,
         "selected_category": category_id,
         "checkout_form": checkout_form,
+        "pos_sale_completed": pos_sale_completed,
+        "pos_completed_sale": pos_completed_sale,
+        "pos_reset_delay_ms": 1800,
     }
 
 
@@ -576,8 +585,8 @@ def pos_checkout(request):
         form.add_error(None, message)
         return render(request, "inventory/pos_terminal.html", _pos_terminal_context(request, form), status=400)
 
-    messages.success(request, f"Sale completed. Receipt {sale.receipt_number} generated.")
-    return redirect("inventory-sale-detail", pk=sale.pk)
+    messages.success(request, f"Sale completed successfully. Receipt {sale.receipt_number} generated.")
+    return redirect(f"{reverse('inventory-pos')}?sale_success=1&sale_id={sale.pk}")
 
 
 @group_required("Admin", "Receptionist", module="pos")

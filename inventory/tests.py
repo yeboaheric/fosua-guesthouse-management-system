@@ -154,8 +154,9 @@ class InventoryPosWorkflowTests(TestCase):
                 "notes": "Bar sale",
                 "cart": cart,
             },
+            follow=True,
         )
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
 
         sale = Sale.objects.latest("created_at")
         self.item.refresh_from_db()
@@ -170,6 +171,27 @@ class InventoryPosWorkflowTests(TestCase):
             ).count(),
             1,
         )
+        self.assertRedirects(response, f"{reverse('inventory-pos')}?sale_success=1&sale_id={sale.pk}")
+        self.assertContains(response, "Sale completed successfully. The terminal will reset shortly.")
+        self.assertContains(response, f'data-sale-completed="true"', html=False)
+        self.assertContains(response, reverse("inventory-sale-detail", args=[sale.pk]))
+
+    def test_failed_pos_checkout_does_not_enable_reset_state(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "0.00",
+                "notes": "Broken sale",
+                "cart": json.dumps([]),
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, 'data-sale-completed="false"', html=False, status_code=400)
+        self.assertContains(response, "Cart is empty.", status_code=400)
 
     def test_sale_receipt_pdf_endpoint_returns_pdf(self):
         sale = Sale.objects.create(

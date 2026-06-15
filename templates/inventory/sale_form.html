@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Point of sale</div>
+        <h1 class="module-title">{{ title }}</h1>
+        <div class="module-subcopy">Correct sale details for receipt {{ sale.receipt_number }} without affecting receipt viewing, printing, or stock movement.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Back to receipt</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post" class="module-stack">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="module-summary-grid">
+            <article class="module-summary-block">
+              <div class="module-inline-label">Receipt</div>
+              <strong>{{ sale.receipt_number }}</strong>
+            </article>
+            <article class="module-summary-block">
+              <div class="module-inline-label">Subtotal</div>
+              <strong>GHS {{ sale.subtotal }}</strong>
+            </article>
+            <article class="module-summary-block">
+              <div class="module-inline-label">Created</div>
+              <strong>{{ sale.created_at|date:"d/m/Y H:i" }}</strong>
+            </article>
+          </div>
+          <div class="module-form-grid">
+            {% for field in form %}
+              <div class="{% if field.name == 'notes' %}module-form-field module-form-field--full{% else %}module-form-field module-form-field--half{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="module-form-actions">
+            <div class="module-card-copy">Sale line items and stock deductions remain unchanged. Only the recorded sale details are corrected here.</div>
+            <div class="module-form-actions-end">
+              <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Cancel</a>
+              <button class="btn btn-primary" type="submit">Save sale</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

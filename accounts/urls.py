@@ -12,6 +12,7 @@ from accounts.views import (
     FosuaLoginView,
     FosuaLogoutView,
     admin_dashboard,
+    admin_dashboard_activity_feed,
     admin_reports_export_all_excel,
     admin_reports_export_balances_csv,
     admin_reports_export_daily_csv,
@@ -83,6 +84,7 @@ urlpatterns = [
     path("password-change/done/", FosuaPasswordChangeDoneView.as_view(), name="password_change_done"),
     path("dashboard/", dashboard, name="dashboard"),
     path("dashboard/admin/", admin_dashboard, name="admin-dashboard"),
+    path("dashboard/admin/activity-feed/", admin_dashboard_activity_feed, name="admin-dashboard-activity-feed"),
     path("dashboard/admin/reports/", admin_reports, name="admin-reports"),
     path(
         "dashboard/admin/reports/export/all/xlsx/",

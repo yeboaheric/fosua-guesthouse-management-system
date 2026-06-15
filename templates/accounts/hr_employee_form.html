@@ -2,14 +2,18 @@
 {% load static %}
 
 {% block content %}
-<div class="dashboard-background p-4 rounded-4 shadow-sm">
-  <div class="brand-panel p-4 mb-4">
-    <h1 class="h4 mb-1">{{ form_title }}</h1>
-    <div class="brand-gold-line"></div>
-  </div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Staff management</div>
+        <h1 class="module-title">{{ form_title }}</h1>
+        <div class="module-subcopy">Create or update employee personal, employment, and emergency contact details.</div>
+      </div>
+    </section>
 
-  <div class="card shadow-sm border-0">
-      <div class="card-body p-4">
+    <section class="module-card">
+      <div class="module-card-body p-4">
         <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
         {{ form.non_field_errors }}
@@ -392,12 +396,16 @@
         </div>
         {% endif %}
 
-        <div class="mt-4 d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save employee</button>
-          <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}">Back to list</a>
+        <div class="module-form-actions mt-4">
+          <div class="module-card-copy">Employee records sync into leave, roster, staff reports, and profile pages automatically.</div>
+          <div class="module-form-actions-end">
+            <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}">Back to list</a>
+            <button type="submit" class="btn btn-primary">Save employee</button>
+          </div>
         </div>
       </form>
-    </div>
+      </div>
+    </section>
   </div>
-</div>
+  </div>
 {% endblock %}

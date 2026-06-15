@@ -1,7 +1,10 @@
 from io import BytesIO
+import json
 import shutil
 import tempfile
+from datetime import timedelta
 
+from axes.helpers import get_cool_off
 from accounts.forms import LeaveRequestForm
 from accounts.models import AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
 from accounts.permissions import user_has_permission
@@ -58,11 +61,127 @@ class DashboardRoutingTests(TestCase):
         response = self.client.get(reverse("admin-reports"))
         self.assertEqual(response.status_code, 403)
 
+    def test_admin_dashboard_uses_live_metrics_and_chart_series(self):
+        admin_user = User.objects.create_user(username="admin-dashboard", password="pass123456")
+        admin_user.groups.add(self.admin_group)
+        room = Room.objects.create(
+            room_number="101",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=150,
+        )
+        guest = Guest.objects.create(
+            first_name="Akua",
+            last_name="Boateng",
+            phone_number="0241111111",
+        )
+        Employee.objects.create(
+            title="ms",
+            first_name="Efua",
+            last_name="Mensah",
+            date_of_birth=date(1994, 4, 4),
+            nationality="Ghanaian",
+            ghana_card_number="GHA-123456789-1",
+            contact_number="0242222222",
+            start_date=date(2025, 1, 1),
+            position="manager",
+            employment_status="active",
+            gender="female",
+            marital_status="single",
+        )
+        Booking.objects.create(
+            guest=guest,
+            room=room,
+            check_in=timezone.localdate(),
+            check_out=timezone.localdate() + timedelta(days=2),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=admin_user,
+        )
+
+        self.client.force_login(admin_user)
+        response = self.client.get(reverse("admin-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Occupancy rate")
+        self.assertContains(response, "Available rooms")
+        self.assertContains(response, "Unread alerts")
+        chart_series = json.loads(response.context["dashboard_chart_series_json"])
+        self.assertEqual(set(chart_series.keys()), {"daily", "weekly", "monthly"})
+        self.assertEqual(len(chart_series["daily"]["bookings"]), 7)
+        self.assertEqual(len(response.context["dashboard_summary_cards"]), 12)
+        self.assertEqual(response.context["total_rooms"], 1)
+        self.assertEqual(response.context["total_bookings"], 1)
+        self.assertEqual(response.context["total_staff"], 1)
+
+    def test_admin_dashboard_activity_feed_endpoint_returns_live_items(self):
+        admin_user = User.objects.create_user(username="admin-feed", password="pass123456")
+        admin_user.groups.add(self.admin_group)
+        room = Room.objects.create(
+            room_number="102",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=180,
+        )
+        guest = Guest.objects.create(
+            first_name="Kojo",
+            last_name="Asante",
+            phone_number="0243333333",
+        )
+        Booking.objects.create(
+            guest=guest,
+            room=room,
+            check_in=timezone.localdate(),
+            check_out=timezone.localdate() + timedelta(days=1),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=admin_user,
+        )
+
+        self.client.force_login(admin_user)
+        response = self.client.get(reverse("admin-dashboard-activity-feed"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["items"])
+        self.assertIn("icon", payload["items"][0])
+        self.assertIn("time_label", payload["items"][0])
+
     def test_healthz_endpoint_available_without_login(self):
         self.client.logout()
         response = self.client.get(reverse("healthz"))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+
+    def test_login_lockout_applies_only_to_target_username(self):
+        locked_user = User.objects.create_user(username="locked-user", password="pass123456")
+        other_user = User.objects.create_user(username="other-user", password="pass123456")
+        locked_user.groups.add(self.receptionist_group)
+        other_user.groups.add(self.receptionist_group)
+
+        failure_responses = []
+        for _ in range(5):
+            response = self.client.post(
+                reverse("login"),
+                {"username": "locked-user", "password": "wrong-password"},
+            )
+            failure_responses.append(response.status_code)
+
+        self.assertTrue(all(status in {200, 429} for status in failure_responses))
+
+        locked_response = self.client.post(
+            reverse("login"),
+            {"username": "locked-user", "password": "pass123456"},
+        )
+        self.assertEqual(locked_response.status_code, 429)
+
+        other_response = self.client.post(
+            reverse("login"),
+            {"username": "other-user", "password": "pass123456"},
+        )
+        self.assertEqual(other_response.status_code, 302)
+        self.assertEqual(other_response.headers["Location"], reverse("dashboard"))
+
+    def test_login_lockout_cooloff_is_one_minute(self):
+        self.assertEqual(get_cool_off(), timedelta(minutes=1))
 
     def test_users_roles_center_access_for_admin_only(self):
         admin_user = User.objects.create_user(username="admin-users", password="pass123456")
@@ -907,6 +1026,9 @@ class CenterFilterTests(TestCase):
 
 class StaffManagementTests(TestCase):
     def setUp(self):
+        today = timezone.localdate()
+        past_leave_start = today - timedelta(days=30)
+        past_leave_end = today - timedelta(days=28)
         self.admin_group = Group.objects.create(name="Admin")
         self.user = User.objects.create_user(username="hr_admin", password="pass123456")
         self.user.groups.add(self.admin_group)
@@ -1000,10 +1122,10 @@ class StaffManagementTests(TestCase):
         self.active_leave_request = LeaveRequest.objects.create(
             employee=self.active_employee,
             leave_type=LeaveRequest.LeaveType.ANNUAL,
-            start_date=date(2026, 6, 10),
-            end_date=date(2026, 6, 12),
+            start_date=past_leave_start,
+            end_date=past_leave_end,
             days=3,
-            return_to_work_date=date(2026, 6, 13),
+            return_to_work_date=past_leave_end + timedelta(days=1),
             reason="Approved annual leave",
             approval_status=LeaveRequest.ApprovalStatus.APPROVED,
             approving_manager=self.approver_employee,
@@ -1270,8 +1392,8 @@ class StaffManagementTests(TestCase):
             {
                 "approval_status": LeaveRequest.ApprovalStatus.APPROVED,
                 "leave_type": LeaveRequest.LeaveType.ANNUAL,
-                "date_from": "2026-06-01",
-                "date_to": "2026-06-30",
+                "date_from": self.active_leave_request.start_date.isoformat(),
+                "date_to": self.active_leave_request.end_date.isoformat(),
             },
         )
 

@@ -1,146 +1,181 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex justify-content-between align-items-center flex-column flex-md-row gap-3">
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Staff management</div>
+      <h1 class="module-title">Staff Management</h1>
+      <div class="module-subcopy">Manage employee records, roles, leave activity, certifications, and other HR details.</div>
+    </div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{% url 'hr-rota-list' %}">Duty roster</a>
+      <a class="btn btn-outline-primary" href="{% url 'roster-report' %}">Roster report</a>
+      <a class="btn btn-outline-primary" href="{% url 'handover-list' %}">Shift handovers</a>
+      <a class="btn btn-primary" href="{% url 'hr-create' %}">Add employee</a>
+    </div>
+  </section>
+
+  <section class="module-metric-grid">
+    <article class="module-metric-card">
+      <span class="module-metric-label">Active staff</span>
+      <strong class="module-metric-value">{{ active_count }}</strong>
+      <span class="module-metric-note">Employees currently active in the system</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Terminated staff</span>
+      <strong class="module-metric-value">{{ terminated_count }}</strong>
+      <span class="module-metric-note">Archived employment records</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Current view</span>
+      <strong class="module-metric-value">{{ staff_view|title }}</strong>
+      <span class="module-metric-note">Active tab for this directory</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Visible results</span>
+      <strong class="module-metric-value">{{ employees|length }}</strong>
+      <span class="module-metric-note">Employees matching the current filters</span>
+    </article>
+  </section>
+
+  <section class="module-card">
+    <div class="module-card-header">
       <div>
-        <div class="section-eyebrow mb-2">Staff management</div>
-        <h1 class="page-title mb-2">Search employees</h1>
-        <div class="page-subtitle">Central employee database with leaves, certifications, rosters, payroll, and termination records.</div>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{% url 'hr-rota-list' %}"><i data-lucide="calendar-range"></i> Duty Roster</a>
-        <a class="topbar-pill" href="{% url 'roster-report' %}"><i data-lucide="clipboard-check"></i> Duty Roster Report</a>
-        <a class="topbar-pill" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i> Shift Handovers</a>
-        <a class="topbar-pill" href="{% url 'hr-create' %}"><i data-lucide="plus"></i> Add Employee</a>
+        <h2 class="module-card-title">Refine employee records</h2>
+        <div class="module-card-copy">Switch between active and terminated staff, then narrow by department, status, role, certification, and roster assignment.</div>
       </div>
     </div>
-  </div>
+    <div class="module-card-body module-stack">
+      <div class="module-action-row">
+        <a class="btn {% if staff_view == 'active' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'hr-list' %}?staff_view=active">Active staff <span class="ms-1">{{ active_count }}</span></a>
+        <a class="btn {% if staff_view == 'terminated' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'hr-list' %}?staff_view=terminated">Terminated Employees <span class="ms-1">{{ terminated_count }}</span></a>
+      </div>
 
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex gap-2 flex-wrap mb-3">
-      <a class="btn {% if staff_view == 'active' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'hr-list' %}?staff_view=active">
-        Active Staff
-        <span class="ms-1">{{ active_count }}</span>
-      </a>
-      <a class="btn {% if staff_view == 'terminated' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'hr-list' %}?staff_view=terminated">
-        Terminated Employees
-        <span class="ms-1">{{ terminated_count }}</span>
-      </a>
+      <form method="get" class="module-filter-grid">
+        <input type="hidden" name="staff_view" value="{{ staff_view }}">
+        <div class="module-filter-field">
+          <label class="form-label" for="q">Search</label>
+          <input class="form-control" type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee ID, Ghana Card, department">
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="department">Department</label>
+          <select class="form-select" id="department" name="department">
+            <option value="">All</option>
+            {% for dep in departments %}
+              <option value="{{ dep }}" {% if department == dep %}selected{% endif %}>{{ dep }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="status">Status</label>
+          <select class="form-select" name="status" id="status">
+            <option value="">All</option>
+            {% for value,label in status_choices %}
+              <option value="{{ value }}" {% if employment_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="role">Role</label>
+          <select class="form-select" name="role" id="role">
+            <option value="">All</option>
+            {% for value,label in role_options %}
+              <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="certifications">Certifications</label>
+          <select class="form-select" name="certifications" id="certifications">
+            <option value="">All</option>
+            {% for value,label in certification_filter_options %}
+              <option value="{{ value }}" {% if certification_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="roster">Roster</label>
+          <select class="form-select" id="roster" name="roster">
+            <option value="">Any</option>
+            {% for value,label in roster_options %}
+              <option value="{{ value }}" {% if selected_roster_employee == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="module-filter-field module-form-field--full">
+          <div class="module-form-actions">
+            <span class="module-badge">HR directory filters</span>
+            <div class="module-form-actions-end">
+              <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}?staff_view={{ staff_view }}">Reset</a>
+              <button class="btn btn-primary" type="submit">Apply filters</button>
+            </div>
+          </div>
+        </div>
+      </form>
     </div>
-    <form method="get" class="row g-3">
-      <input type="hidden" name="staff_view" value="{{ staff_view }}">
-      <div class="col-md-4">
-        <label class="form-label" for="q">Search</label>
-        <input class="form-control" type="text" id="q" name="q" value="{{ query }}" placeholder="Name, employee ID, Ghana Card, department">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="department">Department</label>
-        <select class="form-select" id="department" name="department">
-          <option value="">All</option>
-          {% for dep in departments %}
-            <option value="{{ dep }}" {% if department == dep %}selected{% endif %}>{{ dep }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="status">Status</label>
-        <select class="form-select" name="status" id="status">
-          <option value="">All</option>
-          {% for value,label in status_choices %}
-            <option value="{{ value }}" {% if employment_status == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="role">Role</label>
-        <select class="form-select" name="role" id="role">
-          <option value="">All</option>
-          {% for value,label in role_options %}
-            <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="certifications">Certs</label>
-        <select class="form-select" name="certifications" id="certifications">
-          <option value="">All</option>
-          {% for value,label in certification_filter_options %}
-            <option value="{{ value }}" {% if certification_status == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="roster">Roster</label>
-        <select class="form-select" id="roster" name="roster">
-          <option value="">Any</option>
-          {% for value,label in roster_options %}
-            <option value="{{ value }}" {% if selected_roster_employee == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2 d-grid">
-        <button class="btn btn-primary" type="submit">Filter</button>
-      </div>
-      <div class="col-md-2 d-grid">
-        <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}?staff_view={{ staff_view }}">Reset</a>
-      </div>
-    </form>
-  </div>
+  </section>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Photo</th>
-            <th>Employee</th>
-            <th>Department</th>
-            <th>Role</th>
-            <th>Contact</th>
-            <th>Status</th>
-            <th>Hired</th>
-            <th>Terminated</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for employee in employees %}
-            <tr>
-              <td>
-                {% if employee.profile_photo_url %}
-                  <img src="{{ employee.profile_photo_url }}" alt="{{ employee.full_name }}" class="employee-avatar">
-                {% else %}
-                  <div class="employee-avatar employee-avatar-placeholder" aria-label="{{ employee.full_name }}">{{ employee.initials }}</div>
-                {% endif %}
-              </td>
-              <td>
-                <div class="fw-semibold">{{ employee.full_name }}</div>
-                <div class="text-muted small">{{ employee.employee_id|default:"-" }}</div>
-              </td>
-              <td>{{ employee.department|default:"-" }}</td>
-              <td>{{ employee.job_title|default:employee.get_position_display }}</td>
-              <td>{{ employee.contact_number }}</td>
-              <td><span class="status-pill {% if employee.employment_status == 'active' %}success{% else %}neutral{% endif %}">{{ employee.get_employment_status_display }}</span></td>
-              <td>{{ employee.start_date }}</td>
-              <td>{{ employee.termination_date|default:"-" }}</td>
-              <td>
-                <div class="d-flex gap-2 justify-content-end flex-wrap">
-                  <a class="btn btn-sm btn-outline-dark" href="{% url 'hr-detail' employee.pk %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">View</a>
-                  <a class="btn btn-sm btn-outline-primary" href="{% url 'hr-update' employee.pk %}">Edit</a>
-                  <a class="btn btn-sm btn-outline-danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
-                </div>
-              </td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="9" class="text-center text-muted">No employees matched your search.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Employee records</h2>
+        <div class="module-card-copy">Full employee directory with photo, department, role, status, start date, and direct actions.</div>
+      </div>
     </div>
-  </div>
+    <div class="module-card-body">
+      <div class="module-table-wrap table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Photo</th>
+              <th>Employee</th>
+              <th>Department</th>
+              <th>Role</th>
+              <th>Contact</th>
+              <th>Status</th>
+              <th>Hired</th>
+              <th>Terminated</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for employee in employees %}
+              <tr>
+                <td>
+                  {% if employee.profile_photo_url %}
+                    <img src="{{ employee.profile_photo_url }}" alt="{{ employee.full_name }}" class="employee-avatar">
+                  {% else %}
+                    <div class="employee-avatar employee-avatar-placeholder" aria-label="{{ employee.full_name }}">{{ employee.initials }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ employee.full_name }}</div>
+                  <div class="text-muted small">{{ employee.employee_id|default:"-" }}</div>
+                </td>
+                <td>{{ employee.department|default:"-" }}</td>
+                <td>{{ employee.job_title|default:employee.get_position_display }}</td>
+                <td>{{ employee.contact_number }}</td>
+                <td><span class="status-pill {% if employee.employment_status == 'active' %}success{% elif employee.employment_status == 'terminated' %}danger{% else %}neutral{% endif %}">{{ employee.get_employment_status_display }}</span></td>
+                <td>{{ employee.start_date }}</td>
+                <td>{{ employee.termination_date|default:"-" }}</td>
+                <td class="text-end">
+                  <div class="module-table-actions">
+                    <a class="status-pill neutral" href="{% url 'hr-detail' employee.pk %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">View</a>
+                    <a class="status-pill success" href="{% url 'hr-update' employee.pk %}">Edit</a>
+                    <a class="status-pill danger" href="{% url 'hr-delete' employee.pk %}">Delete</a>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="9" class="module-empty">No employees matched your search.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}

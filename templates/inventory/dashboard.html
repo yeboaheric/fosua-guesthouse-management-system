@@ -3,20 +3,19 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Inventory control</div>
-        <h1 class="page-title mb-2">Stock and POS overview</h1>
-        <div class="page-subtitle">Track drinks, foodstuff, stock movement, and live sales across the hotel.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Inventory</div>
+        <h1 class="module-title">Inventory</h1>
+        <div class="module-subcopy">Monitor stock levels, item movement, and point-of-sale activity across the hotel.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-items' %}"><i data-lucide="package-search"></i> Items</a>
         <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a>
         <a class="topbar-pill" href="{% url 'inventory-reports' %}"><i data-lucide="bar-chart-3"></i> Reports</a>
       </div>
-    </div>
-  </div>
+    </section>
 
   <div class="row g-3 mb-3">
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Inventory value</div><div class="metric-value">GHS {{ inventory_value }}</div><div class="text-muted small mt-2">Cost value on the shelves</div></div></div>
@@ -31,7 +30,8 @@
 
   <div class="row g-3 mb-3">
     <div class="col-xl-7">
-      <div class="surface-panel p-4 h-100">
+      <div class="module-card h-100">
+        <div class="module-card-body">
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
           <div>
             <div class="section-eyebrow">Performance</div>
@@ -44,14 +44,29 @@
         {{ category_labels_json|json_script:"inventory-category-labels" }}
         {{ category_units_json|json_script:"inventory-category-units" }}
         <div class="row g-3">
-          <div class="col-md-6"><canvas id="inventoryDailyChart" height="180"></canvas></div>
-          <div class="col-md-6"><canvas id="inventoryCategoryChart" height="180"></canvas></div>
+          <div class="col-md-6">
+            <div class="chart-shell chart-shell--inventory">
+              <canvas id="inventoryDailyChart"></canvas>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="chart-shell chart-shell--inventory">
+              <canvas id="inventoryCategoryChart"></canvas>
+            </div>
+          </div>
+        </div>
         </div>
       </div>
     </div>
     <div class="col-xl-5">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Low stock watchlist</div>
+      <div class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Low stock watchlist</h2>
+            <div class="module-card-copy">Items approaching reorder threshold.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
         <div class="d-grid gap-2">
           {% for item in low_stock_items %}
             <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border">
@@ -65,15 +80,23 @@
             <div class="text-muted">No low stock items right now.</div>
           {% endfor %}
         </div>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="row g-3">
     <div class="col-xl-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Recent sales</div>
-        <div class="table-responsive soft-table">
+      <div class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Recent sales</h2>
+            <div class="module-card-copy">Most recent POS activity on the property.</div>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -97,12 +120,21 @@
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
       </div>
     </div>
     <div class="col-xl-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Recent inventory activity</div>
-        <div class="table-responsive soft-table">
+      <div class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Recent inventory activity</h2>
+            <div class="module-card-copy">Latest stock movements and logged changes.</div>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -126,45 +158,54 @@
             </tbody>
           </table>
         </div>
+        </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-  const inventoryLabels = JSON.parse(document.getElementById("inventory-daily-labels").textContent);
-  const inventorySales = JSON.parse(document.getElementById("inventory-daily-sales").textContent);
-  const inventoryCategoryLabels = JSON.parse(document.getElementById("inventory-category-labels").textContent);
-  const inventoryCategoryUnits = JSON.parse(document.getElementById("inventory-category-units").textContent);
+  window.addEventListener("load", function () {
+    if (!window.FGCharts) {
+      return;
+    }
+    const inventoryLabels = JSON.parse(document.getElementById("inventory-daily-labels").textContent);
+    const inventorySales = JSON.parse(document.getElementById("inventory-daily-sales").textContent);
+    const inventoryCategoryLabels = JSON.parse(document.getElementById("inventory-category-labels").textContent);
+    const inventoryCategoryUnits = JSON.parse(document.getElementById("inventory-category-units").textContent);
 
-  new Chart(document.getElementById("inventoryDailyChart"), {
-    type: "line",
-    data: {
+    window.FGCharts.upsert(document.getElementById("inventoryDailyChart"), {
+      type: "line",
       labels: inventoryLabels,
+      xAxisTitle: "Day",
+      yAxisTitle: "Sales (GHS)",
+      tooltipPrefix: "GHS ",
+      legend: false,
       datasets: [{
         label: "Sales",
         data: inventorySales,
-        borderColor: "#3d7dff",
-        backgroundColor: "rgba(61, 125, 255, 0.18)",
+        borderColor: "#203F46",
+        gradientFill: true,
+        fill: true,
         tension: 0.35,
-        fill: true
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-  });
+      }],
+    });
 
-  new Chart(document.getElementById("inventoryCategoryChart"), {
-    type: "bar",
-    data: {
+    window.FGCharts.upsert(document.getElementById("inventoryCategoryChart"), {
+      type: "bar",
       labels: inventoryCategoryLabels,
+      xAxisTitle: "Category",
+      yAxisTitle: "Units sold",
+      legend: false,
       datasets: [{
         label: "Units sold",
         data: inventoryCategoryUnits,
-        backgroundColor: ["#1f3b44", "#3d7dff", "#c7ab83", "#167d47", "#9b6b00", "#b32836"]
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        backgroundColor: ["#203F46", "#CFAE84", "#7B9998", "#8F6F4F", "#E7D6BE", "#6C7A80"],
+        borderRadius: 12,
+      }],
+    });
   });
 </script>
 {% endblock %}

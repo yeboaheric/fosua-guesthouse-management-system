@@ -2,62 +2,73 @@
 {% load static %}
 
 {% block content %}
-<div class="dashboard-background p-4 rounded-4 shadow-sm">
-  <div class="brand-panel p-4 mb-4">
-    <h1 class="h4 mb-1">{{ form_title }}</h1>
-    <div class="brand-gold-line"></div>
-  </div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Duty roster</div>
+        <h1 class="module-title">{{ form_title }}</h1>
+        <div class="module-subcopy">Create or update weekly staff shift schedules, roster rules, and employee assignments.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'hr-rota-list' %}">Back to roster</a>
+      </div>
+    </section>
 
-  <div class="card shadow-sm border-0">
-    <div class="card-body p-4">
-      <form method="post">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post" class="module-stack">
         {% csrf_token %}
         {{ form.non_field_errors }}
-        <div class="row g-3">
-          <div class="col-md-6">
+        <div class="module-form-grid">
+          <div class="module-form-field module-form-field--half">
             <label class="form-label" for="id_employee">Employee</label>
             {{ form.employee }}
             {% if form.employee.errors %}<div class="text-danger small mt-1">{{ form.employee.errors|join:", " }}</div>{% endif %}
           </div>
-          <div class="col-md-6">
+          <div class="module-form-field module-form-field--half">
             <label class="form-label" for="id_period">Period label</label>
             {{ form.period }}
             <div class="form-text">Example: Week 1 Front Desk Shift</div>
             {% if form.period.errors %}<div class="text-danger small mt-1">{{ form.period.errors|join:", " }}</div>{% endif %}
           </div>
-          <div class="col-md-6">
+          <div class="module-form-field module-form-field--half">
             <label class="form-label" for="id_period_start">Start date</label>
             {{ form.period_start }}
             {% if form.period_start.errors %}<div class="text-danger small mt-1">{{ form.period_start.errors|join:", " }}</div>{% endif %}
           </div>
-          <div class="col-md-6">
+          <div class="module-form-field module-form-field--half">
             <label class="form-label" for="id_period_end">Finish date</label>
             {{ form.period_end }}
             {% if form.period_end.errors %}<div class="text-danger small mt-1">{{ form.period_end.errors|join:", " }}</div>{% endif %}
           </div>
-          <div class="col-md-6">
+          <div class="module-form-field module-form-field--half">
             <label class="form-label" for="id_opening_time">Start time</label>
             {{ form.opening_time }}
             {% if form.opening_time.errors %}<div class="text-danger small mt-1">{{ form.opening_time.errors|join:", " }}</div>{% endif %}
           </div>
-          <div class="col-md-6">
+          <div class="module-form-field module-form-field--half">
             <label class="form-label" for="id_closing_time">Finish time</label>
             {{ form.closing_time }}
             {% if form.closing_time.errors %}<div class="text-danger small mt-1">{{ form.closing_time.errors|join:", " }}</div>{% endif %}
           </div>
-          <div class="col-12">
+          <div class="module-form-field module-form-field--full">
             <label class="form-label" for="id_shift_rules">Necessary info</label>
             {{ form.shift_rules }}
             {% if form.shift_rules.errors %}<div class="text-danger small mt-1">{{ form.shift_rules.errors|join:", " }}</div>{% endif %}
           </div>
         </div>
 
-        <div class="mt-4 d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Save roster</button>
-          <a class="btn btn-outline-secondary" href="{% url 'hr-rota-list' %}">Back to roster</a>
+        <div class="module-form-actions">
+          <div class="module-card-copy">Saved rosters feed the duty roster reporting and handover workflows automatically.</div>
+          <div class="module-form-actions-end">
+            <a class="btn btn-outline-secondary" href="{% url 'hr-rota-list' %}">Cancel</a>
+            <button type="submit" class="btn btn-primary">Save roster</button>
+          </div>
         </div>
-      </form>
-    </div>
+        </form>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

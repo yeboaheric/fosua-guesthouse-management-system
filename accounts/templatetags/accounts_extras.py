@@ -14,6 +14,14 @@ def has_group(user, group_name):
 
 
 @register.filter
+def primary_group(user):
+    if not getattr(user, "is_authenticated", False):
+        return ""
+    group = user.groups.order_by("name").first()
+    return group.name if group else ""
+
+
+@register.filter
 def nav_active(request, names):
     current = getattr(getattr(request, "resolver_match", None), "url_name", "") or ""
     target_names = {name.strip() for name in str(names).split()}

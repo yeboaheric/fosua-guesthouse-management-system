@@ -2,46 +2,40 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Services center</div>
-        <h1 class="page-title mb-2">Event space bookings</h1>
-        <div class="page-subtitle">Purpose, guest count, setup style, and status for each event.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Event reservations</div>
+        <h1 class="module-title">Event Reservations</h1>
+        <div class="module-subcopy">Manage venue bookings, guest counts, setup requirements, and event reservation status.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'event-booking-create' %}"><i data-lucide="sparkles"></i> New event</a>
         <a class="topbar-pill" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i> Operations</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Recent events</div>
-        <div class="metric-value">{{ events|length }}</div>
-        <div class="text-muted small mt-2">Latest event bookings in the system</div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Spaces used</div>
-        <div class="metric-value">1</div>
-        <div class="text-muted small mt-2">Primary event space available for booking</div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Operations</div>
-        <div class="metric-value">Live</div>
-        <div class="text-muted small mt-2">Confirm, start, complete, or cancel with audit history</div>
-      </div>
-    </div>
-  </div>
+    <section class="module-metric-grid">
+      <article class="module-metric-card">
+        <span class="module-metric-label">Recent events</span>
+        <span class="module-metric-value">{{ events|length }}</span>
+        <span class="module-metric-note">Latest event bookings recorded in the system.</span>
+      </article>
+      <article class="module-metric-card">
+        <span class="module-metric-label">Spaces used</span>
+        <span class="module-metric-value">1</span>
+        <span class="module-metric-note">Primary event space currently available for booking.</span>
+      </article>
+      <article class="module-metric-card">
+        <span class="module-metric-label">Operations</span>
+        <span class="module-metric-value">Live</span>
+        <span class="module-metric-note">Confirm, start, complete, or cancel with audit history.</span>
+      </article>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
       <div class="col-lg-6">
         <label class="form-label" for="q">Search events</label>
         <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Title, space, purpose, guest">
@@ -62,10 +56,19 @@
         <a class="btn btn-outline-secondary w-100" href="{% url 'services-center' %}">Reset</a>
       </div>
     </form>
-  </div>
+      </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Event bookings</h2>
+          <div class="module-card-copy">Venue use, guests, schedules, status, and payment workflows in one operations list.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
@@ -102,7 +105,10 @@
           {% endfor %}
         </tbody>
       </table>
+        </div>
+      </div>
     </div>
+    </section>
   </div>
 </div>
 {% endblock %}

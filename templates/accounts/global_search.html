@@ -3,37 +3,41 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Global search</div>
-        <h1 class="page-title mb-2">Search results</h1>
-        <div class="page-subtitle">
+  <div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Global search</div>
+      <h1 class="module-title">Search results</h1>
+      <div class="module-subcopy">
           {% if query %}
-            Results for "{{ query }}"
+            Review results for "{{ query }}" across guests, rooms, bookings, payments, inventory, staff, and event records.
           {% else %}
-            Search guests, rooms, bookings, invoices, payments, and staff records from the top bar.
+            Search guests, rooms, bookings, invoices, payments, inventory, and staff records from the top bar.
           {% endif %}
-        </div>
       </div>
-      {% if query %}
-        <div class="d-flex gap-2 flex-wrap">
-          <span class="status-pill neutral">Guests {{ guest_results|length }}</span>
-          <span class="status-pill neutral">Rooms {{ room_results|length }}</span>
-          <span class="status-pill neutral">Bookings {{ booking_results|length }}</span>
-          <span class="status-pill neutral">Payments {{ payment_results|length }}</span>
-          <span class="status-pill neutral">Inventory {{ inventory_results|length }}</span>
-          <span class="status-pill neutral">Sales {{ sale_results|length }}</span>
-        </div>
-      {% endif %}
     </div>
-  </div>
+      {% if query %}
+      <div class="module-action-row">
+        <span class="status-pill neutral">Guests {{ guest_results|length }}</span>
+        <span class="status-pill neutral">Rooms {{ room_results|length }}</span>
+        <span class="status-pill neutral">Bookings {{ booking_results|length }}</span>
+        <span class="status-pill neutral">Payments {{ payment_results|length }}</span>
+        <span class="status-pill neutral">Inventory {{ inventory_results|length }}</span>
+        <span class="status-pill neutral">Sales {{ sale_results|length }}</span>
+      </div>
+      {% endif %}
+  </section>
 
   {% if query %}
     <div class="row g-3">
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Guests</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Guests</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for guest in guest_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3">
@@ -47,12 +51,18 @@
           {% empty %}
             <div class="text-muted">No guests matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Rooms</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Rooms</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for room in room_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3">
@@ -66,12 +76,18 @@
           {% empty %}
             <div class="text-muted">No rooms matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Bookings</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Bookings</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for booking in booking_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3 align-items-start">
@@ -85,12 +101,18 @@
           {% empty %}
             <div class="text-muted">No bookings matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Payments</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Payments</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for payment in payment_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3 align-items-start">
@@ -104,12 +126,18 @@
           {% empty %}
             <div class="text-muted">No payments matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Inventory</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Inventory</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for item in inventory_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3 align-items-start">
@@ -123,12 +151,18 @@
           {% empty %}
             <div class="text-muted">No inventory items matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">POS sales</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">POS sales</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for sale in sale_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3 align-items-start">
@@ -142,12 +176,18 @@
           {% empty %}
             <div class="text-muted">No POS sales matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Staff</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Staff</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for employee in employee_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3">
@@ -161,12 +201,18 @@
           {% empty %}
             <div class="text-muted">No employees matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Event bookings</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Event bookings</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for event in event_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3 align-items-start">
@@ -180,12 +226,18 @@
           {% empty %}
             <div class="text-muted">No event bookings matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-6">
-        <div class="surface-panel p-4 h-100">
-          <div class="section-eyebrow mb-2">Event payments</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Event payments</h2>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% for payment in event_payment_results %}
             <div class="result-card">
               <div class="d-flex justify-content-between gap-3 align-items-start">
@@ -199,11 +251,13 @@
           {% empty %}
             <div class="text-muted">No event payments matched that search.</div>
           {% endfor %}
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   {% else %}
-    <div class="surface-panel p-4">
+    <section class="module-card">
+      <div class="module-card-body">
       <div class="row g-3">
         <div class="col-lg-4">
           <div class="mini-metric h-100">
@@ -227,7 +281,9 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </section>
   {% endif %}
+</div>
 </div>
 {% endblock %}

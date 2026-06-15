@@ -34,8 +34,8 @@ GHA_CARD_VALIDATOR = RegexValidator(
 )
 
 GPS_ADDRESS_VALIDATOR = RegexValidator(
-    regex=r"^[A-Z]{2}-[A-Z0-9]{4}-[A-Z0-9]{2}$",
-    message="Enter a valid GPS address in the format AK-1234-56.",
+    regex=r"^[A-Z]{2}-[A-Z0-9]{3}-[A-Z0-9]{4}$",
+    message="Enter a valid GPS address in the format AZ-123-4567.",
 )
 
 

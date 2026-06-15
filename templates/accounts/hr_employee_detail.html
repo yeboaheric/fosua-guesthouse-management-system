@@ -1,120 +1,158 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Staff profile</div>
-        <h1 class="page-title mb-2">{{ employee.full_name }}</h1>
-        <div class="page-subtitle">
-          {{ employee.get_position_display }}{% if employee.department %} · {{ employee.department }}{% endif %}{% if employee.employee_id %} · {{ employee.employee_id }}{% endif %}
-        </div>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{{ back_to_list_url }}"><i data-lucide="arrow-left"></i> Back</a>
-        <a class="topbar-pill" href="{% url 'hr-update' employee.pk %}"><i data-lucide="pencil"></i> Edit</a>
-        <a class="topbar-pill" href="{% url 'hr-employee-section' employee.pk 'leave' %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}"><i data-lucide="calendar-range"></i> Annual Leave</a>
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Staff management</div>
+      <h1 class="module-title">Staff Profile</h1>
+      <div class="module-subcopy">
+          Review employee records, HR details, and staff activity for {{ employee.full_name }}{% if employee.get_position_display %} · {{ employee.get_position_display }}{% endif %}{% if employee.department %} · {{ employee.department }}{% endif %}{% if employee.employee_id %} · {{ employee.employee_id }}{% endif %}.
       </div>
     </div>
-  </div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{{ back_to_list_url }}">Back</a>
+      <a class="btn btn-outline-primary" href="{% url 'hr-employee-section' employee.pk 'leave' %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">Annual Leave</a>
+      <a class="btn btn-primary" href="{% url 'hr-update' employee.pk %}">Edit employee</a>
+    </div>
+  </section>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Annual leave balance</div>
-        <div class="metric-value">{{ leave_balance }}</div>
-        <div class="text-muted small mt-2">Days remaining this year</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Qualifications</div>
-        <div class="metric-value">{{ employee.qualifications.count }}</div>
-        <div class="text-muted small mt-2">{{ expiring_certifications_count }} expiring within 12 months</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Documents</div>
-        <div class="metric-value">{{ employee.documents.count }}</div>
-        <div class="text-muted small mt-2">Uploaded employment files</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Duty rosters</div>
-        <div class="metric-value">{{ rotas|length }}</div>
-        <div class="text-muted small mt-2">Assigned weekly schedule entries</div>
-      </div>
-    </div>
-  </div>
+  <section class="module-metric-grid">
+    <article class="module-metric-card">
+      <span class="module-metric-label">Annual leave balance</span>
+      <strong class="module-metric-value">{{ leave_balance }}</strong>
+      <span class="module-metric-note">Days remaining this year</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Qualifications</span>
+      <strong class="module-metric-value">{{ employee.qualifications.count }}</strong>
+      <span class="module-metric-note">{{ expiring_certifications_count }} expiring within 12 months</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Documents</span>
+      <strong class="module-metric-value">{{ employee.documents.count }}</strong>
+      <span class="module-metric-note">Uploaded employment files</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Duty rosters</span>
+      <strong class="module-metric-value">{{ rotas|length }}</strong>
+      <span class="module-metric-note">Assigned weekly schedule entries</span>
+    </article>
+  </section>
 
-  <div class="row g-3">
+  <div class="row g-4 align-items-start">
     <div class="col-lg-4">
-      <div class="surface-panel p-4 h-100 text-center">
-        {% if employee.profile_photo_url %}
-          <img src="{{ employee.profile_photo_url }}" alt="{{ employee.full_name }}" class="employee-portrait mb-3">
-        {% else %}
-          <div class="employee-portrait employee-portrait-placeholder mb-3" aria-label="{{ employee.full_name }}">{{ employee.initials }}</div>
-        {% endif %}
-        <div class="small text-muted">Ghana Card</div>
-        <div class="fw-semibold">{{ employee.ghana_card_number }}</div>
-        <div class="small text-muted mt-2">Expiry</div>
-        <div>{{ employee.ghana_card_expiry_date|default:"-" }}</div>
-        <div class="small text-muted mt-3">Status</div>
-        <div class="status-pill {% if employee.employment_status == 'active' %}success{% else %}neutral{% endif %}">{{ employee.get_employment_status_display }}</div>
-      </div>
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Employee snapshot</h2>
+            <div class="module-card-copy">Identity, card details, and current employment status at a glance.</div>
+          </div>
+        </div>
+        <div class="module-card-body text-center">
+          {% if employee.profile_photo_url %}
+            <img src="{{ employee.profile_photo_url }}" alt="{{ employee.full_name }}" class="employee-portrait mb-3">
+          {% else %}
+            <div class="employee-portrait employee-portrait-placeholder mb-3" aria-label="{{ employee.full_name }}">{{ employee.initials }}</div>
+          {% endif %}
+          <div class="module-inline-list text-start">
+            <div class="module-inline-item">
+              <div class="module-inline-label">Ghana card</div>
+              <div class="module-inline-value">{{ employee.ghana_card_number|default:"-" }}</div>
+            </div>
+            <div class="module-inline-item">
+              <div class="module-inline-label">Card expiry</div>
+              <div class="module-inline-value">{{ employee.ghana_card_expiry_date|default:"-" }}</div>
+            </div>
+            <div class="module-inline-item">
+              <div class="module-inline-label">Status</div>
+              <div class="module-inline-value">
+                <span class="status-pill {% if employee.employment_status == 'active' %}success{% elif employee.employment_status == 'terminated' %}danger{% else %}neutral{% endif %}">{{ employee.get_employment_status_display }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <div class="col-lg-8">
-      <div class="surface-panel p-4 mb-3">
-        <h2 class="h5 mb-3">Employee information</h2>
-        <div class="row g-3">
-          <div class="col-md-6"><strong>Employee ID:</strong> {{ employee.employee_id|default:"-" }}</div>
-          <div class="col-md-6"><strong>Email:</strong> {{ employee.email|default:"-" }}</div>
-          <div class="col-md-6"><strong>Contact:</strong> {{ employee.contact_number }}</div>
-          <div class="col-md-6"><strong>Emergency Contact:</strong> {{ employee.emergency_contact_name|default:"-" }}{% if employee.emergency_contact_number %} - {{ employee.emergency_contact_number }}{% endif %}</div>
-          <div class="col-md-6"><strong>Department:</strong> {{ employee.department|default:"-" }}</div>
-          <div class="col-md-6"><strong>Job Title:</strong> {{ employee.job_title|default:employee.get_position_display }}</div>
-          <div class="col-md-6"><strong>Supervisor:</strong> {{ employee.supervisor|default:"-" }}</div>
-          <div class="col-md-6"><strong>Salary:</strong> {% if employee.salary_amount %}GHS {{ employee.salary_amount }}{% else %}-{% endif %}</div>
-          <div class="col-md-6"><strong>Date of Employment:</strong> {{ employee.start_date }}</div>
-          <div class="col-md-6"><strong>Termination Date:</strong> {{ employee.termination_date|default:"-" }}</div>
-          <div class="col-md-6"><strong>Termination Reason:</strong> {{ employee.get_termination_reason_choice_display|default:"-" }}</div>
-          <div class="col-md-12"><strong>Termination Notes:</strong> {{ employee.termination_reason|default:"-" }}</div>
-          <div class="col-md-12"><strong>Exit Interview Notes:</strong> {{ employee.termination_exit_interview_notes|default:"-" }}</div>
-          <div class="col-md-6"><strong>Company assets returned:</strong> {% if employee.company_assets_returned %}Yes{% else %}No{% endif %}</div>
-          <div class="col-md-6"><strong>Approved by:</strong> {{ employee.termination_approved_by|default:"-" }}</div>
-          <div class="col-md-12"><strong>Residential Address:</strong> {{ employee.residential_address|default:"-" }}</div>
-          <div class="col-md-6"><strong>SSNIT Number:</strong> {{ employee.ssnit_number|default:"-" }}</div>
-          <div class="col-md-6"><strong>GPS Address:</strong> {{ employee.gps_address|default:"-" }}</div>
-        </div>
-      </div>
+      <div class="module-stack">
+        <section class="module-card">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Employee information</h2>
+              <div class="module-card-copy">Core contact, employment, compensation, and termination details tied to this employee file.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="row g-3">
+              <div class="col-md-6"><strong>Employee ID:</strong> {{ employee.employee_id|default:"-" }}</div>
+              <div class="col-md-6"><strong>Email:</strong> {{ employee.email|default:"-" }}</div>
+              <div class="col-md-6"><strong>Contact:</strong> {{ employee.contact_number }}</div>
+              <div class="col-md-6"><strong>Emergency Contact:</strong> {{ employee.emergency_contact_name|default:"-" }}{% if employee.emergency_contact_number %} - {{ employee.emergency_contact_number }}{% endif %}</div>
+              <div class="col-md-6"><strong>Department:</strong> {{ employee.department|default:"-" }}</div>
+              <div class="col-md-6"><strong>Job Title:</strong> {{ employee.job_title|default:employee.get_position_display }}</div>
+              <div class="col-md-6"><strong>Supervisor:</strong> {{ employee.supervisor|default:"-" }}</div>
+              <div class="col-md-6"><strong>Salary:</strong> {% if employee.salary_amount %}GHS {{ employee.salary_amount }}{% else %}-{% endif %}</div>
+              <div class="col-md-6"><strong>Date of Employment:</strong> {{ employee.start_date }}</div>
+              <div class="col-md-6"><strong>Termination Date:</strong> {{ employee.termination_date|default:"-" }}</div>
+              <div class="col-md-6"><strong>Termination Reason:</strong> {{ employee.get_termination_reason_choice_display|default:"-" }}</div>
+              <div class="col-md-12"><strong>Termination Notes:</strong> {{ employee.termination_reason|default:"-" }}</div>
+              <div class="col-md-12"><strong>Exit Interview Notes:</strong> {{ employee.termination_exit_interview_notes|default:"-" }}</div>
+              <div class="col-md-6"><strong>Company assets returned:</strong> {% if employee.company_assets_returned %}Yes{% else %}No{% endif %}</div>
+              <div class="col-md-6"><strong>Approved by:</strong> {{ employee.termination_approved_by|default:"-" }}</div>
+              <div class="col-md-12"><strong>Residential Address:</strong> {{ employee.residential_address|default:"-" }}</div>
+              <div class="col-md-6"><strong>SSNIT Number:</strong> {{ employee.ssnit_number|default:"-" }}</div>
+              <div class="col-md-6"><strong>GPS Address:</strong> {{ employee.gps_address|default:"-" }}</div>
+            </div>
+          </div>
+        </section>
 
-      <div class="surface-panel p-4">
-        <h2 class="h5 mb-3">Next of kin</h2>
-        <div class="row g-3">
-          <div class="col-md-4"><strong>Name:</strong> {{ employee.next_of_kin|default:"-" }}</div>
-          <div class="col-md-4"><strong>Contact:</strong> {{ employee.next_of_kin_contact|default:"-" }}</div>
-          <div class="col-md-4"><strong>Relationship:</strong> {{ employee.next_of_kin_relationship|default:"-" }}</div>
-        </div>
+        <section class="module-card">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Next of kin</h2>
+              <div class="module-card-copy">Emergency contact details associated with this employee record.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="row g-3">
+              <div class="col-md-4"><strong>Name:</strong> {{ employee.next_of_kin|default:"-" }}</div>
+              <div class="col-md-4"><strong>Contact:</strong> {{ employee.next_of_kin_contact|default:"-" }}</div>
+              <div class="col-md-4"><strong>Relationship:</strong> {{ employee.next_of_kin_relationship|default:"-" }}</div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
 
-  <div class="surface-panel p-4 mt-3">
-    <div class="d-flex flex-wrap gap-2 mb-3">
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Employee subsections</h2>
+        <div class="module-card-copy">Jump straight into leave, attendance, certifications, payroll, and other employee-linked records.</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <div class="module-action-row justify-content-start">
       {% for link in section_links %}
         <a class="status-pill neutral" href="{{ link.url }}">{{ link.label }} ({{ link.count }})</a>
       {% endfor %}
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="surface-panel p-4 mt-3">
-    <h2 class="h5 mb-3">Weekly duty rosters</h2>
-    <div class="table-responsive">
-      <table class="table mb-0">
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Weekly duty rosters</h2>
+        <div class="module-card-copy">Scheduled weekly rota entries already assigned to this employee.</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <div class="module-table-wrap table-responsive">
+      <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
             <th>Week</th>
@@ -129,16 +167,17 @@
               <td>{{ rota.period_start }} to {{ rota.period_end }}</td>
               <td>{{ rota.operating_hours }}</td>
               <td>{{ rota.total_hours }}</td>
-              <td class="text-end"><a class="btn btn-sm btn-outline-dark" href="{% url 'hr-rota-detail' rota.pk %}">View</a></td>
+              <td class="text-end"><a class="status-pill neutral" href="{% url 'hr-rota-detail' rota.pk %}">View</a></td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="4" class="text-center text-muted">No duty rosters assigned yet.</td>
+              <td colspan="4" class="module-empty">No duty rosters assigned yet.</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
+      </div>
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}

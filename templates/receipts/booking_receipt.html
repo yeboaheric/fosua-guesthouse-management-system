@@ -2,18 +2,24 @@
 {% load static %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Booking Receipt</h1>
-  <div class="d-flex gap-2 flex-wrap">
-    <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Back</a>
-    <a class="btn btn-outline-primary" href="{% url 'receipt-pdf' booking.id %}">Download PDF</a>
-    <a class="btn btn-outline-dark" href="{% url 'receipt-email' booking.id %}">Send to Email</a>
-    <button class="btn btn-primary" onclick="window.print()">Print</button>
-  </div>
-</div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Receipt</div>
+        <h1 class="module-title">Booking receipt</h1>
+        <div class="module-subcopy">{{ booking.guest.first_name }} {{ booking.guest.last_name }} · {{ booking.created_at|date:"d/m/Y H:i" }}</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Back</a>
+        <a class="btn btn-outline-primary" href="{% url 'receipt-pdf' booking.id %}">Download PDF</a>
+        <a class="btn btn-outline-dark" href="{% url 'receipt-email' booking.id %}">Send to Email</a>
+        <button class="btn btn-primary" onclick="window.print()">Print</button>
+      </div>
+    </section>
 
-<div class="card shadow-sm">
-  <div class="card-body p-4">
+    <section class="module-card">
+      <div class="module-card-body p-4">
     <div class="d-flex justify-content-between mb-4">
       <div>
         <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-mark mb-2">
@@ -105,6 +111,8 @@
         {% endfor %}
       </tbody>
     </table>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

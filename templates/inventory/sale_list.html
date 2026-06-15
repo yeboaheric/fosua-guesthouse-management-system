@@ -2,82 +2,101 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">POS sales</div>
-        <h1 class="page-title mb-2">Receipt history</h1>
-        <div class="page-subtitle">View completed sales, reprint PDFs, and resend receipts by email.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">POS sales</div>
+        <h1 class="module-title">POS Sales</h1>
+        <div class="module-subcopy">Review completed sales, reprint receipts, and resend sales records by email.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="shopping-cart"></i> New sale</a>
         <a class="topbar-pill" href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if payment_method %}method={{ payment_method|urlencode }}&{% endif %}export=csv"><i data-lucide="download"></i> CSV export</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
-      <div class="col-lg-5">
-        <label class="form-label" for="q">Search receipts</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Receipt, customer, phone, email, item">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="module-filter-grid">
+          <div class="module-filter-field module-form-field--half">
+            <label class="form-label" for="q">Search receipts</label>
+            <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Receipt, customer, phone, email, item">
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="method">Payment method</label>
+            <select class="form-select" name="method" id="method">
+              <option value="">All methods</option>
+              {% for value, label in payment_methods %}
+                <option value="{{ value }}" {% if payment_method == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-sales' %}">Reset</a>
+          </div>
+        </form>
       </div>
-      <div class="col-lg-3">
-        <label class="form-label" for="method">Payment method</label>
-        <select class="form-select" name="method" id="method">
-          <option value="">All methods</option>
-          {% for value, label in payment_methods %}
-            <option value="{{ value }}" {% if payment_method == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-2">
-        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
-      </div>
-      <div class="col-lg-2">
-        <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-sales' %}">Reset</a>
-      </div>
-    </form>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Receipt</th>
-            <th>Customer</th>
-            <th>Total</th>
-            <th>Paid</th>
-            <th>Method</th>
-            <th>Cashier</th>
-            <th>Time</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for sale in sales %}
-            <tr>
-              <td class="fw-semibold">{{ sale.receipt_number }}</td>
-              <td>{{ sale.customer_name|default:"Walk-in customer" }}</td>
-              <td>GHS {{ sale.grand_total }}</td>
-              <td>GHS {{ sale.amount_paid }}</td>
-              <td><span class="status-pill neutral">{{ sale.get_payment_method_display }}</span></td>
-              <td>{{ sale.cashier.get_full_name|default:sale.cashier.username }}</td>
-              <td>{{ sale.created_at|date:"d/m/Y H:i" }}</td>
-              <td>
-                <div class="d-flex gap-2 flex-wrap">
-                  <a class="status-pill neutral" href="{% url 'inventory-sale-detail' sale.pk %}">Open</a>
-                  <a class="status-pill success" href="{% url 'inventory-sale-pdf' sale.pk %}">PDF</a>
-                </div>
-              </td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="8" class="text-muted">No sales yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">POS receipt history</h2>
+          <div class="module-card-copy">Every sale, payment method, cashier action, and printable receipt stays accessible here.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Receipt</th>
+                  <th>Customer</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Method</th>
+                  <th>Cashier</th>
+                  <th>Time</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for sale in sales %}
+                  <tr>
+                    <td class="fw-semibold">{{ sale.receipt_number }}</td>
+                    <td>{{ sale.customer_name|default:"Walk-in customer" }}</td>
+                    <td>GHS {{ sale.grand_total }}</td>
+                    <td>GHS {{ sale.amount_paid }}</td>
+                    <td><span class="status-pill neutral">{{ sale.get_payment_method_display }}</span></td>
+                    <td>{{ sale.cashier.get_full_name|default:sale.cashier.username }}</td>
+                    <td>{{ sale.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>
+                      <div class="module-table-actions">
+                        <a class="status-pill neutral" href="{% url 'inventory-sale-detail' sale.pk %}">Open</a>
+                        {% if can_edit_sale %}
+                          <a class="status-pill warning" href="{% url 'inventory-sale-update' sale.pk %}">Edit</a>
+                          <form method="post" action="{% url 'inventory-sale-delete' sale.pk %}" onsubmit="return confirm('Are you sure you want to delete this sale? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button class="status-pill danger" type="submit">Delete</button>
+                          </form>
+                        {% endif %}
+                        <a class="status-pill success" href="{% url 'inventory-sale-pdf' sale.pk %}">PDF</a>
+                      </div>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="8" class="text-muted">No sales yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

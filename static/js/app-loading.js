@@ -235,6 +235,9 @@
     if (!element) {
       return false;
     }
+    if (element.closest("[data-loading-ignore='true']")) {
+      return false;
+    }
     if (element.hasAttribute("data-loading-text")) {
       return true;
     }
@@ -282,6 +285,9 @@
 
   function shouldActivateForControl(control) {
     if (!control || control.dataset.loadingActive === "true") {
+      return false;
+    }
+    if (control.closest("[data-loading-ignore='true']")) {
       return false;
     }
     if (isValidSubmittableControl(control)) {
@@ -558,6 +564,9 @@
       function (event) {
         const control = event.target.closest("button, input[type='submit'], input[type='button'], a[href]");
         if (!control) {
+          return;
+        }
+        if (control.closest("[data-loading-ignore='true']")) {
           return;
         }
         if (control.dataset.loadingActive === "true" && control.dataset.loadingGuard === "true") {

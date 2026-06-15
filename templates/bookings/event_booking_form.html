@@ -1,49 +1,106 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-10">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h4 mb-0">{{ title }}</h1>
-      <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="{% url 'guest-create' %}">New Guest</a>
-        <a class="btn btn-outline-secondary" href="{% url 'event-booking-list' %}">Back</a>
-      </div>
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Event reservations</div>
+      <h1 class="module-title">{{ title }}</h1>
+      <div class="module-subcopy">Create or update event booking details, venue use, schedule, guest counts, and service requirements.</div>
     </div>
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <form method="post">
-          {% csrf_token %}
-          {{ form.non_field_errors }}
-          <div class="row g-3">
-            {% for field in form %}
-              {% if field.name == "notes" or field.name == "purpose" %}
-                <div class="col-12">
-              {% elif field.name == "needs_catering" or field.name == "needs_audio_visual" %}
-                <div class="col-md-6">
-              {% else %}
-                <div class="col-md-6">
-              {% endif %}
-                {% if field.name == "needs_catering" or field.name == "needs_audio_visual" %}
-                  <div class="form-check">
+    <div class="module-action-row">
+      <a class="btn btn-outline-secondary" href="{% url 'guest-create' %}">New guest</a>
+      <a class="btn btn-outline-primary" href="{% url 'event-booking-list' %}">Back to events</a>
+    </div>
+  </section>
+
+  <div class="row g-4 align-items-start">
+    <div class="col-xl-8">
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Event booking details</h2>
+            <div class="module-card-copy">Fill out the event identity, schedule, guest count, setup expectations, AV requirements, and internal planning notes.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
+          <form method="post" class="module-stack">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger mb-0">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="module-form-grid">
+              {% for field in form %}
+                <div class="module-form-field {% if field.name == 'notes' or field.name == 'purpose' %}module-form-field--full{% elif field.name == 'needs_catering' or field.name == 'needs_audio_visual' %}module-form-field--half{% else %}module-form-field--half{% endif %}">
+                  {% if field.name == "needs_catering" or field.name == "needs_audio_visual" %}
+                    <div class="form-check">
+                      {{ field }}
+                      <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    </div>
+                  {% else %}
+                    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
-                    <label class="form-check-label ms-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                  </div>
-                {% else %}
-                  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                  {{ field }}
-                {% endif %}
-                {% if field.errors %}
-                  <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
-                {% endif %}
+                  {% endif %}
+                  {% if field.help_text %}
+                    <div class="form-text">{{ field.help_text }}</div>
+                  {% endif %}
+                  {% if field.errors %}
+                    <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="module-form-actions">
+              <span class="module-badge">Event setup entry</span>
+              <div class="module-form-actions-end">
+                <a class="btn btn-outline-secondary" href="{% url 'event-booking-list' %}">Cancel</a>
+                <button class="btn btn-primary" type="submit">Save event booking</button>
               </div>
-            {% endfor %}
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-4">
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Planning notes</h2>
+            <div class="module-card-copy">Keep the venue operations team aligned while you capture the reservation.</div>
           </div>
-          <div class="mt-4">
-            <button class="btn btn-primary" type="submit">Save Event Booking</button>
+        </div>
+        <div class="module-card-body">
+          <div class="module-inline-list">
+            <div class="module-inline-item">
+              <div>
+                <div class="module-inline-label">Space</div>
+                <div class="module-inline-value text-start">Choose the event space and title clearly so front desk, events, and finance all read the same record.</div>
+              </div>
+            </div>
+            <div class="module-inline-item">
+              <div>
+                <div class="module-inline-label">Timeline</div>
+                <div class="module-inline-value text-start">Use the exact event start and end times to support operations overview, staffing, and payments.</div>
+              </div>
+            </div>
+            <div class="module-inline-item">
+              <div>
+                <div class="module-inline-label">Service needs</div>
+                <div class="module-inline-value text-start">Turn on catering or AV only when those services are actually required for the event.</div>
+              </div>
+            </div>
+            <div class="module-inline-item">
+              <div>
+                <div class="module-inline-label">Status</div>
+                <div class="module-inline-value text-start">Keep new event bookings pending until the reservation is ready to confirm operationally.</div>
+              </div>
+            </div>
           </div>
-        </form>
-      </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>

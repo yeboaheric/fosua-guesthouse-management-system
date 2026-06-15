@@ -2,19 +2,18 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Duty roster report</div>
-        <h1 class="page-title mb-2">{{ rota.employee.full_name }}</h1>
-        <div class="page-subtitle">This detailed report is synced from the weekly duty roster in staff management.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Duty roster</div>
+        <h1 class="module-title">Duty Roster Report</h1>
+        <div class="module-subcopy">Review the detailed shift assignment report for {{ rota.employee.full_name }} across {{ rota.period_start|date:"d/m/Y" }} to {{ rota.period_end|date:"d/m/Y" }}.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a href="{% url 'roster-report' %}" class="btn btn-outline-secondary">Back to report</a>
         <a href="{% url 'hr-rota-detail' rota.pk %}" class="btn btn-primary">Open weekly roster</a>
       </div>
-    </div>
-  </div>
+    </section>
 
   <div class="row g-3 mb-3">
     <div class="col-md-3">
@@ -43,49 +42,59 @@
     </div>
   </div>
 
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-      <div>
-        <div class="section-eyebrow">Period</div>
-        <h2 class="h5 mb-1">{{ rota.period_start|date:"d/m/Y" }} to {{ rota.period_end|date:"d/m/Y" }}</h2>
-        <div class="text-muted small">Start {{ rota.opening_time|time:"H:i"|default:"-" }} · Finish {{ rota.closing_time|time:"H:i"|default:"-" }}</div>
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Period</h2>
+          <div class="module-card-copy">{{ rota.period_start|date:"d/m/Y" }} to {{ rota.period_end|date:"d/m/Y" }} · Start {{ rota.opening_time|time:"H:i"|default:"-" }} · Finish {{ rota.closing_time|time:"H:i"|default:"-" }}</div>
+        </div>
+        <span class="status-pill neutral">{{ daily_roster|length }} day(s)</span>
       </div>
-      <span class="status-pill neutral">{{ daily_roster|length }} day(s)</span>
-    </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Date</th>
+                  <th>Day</th>
+                  <th>Start</th>
+                  <th>Finish</th>
+                  <th>Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for entry in daily_roster %}
+                  <tr>
+                    <td>{{ entry.date|date:"d/m/Y" }}</td>
+                    <td>{{ entry.day_name }}</td>
+                    <td>{{ entry.start_time|time:"H:i"|default:"-" }}</td>
+                    <td>{{ entry.end_time|time:"H:i"|default:"-" }}</td>
+                    <td>{{ entry.hours|floatformat:2 }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="text-muted">This roster does not have enough information to build a daily breakdown yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <div class="table-responsive soft-table">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Date</th>
-            <th>Day</th>
-            <th>Start</th>
-            <th>Finish</th>
-            <th>Hours</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for entry in daily_roster %}
-            <tr>
-              <td>{{ entry.date|date:"d/m/Y" }}</td>
-              <td>{{ entry.day_name }}</td>
-              <td>{{ entry.start_time|time:"H:i"|default:"-" }}</td>
-              <td>{{ entry.end_time|time:"H:i"|default:"-" }}</td>
-              <td>{{ entry.hours|floatformat:2 }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" class="text-muted">This roster does not have enough information to build a daily breakdown yet.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="surface-panel p-4">
-    <div class="section-eyebrow mb-2">Notes</div>
-    <div class="text-muted small">{{ rota.shift_rules|default:"-"|linebreaksbr }}</div>
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Notes</h2>
+          <div class="module-card-copy">Shift rules and supporting roster context.</div>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="text-muted small">{{ rota.shift_rules|default:"-"|linebreaksbr }}</div>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

@@ -26,11 +26,13 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
 from accounts.decorators import group_required
+from accounts.permissions import user_is_admin_role
 from inventory.forms import (
     InventoryCategoryForm,
     InventoryItemForm,
     InventorySubcategoryForm,
     POSCheckoutForm,
+    SaleEditForm,
     StockAdjustmentForm,
     SupplierForm,
 )
@@ -48,6 +50,10 @@ from inventory.models import (
 ZERO_MONEY = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
 ZERO_UNITS = Value(Decimal("0.000"), output_field=DecimalField(max_digits=12, decimal_places=3))
 logger = logging.getLogger(__name__)
+
+
+def _user_can_edit_sale(user):
+    return user_is_admin_role(user)
 
 
 @group_required("Admin", "Receptionist", module="inventory")
@@ -633,6 +639,7 @@ def sale_list(request):
             "query": query,
             "payment_method": payment_method,
             "payment_methods": Sale.PaymentMethod.choices,
+            "can_edit_sale": _user_can_edit_sale(request.user),
         },
     )
 
@@ -647,8 +654,58 @@ def sale_detail(request, pk):
         {
             "sale": sale,
             "items": items,
+            "can_edit_sale": _user_can_edit_sale(request.user),
         },
     )
+
+
+@group_required("Admin", "Receptionist", module="pos")
+def sale_update(request, pk):
+    sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
+    if not _user_can_edit_sale(request.user):
+        messages.error(request, "Access Denied: You are not authorized to manage POS sales.")
+        return redirect("inventory-sale-detail", pk=sale.pk)
+
+    form = SaleEditForm(request.POST or None, instance=sale)
+    if request.method == "POST" and form.is_valid():
+        updated_sale = form.save(commit=False)
+        subtotal = sale.items.aggregate(total=Coalesce(Sum("line_total"), ZERO_MONEY))["total"]
+        gross_total = subtotal + (updated_sale.tax_amount or Decimal("0.00")) - (updated_sale.discount_amount or Decimal("0.00"))
+        updated_sale.subtotal = subtotal.quantize(Decimal("0.01"))
+        updated_sale.grand_total = max(gross_total, Decimal("0.00")).quantize(Decimal("0.01"))
+        updated_sale.save()
+        messages.success(request, f"Sale {sale.receipt_number} updated successfully.")
+        return redirect("inventory-sale-detail", pk=sale.pk)
+
+    return render(
+        request,
+        "inventory/sale_form.html",
+        {
+            "form": form,
+            "sale": sale,
+            "title": "Edit POS Sale",
+        },
+    )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="pos")
+def sale_delete(request, pk):
+    sale = get_object_or_404(Sale.objects.prefetch_related("items__item", "transactions"), pk=pk)
+    if not _user_can_edit_sale(request.user):
+        messages.error(request, "Access Denied: You are not authorized to manage POS sales.")
+        return redirect("inventory-sale-detail", pk=sale.pk)
+
+    with transaction.atomic():
+        for line in sale.items.select_related("item"):
+            item = line.item
+            item.quantity_in_stock = (item.quantity_in_stock or Decimal("0.000")) + line.quantity
+            item.save()
+        sale.transactions.all().delete()
+        sale.delete()
+
+    messages.success(request, "Sale deleted successfully.")
+    return redirect("inventory-sales")
 
 
 @group_required("Admin", "Receptionist", module="pos")

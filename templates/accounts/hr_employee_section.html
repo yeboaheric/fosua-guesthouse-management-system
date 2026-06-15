@@ -1,69 +1,91 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Staff management</div>
+      <h1 class="module-title">{{ section_title }}</h1>
+      <div class="module-subcopy">Manage {{ section_title|lower }} records for {{ employee.full_name }} · {{ employee.department|default:employee.get_position_display }}</div>
+    </div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{{ back_to_list_url }}">Back</a>
+      <a class="btn btn-outline-primary" href="{% url 'hr-detail' employee.pk %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">Employee file</a>
+      <a class="btn btn-primary" href="{% url 'hr-rota-list' %}?employee={{ employee.pk }}">Roster</a>
+    </div>
+  </section>
+
+  <section class="module-card">
+    <div class="module-card-header">
       <div>
-        <div class="section-eyebrow mb-2">Staff management</div>
-        <h1 class="page-title mb-2">{{ section_title }}</h1>
-        <div class="page-subtitle">{{ employee.full_name }} · {{ employee.department|default:employee.get_position_display }}</div>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a class="topbar-pill" href="{{ back_to_list_url }}"><i data-lucide="arrow-left"></i> Back</a>
-        <a class="topbar-pill" href="{% url 'hr-detail' employee.pk %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}"><i data-lucide="user-round"></i> Employee file</a>
-        <a class="topbar-pill" href="{% url 'hr-rota-list' %}?employee={{ employee.pk }}"><i data-lucide="calendar-range"></i> Roster</a>
+        <h2 class="module-card-title">Employee subsections</h2>
+        <div class="module-card-copy">Switch between the employee-linked records without losing the current staff directory context.</div>
       </div>
     </div>
-  </div>
-
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-wrap gap-2">
+    <div class="module-card-body">
+      <div class="module-action-row justify-content-start">
       {% for link in section_links %}
         <a class="status-pill {% if link.active %}success{% else %}neutral{% endif %}" href="{{ link.url }}">{{ link.label }} ({{ link.count }})</a>
       {% endfor %}
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="row g-3 mb-3">
+  <div class="row g-4 align-items-start">
     <div class="col-lg-4">
-      <div class="surface-panel p-4 h-100">
-        <h2 class="h5 mb-3">Create {{ section_title|lower }}</h2>
-        <form method="post" enctype="multipart/form-data" class="d-grid gap-3">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Create {{ section_title|lower }}</h2>
+            <div class="module-card-copy">Add a new {{ section_title|lower }} record directly into {{ employee.full_name }}'s personnel file.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
+        <form method="post" enctype="multipart/form-data" class="module-stack">
           {% csrf_token %}
-          {% for field in form.visible_fields %}
-            <div>
+          <div class="module-form-grid">
+            {% for field in form.visible_fields %}
+            <div class="module-form-field {% if field.name == 'notes' or field.name == 'description' or field.name == 'comment' or field.name == 'comments' or field.name == 'document' %}module-form-field--full{% else %}module-form-field--half{% endif %}">
               <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
               {% if field.errors %}<div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>{% endif %}
             </div>
-          {% endfor %}
+            {% endfor %}
+          </div>
           {% if form.non_field_errors %}
             <div class="text-danger small">{{ form.non_field_errors|join:", " }}</div>
           {% endif %}
-          <button type="submit" class="btn btn-primary">Save</button>
+          <div class="module-form-actions">
+            <span class="module-badge">{{ employee.full_name }}</span>
+            <div class="module-form-actions-end">
+              <button type="submit" class="btn btn-primary">Save</button>
+            </div>
+          </div>
         </form>
         {% if section == "leave" %}
           <div class="form-text mt-3" id="leave-days-helper">Leave days are calculated automatically from the selected start and end dates using the current calendar-day logic.</div>
         {% endif %}
-      </div>
+        </div>
+      </section>
     </div>
 
     <div class="col-lg-8">
-      <div class="surface-panel p-4">
-        <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+      <section class="module-card">
+        <div class="module-card-header">
           <div>
-            <div class="section-eyebrow mb-1">Records</div>
-            <h2 class="h5 mb-0">{{ record_count }} item(s)</h2>
+            <h2 class="module-card-title">{{ record_count }} item(s)</h2>
+            <div class="module-card-copy">Live records tied only to {{ employee.full_name }} inside the {{ section_title|lower }} subsection.</div>
           </div>
         </div>
+        <div class="module-card-body module-stack">
         {% if section_filters %}
-          <form method="get" class="row g-3 mb-3">
+          <form method="get" class="module-filter-grid">
             {% if staff_filters_token %}
               <input type="hidden" name="staff_filters" value="{{ staff_filters_token }}">
             {% endif %}
             {% for filter in section_filters %}
-              <div class="col-md-3">
+              <div class="module-filter-field">
                 <label class="form-label" for="filter_{{ filter.name }}">{{ filter.label }}</label>
                 {% if filter.type == "select" %}
                   <select class="form-select" id="filter_{{ filter.name }}" name="{{ filter.name }}">
@@ -78,15 +100,18 @@
                 {% endif %}
               </div>
             {% endfor %}
-            <div class="col-md-2 d-grid">
-              <button class="btn btn-primary" type="submit">Filter</button>
-            </div>
-            <div class="col-md-2 d-grid">
-              <a class="btn btn-outline-secondary" href="{% url 'hr-employee-section' employee.pk section %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">Reset</a>
+            <div class="module-filter-field module-filter-field--full">
+              <div class="module-form-actions">
+                <span class="module-badge">Subsection filters</span>
+                <div class="module-form-actions-end">
+                  <a class="btn btn-outline-secondary" href="{% url 'hr-employee-section' employee.pk section %}{% if staff_filters_token %}?staff_filters={{ staff_filters_token }}{% endif %}">Reset</a>
+                  <button class="btn btn-primary" type="submit">Filter</button>
+                </div>
+              </div>
             </div>
           </form>
         {% endif %}
-        <div class="table-responsive soft-table">
+        <div class="module-table-wrap table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -104,13 +129,14 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="{{ headers|length }}" class="text-center text-muted py-4">No records yet.</td>
+                  <td colspan="{{ headers|length }}" class="module-empty">No records yet.</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>

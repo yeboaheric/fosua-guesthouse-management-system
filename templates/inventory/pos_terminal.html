@@ -3,22 +3,22 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Point of sale</div>
-        <h1 class="page-title mb-2">Fast checkout terminal</h1>
-        <div class="page-subtitle">Search products, build a cart, and complete sales with automatic stock deduction.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Point of sale</div>
+        <h1 class="module-title">Point of Sale</h1>
+        <div class="module-subcopy">Search products, build a cart, and complete sales with automatic stock deduction.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-sales' %}"><i data-lucide="receipt-text"></i> Sales</a>
         <a class="topbar-pill" href="{% url 'inventory-reports' %}"><i data-lucide="bar-chart-3"></i> Reports</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
       <div class="col-lg-6">
         <label class="form-label" for="q">Search products</label>
         <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, category, subcategory">
@@ -38,19 +38,24 @@
       <div class="col-lg-2">
         <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-pos' %}">Reset</a>
       </div>
-    </form>
-  </div>
+        </form>
+      </div>
+    </section>
 
   <form id="checkoutForm" method="post" action="{% url 'inventory-pos-checkout' %}">
     {% csrf_token %}
     {{ checkout_form.cart }}
     <div class="row g-3">
       <div class="col-xl-8">
-        <div class="surface-panel p-4">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="section-eyebrow">Product browser</div>
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Product browser</h2>
+              <div class="module-card-copy">Searchable product catalog ready for fast front-desk checkout.</div>
+            </div>
             <span class="status-pill neutral">{{ items|length }} items shown</span>
           </div>
+          <div class="module-card-body">
           <div class="row g-3">
             {% for item in items %}
               <div class="col-md-6 col-xxl-4">
@@ -85,12 +90,19 @@
               <div class="col-12 text-muted">No products matched that filter.</div>
             {% endfor %}
           </div>
-        </div>
+          </div>
+        </section>
       </div>
 
       <div class="col-xl-4">
-        <div class="surface-panel p-4 position-sticky" style="top: 1.25rem;">
-          <div class="section-eyebrow mb-2">Current cart</div>
+        <section class="module-card position-sticky" style="top: 1.25rem;">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Current cart</h2>
+              <div class="module-card-copy">Review quantities, totals, and payment details before completing the sale.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
           {% if checkout_form.non_field_errors %}
             <div class="alert alert-danger py-2">{{ checkout_form.non_field_errors }}</div>
           {% endif %}
@@ -98,7 +110,8 @@
             <div class="alert alert-danger py-2">{{ checkout_form.cart.errors }}</div>
           {% endif %}
           <div id="cartEmpty" class="text-muted mb-3">No items added yet.</div>
-          <div class="table-responsive soft-table mb-3">
+          <div class="module-table-wrap mb-3">
+          <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead class="table-light">
                 <tr>
@@ -109,6 +122,7 @@
               </thead>
               <tbody id="cartBody"></tbody>
             </table>
+          </div>
           </div>
 
           <div class="d-grid gap-2">
@@ -141,10 +155,12 @@
 
             <button class="btn btn-primary mt-2" type="submit">Complete sale</button>
           </div>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   </form>
+</div>
 </div>
 
 <script>
@@ -186,9 +202,9 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1 align-items-center">
-              <button type="button" class="btn btn-sm btn-outline-secondary qty-change" data-index="${index}" data-delta="-1">-</button>
+              <button type="button" class="btn btn-sm btn-outline-primary qty-change" data-index="${index}" data-delta="-1">-</button>
               <strong>${item.quantity}</strong>
-              <button type="button" class="btn btn-sm btn-outline-secondary qty-change" data-index="${index}" data-delta="1">+</button>
+              <button type="button" class="btn btn-sm btn-outline-primary qty-change" data-index="${index}" data-delta="1">+</button>
             </div>
           </td>
           <td class="text-end">${money(total)}</td>

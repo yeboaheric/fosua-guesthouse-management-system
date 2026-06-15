@@ -1,74 +1,129 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Event Payments: {{ event_booking.event_title }}</h1>
-  <a class="btn btn-outline-secondary" href="{% url 'event-booking-list' %}">Back</a>
-</div>
-
-<div class="row g-3">
-  <div class="col-lg-5">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="h6">Event Booking Summary</h2>
-        <div><strong>Guest:</strong> {{ event_booking.guest }}</div>
-        <div><strong>Space:</strong> {{ event_booking.event_space_name }}</div>
-        <div><strong>Purpose:</strong> {{ event_booking.purpose }}</div>
-        <div><strong>Expected Guests:</strong> {{ event_booking.expected_guests }}</div>
-        <div><strong>Total:</strong> GHS {{ event_booking.total_amount }}</div>
-        <div><strong>Paid:</strong> GHS {{ event_booking.amount_paid }}</div>
-        <div><strong>Balance:</strong> GHS {{ event_booking.balance_due }}</div>
-        <hr>
-        <h2 class="h6">Record Payment</h2>
-        <form method="post">
-          {% csrf_token %}
-          {{ form.non_field_errors }}
-          {% for field in form %}
-            <div class="mb-3">
-              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {{ field }}
-              {% if field.errors %}
-                <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
-              {% endif %}
-            </div>
-          {% endfor %}
-          <button class="btn btn-primary" type="submit">Add Payment</button>
-        </form>
-      </div>
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Event reservations</div>
+      <h1 class="module-title">Event Payments</h1>
+      <div class="module-subcopy">Record event payments, review the remaining balance, and keep billing records up to date for {{ event_booking.event_title }}.</div>
     </div>
-  </div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{% url 'event-booking-list' %}">Back to events</a>
+    </div>
+  </section>
 
-  <div class="col-lg-7">
-    <div class="card shadow-sm">
-      <div class="card-body"><h2 class="h6 mb-0">Payment History</h2></div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Date</th>
-              <th>Amount</th>
-              <th>Method</th>
-              <th>Reference</th>
-              <th>Received By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for payment in payments %}
-              <tr>
-                <td>{{ payment.paid_at|date:"d/m/Y H:i" }}</td>
-                <td>GHS {{ payment.amount }}</td>
-                <td>{{ payment.get_method_display }}</td>
-                <td>{{ payment.reference|default:"-" }}</td>
-                <td>{{ payment.received_by|default:"-" }}</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="5" class="text-center text-muted py-3">No payments recorded yet.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+  <section class="module-summary-grid">
+    <article class="module-summary-block">
+      <div class="module-inline-label">Guest</div>
+      <strong>{{ event_booking.guest }}</strong>
+      <div class="text-muted small mt-1">{{ event_booking.event_space_name }}</div>
+    </article>
+    <article class="module-summary-block">
+      <div class="module-inline-label">Purpose</div>
+      <strong>{{ event_booking.purpose|truncatechars:44 }}</strong>
+      <div class="text-muted small mt-1">{{ event_booking.expected_guests }} expected guests</div>
+    </article>
+    <article class="module-summary-block">
+      <div class="module-inline-label">Total amount</div>
+      <strong>GHS {{ event_booking.total_amount }}</strong>
+      <div class="text-muted small mt-1">Paid GHS {{ event_booking.amount_paid }}</div>
+    </article>
+    <article class="module-summary-block">
+      <div class="module-inline-label">Balance due</div>
+      <strong>GHS {{ event_booking.balance_due }}</strong>
+      <div class="text-muted small mt-1">{{ event_booking.get_status_display }}</div>
+    </article>
+  </section>
+
+  <div class="row g-4">
+    <div class="col-xl-5">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Record event payment</h2>
+            <div class="module-card-copy">Add the amount, method, reference, and notes for this event booking.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
+          <form method="post" class="module-stack">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger mb-0">{{ form.non_field_errors }}</div>
+            {% endif %}
+            <div class="module-form-grid">
+              {% for field in form %}
+                <div class="module-form-field {% if field.name == 'notes' %}module-form-field--full{% else %}module-form-field--half{% endif %}">
+                  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.errors %}
+                    <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+            <div class="module-form-actions">
+              <span class="module-badge">Venue settlement</span>
+              <div class="module-form-actions-end">
+                <button class="btn btn-primary" type="submit">Add payment</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-7">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Payment history</h2>
+            <div class="module-card-copy">Logged event settlement records for this reservation.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
+          <div class="module-table-wrap table-responsive">
+            <table class="table align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Reference</th>
+                  <th>Received by</th>
+                  {% if can_manage_payment_records %}<th>Actions</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for payment in payments %}
+                  <tr>
+                    <td>{{ payment.paid_at|date:"d M Y, H:i" }}</td>
+                    <td>GHS {{ payment.amount }}</td>
+                    <td>{{ payment.get_method_display }}</td>
+                    <td>{{ payment.reference|default:"-" }}</td>
+                    <td>{{ payment.received_by|default:"-" }}</td>
+                    {% if can_manage_payment_records %}
+                      <td>
+                        <div class="module-table-actions">
+                          <a class="status-pill warning" href="{% url 'event-payment-update' payment.pk %}">Edit</a>
+                          <form method="post" action="{% url 'event-payment-delete' payment.pk %}" onsubmit="return confirm('Are you sure you want to delete this payment? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button class="status-pill danger" type="submit">Delete</button>
+                          </form>
+                        </div>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="{% if can_manage_payment_records %}6{% else %}5{% endif %}" class="module-empty">No event payments recorded yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>

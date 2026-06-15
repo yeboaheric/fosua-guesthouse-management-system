@@ -3,11 +3,14 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="section-eyebrow mb-2">Stock adjustment</div>
-    <h1 class="page-title mb-2">{{ title }}</h1>
-    <div class="page-subtitle">Adjust {{ item.name }} from {{ item.quantity_in_stock|quantity }} and record the reason in the audit trail.</div>
-  </div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Stock adjustment</div>
+        <h1 class="module-title">{{ title }}</h1>
+        <div class="module-subcopy">Adjust the stock level for {{ item.name }} and record the reason for the change.</div>
+      </div>
+    </section>
 
   <div class="row g-3">
     <div class="col-xl-4">
@@ -18,7 +21,14 @@
       </div>
     </div>
     <div class="col-xl-8">
-      <div class="surface-panel p-4">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Adjustment details</h2>
+            <div class="module-card-copy">Record the quantity change and save the audit note for this stock movement.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
         <form method="post">
           {% csrf_token %}
           {% for field in form %}
@@ -33,8 +43,10 @@
             <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Cancel</a>
           </div>
         </form>
-      </div>
+        </div>
+      </section>
     </div>
+  </div>
   </div>
 </div>
 {% endblock %}

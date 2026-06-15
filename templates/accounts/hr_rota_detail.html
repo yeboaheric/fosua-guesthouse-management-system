@@ -2,20 +2,19 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Roster account</div>
-        <h1 class="page-title mb-2">{{ rota.employee }}</h1>
-        <div class="page-subtitle">{{ rota.employee.get_position_display }} weekly duty roster with daily breakdown</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Duty roster</div>
+        <h1 class="module-title">Duty Roster Detail</h1>
+        <div class="module-subcopy">Review the weekly shift schedule and daily hour breakdown for {{ rota.employee }}{% if rota.employee.get_position_display %} · {{ rota.employee.get_position_display }}{% endif %}.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'hr-rota-list' %}"><i data-lucide="arrow-left"></i> Back</a>
         <a class="topbar-pill" href="{% url 'hr-rota-update' rota.pk %}"><i data-lucide="pencil"></i> Edit roster</a>
         <a class="topbar-pill" href="{% url 'hr-detail' rota.employee.pk %}"><i data-lucide="user-round"></i> Employee file</a>
       </div>
-    </div>
-  </div>
+    </section>
 
   <div class="row g-3 mb-3">
     <div class="col-md-3">
@@ -44,7 +43,8 @@
     </div>
   </div>
 
-  <div class="surface-panel p-4 mb-3">
+  <section class="module-card">
+    <div class="module-card-body">
     <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
       <div>
         <div class="section-eyebrow">Daily overview</div>
@@ -69,20 +69,21 @@
         <div class="text-muted">This roster does not have enough information to build a daily breakdown yet.</div>
       {% endfor %}
     </div>
-  </div>
+    </div>
+  </section>
 
   <div class="row g-3">
     <div class="col-xl-8">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+      <section class="module-card h-100">
+        <div class="module-card-header">
           <div>
-            <div class="section-eyebrow">Daily roster</div>
-            <h2 class="h5 mb-1">Day-by-day employee account</h2>
-            <div class="text-muted small">Each day in the roster period with hours worked</div>
+            <h2 class="module-card-title">Day-by-day employee account</h2>
+            <div class="module-card-copy">Each day in the roster period with hours worked.</div>
           </div>
         </div>
-
-        <div class="table-responsive soft-table">
+        <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -110,12 +111,19 @@
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+        </div>
+      </section>
     </div>
 
     <div class="col-xl-4">
-      <div class="surface-panel p-4 mb-3">
-        <div class="section-eyebrow mb-2">Employee snapshot</div>
+      <section class="module-card mb-3">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Employee snapshot</h2>
+          </div>
+        </div>
+        <div class="module-card-body">
         <div class="d-grid gap-2">
           <div class="d-flex justify-content-between">
             <span>Status</span>
@@ -134,24 +142,37 @@
             <strong>{{ rota.employee.get_position_display }}</strong>
           </div>
         </div>
-      </div>
+        </div>
+      </section>
 
-      <div class="surface-panel p-4 mb-3">
-        <div class="section-eyebrow mb-2">Period explorer</div>
+      <section class="module-card mb-3">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Period explorer</h2>
+          </div>
+        </div>
+        <div class="module-card-body">
         <div class="d-grid gap-2">
           <a class="status-pill neutral justify-content-center" href="{% url 'hr-rota-list' %}?period=week&date={{ rota.period_start|date:'Y-m-d' }}"><i data-lucide="calendar-range"></i> Week view</a>
           <a class="status-pill neutral justify-content-center" href="{% url 'hr-rota-list' %}?period=month&date={{ rota.period_start|date:'Y-m-d' }}"><i data-lucide="calendar"></i> Month view</a>
           <a class="status-pill neutral justify-content-center" href="{% url 'hr-rota-list' %}?period=year&date={{ rota.period_start|date:'Y-m-d' }}"><i data-lucide="calendar-days"></i> Year view</a>
         </div>
-      </div>
+        </div>
+      </section>
 
-      <div class="surface-panel p-4">
-        <div class="section-eyebrow mb-2">Necessary info</div>
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Necessary info</h2>
+          </div>
+        </div>
+        <div class="module-card-body">
         <div class="text-muted small mb-3">{{ rota.shift_rules|default:"-"|linebreaksbr }}</div>
         <a class="topbar-pill w-100 justify-content-center" href="{% url 'hr-detail' rota.employee.pk %}">
           <i data-lucide="badge-info"></i> Open employee file
         </a>
-      </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>

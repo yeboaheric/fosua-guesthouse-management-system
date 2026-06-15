@@ -3,22 +3,22 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Inventory reports</div>
-        <h1 class="page-title mb-2">Sales and stock analytics</h1>
-        <div class="page-subtitle">Filter by day, week, month, year, or a custom range for management review.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Inventory reports</div>
+        <h1 class="module-title">Inventory Reports</h1>
+        <div class="module-subcopy">Generate stock and sales reports for the selected date range.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-transactions' %}?export=csv"><i data-lucide="download"></i> Transactions CSV</a>
         <a class="topbar-pill" href="{% url 'inventory-sales' %}?export=csv"><i data-lucide="download"></i> Sales CSV</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
       <div class="col-lg-2">
         <label class="form-label" for="period">Period</label>
         <select class="form-select" name="period" id="period">
@@ -43,8 +43,9 @@
       <div class="col-lg-2">
         <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-reports' %}">Reset</a>
       </div>
-    </form>
-  </div>
+        </form>
+      </div>
+    </section>
 
   <div class="row g-3 mb-3">
     <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Sales total</div><div class="metric-value">GHS {{ sales_total }}</div></div></div>
@@ -55,16 +56,31 @@
 
   <div class="row g-3 mb-3">
     <div class="col-xl-7">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Sales trend</div>
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Sales trend</h2>
+            <div class="module-card-copy">Movement in sales across the selected reporting window.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
         {{ chart_labels_json|json_script:"inventory-report-labels" }}
         {{ chart_values_json|json_script:"inventory-report-values" }}
-        <canvas id="inventoryReportChart" height="160"></canvas>
-      </div>
+        <div class="chart-shell chart-shell--inventory">
+          <canvas id="inventoryReportChart"></canvas>
+        </div>
+        </div>
+      </section>
     </div>
     <div class="col-xl-5">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Fast movers</div>
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Fast movers</h2>
+            <div class="module-card-copy">Best-performing items by units sold and revenue.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
         <div class="d-grid gap-2">
           {% for item in top_items %}
             <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border">
@@ -78,15 +94,22 @@
             <div class="text-muted">No sales in this period.</div>
           {% endfor %}
         </div>
-      </div>
+        </div>
+      </section>
     </div>
   </div>
 
   <div class="row g-3">
     <div class="col-xl-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Low stock items</div>
-        <div class="table-responsive soft-table">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Low stock items</h2>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -108,12 +131,20 @@
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+        </div>
+      </section>
     </div>
     <div class="col-xl-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Out of stock items</div>
-        <div class="table-responsive soft-table">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Out of stock items</h2>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
           <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
@@ -135,29 +166,37 @@
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-  const labels = JSON.parse(document.getElementById("inventory-report-labels").textContent);
-  const values = JSON.parse(document.getElementById("inventory-report-values").textContent);
-  new Chart(document.getElementById("inventoryReportChart"), {
-    type: "line",
-    data: {
+  window.addEventListener("load", function () {
+    if (!window.FGCharts) {
+      return;
+    }
+    const labels = JSON.parse(document.getElementById("inventory-report-labels").textContent);
+    const values = JSON.parse(document.getElementById("inventory-report-values").textContent);
+
+    window.FGCharts.upsert(document.getElementById("inventoryReportChart"), {
+      type: "line",
       labels: labels,
+      xAxisTitle: "Reporting period",
+      yAxisTitle: "Sales (GHS)",
+      tooltipPrefix: "GHS ",
+      legend: false,
       datasets: [{
         label: "Sales",
         data: values,
-        borderColor: "#1f3b44",
-        backgroundColor: "rgba(31, 59, 68, 0.14)",
+        borderColor: "#203F46",
+        gradientFill: true,
+        fill: true,
         tension: 0.35,
-        fill: true
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      }],
+    });
   });
 </script>
 {% endblock %}

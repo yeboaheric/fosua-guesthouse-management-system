@@ -1,5 +1,6 @@
 """Django settings for the Fosua Guesthouse Management System."""
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
@@ -209,8 +210,9 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 AXES_FAILURE_LIMIT = 5
-AXES_COOLOFF_TIME = 1
+AXES_COOLOFF_TIME = timedelta(minutes=1)
 AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_PARAMETERS = ["username"]
 
 if not DEBUG or APP_ENV in {"prod", "production", "cloud"}:
     SECURE_SSL_REDIRECT = env("DJANGO_SECURE_SSL_REDIRECT", default=True)

@@ -2,24 +2,24 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Staff management</div>
-        <h1 class="page-title mb-2">Weekly duty roster</h1>
-        <div class="page-subtitle">Detailed roster accounts with daily hours, filter ranges, and employee-specific views.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Duty roster</div>
+        <h1 class="module-title">Duty Roster</h1>
+        <div class="module-subcopy">Schedule and manage staff shifts and weekly assignments across the hotel.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'hr-list' %}"><i data-lucide="search"></i> Search employees</a>
         <a class="topbar-pill" href="{% url 'roster-report' %}"><i data-lucide="clipboard-check"></i> Duty roster report</a>
         <a class="topbar-pill" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i> Shift handovers</a>
         <a class="topbar-pill" href="{% url 'hr-rota-create' %}"><i data-lucide="plus"></i> Create roster</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
+  <section class="module-card">
+    <div class="module-card-body">
+      <form method="get" class="row g-3 align-items-end">
       <div class="col-md-3">
         <label class="form-label">Range</label>
         <select class="form-select" name="period">
@@ -52,14 +52,15 @@
       <div class="col-md-2 d-grid">
         <button class="btn btn-primary" type="submit"><i data-lucide="filter"></i> Filter</button>
       </div>
-    </form>
+      </form>
 
-    <div class="d-flex flex-wrap gap-2 mt-3">
+      <div class="d-flex flex-wrap gap-2 mt-3">
       <a class="status-pill neutral" href="?period=week{% if start_date %}&start_date={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&end_date={{ end_date|date:'Y-m-d' }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if selected_employee %}&employee={{ selected_employee|urlencode }}{% endif %}">Week</a>
       <a class="status-pill neutral" href="?period=month{% if start_date %}&start_date={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&end_date={{ end_date|date:'Y-m-d' }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if selected_employee %}&employee={{ selected_employee|urlencode }}{% endif %}">Month</a>
       <a class="status-pill neutral" href="?period=year{% if start_date %}&start_date={{ start_date|date:'Y-m-d' }}{% endif %}{% if end_date %}&end_date={{ end_date|date:'Y-m-d' }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}{% if selected_employee %}&employee={{ selected_employee|urlencode }}{% endif %}">Year</a>
+      </div>
     </div>
-  </div>
+  </section>
 
   <div class="row g-3 mb-3">
     <div class="col-md-4">
@@ -85,8 +86,16 @@
     </div>
   </div>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Roster assignments</h2>
+        <div class="module-card-copy">Employee periods, daily hours, and quick links into each roster record.</div>
+      </div>
+    </div>
+    <div class="module-card-body p-0">
+    <div class="module-table-wrap">
+    <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
@@ -132,16 +141,18 @@
         </tbody>
       </table>
     </div>
-  </div>
+    </div>
+    </div>
+  </section>
 
-  <div class="surface-panel p-4 mt-3">
-    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+  <section class="module-card">
+    <div class="module-card-header">
       <div>
-        <div class="section-eyebrow">Daily roster report</div>
-        <h2 class="h5 mb-1">Day-by-day account for the selected range</h2>
-        <div class="text-muted small">Each day shows the employees assigned and the hours scheduled for that day.</div>
+        <h2 class="module-card-title">Day-by-day account for the selected range</h2>
+        <div class="module-card-copy">Daily roster report showing the employees assigned and the hours scheduled for each day.</div>
       </div>
     </div>
+    <div class="module-card-body">
 
     <div class="d-grid gap-3">
       {% for day in day_reports %}
@@ -167,6 +178,8 @@
         <div class="text-muted">No daily report rows available.</div>
       {% endfor %}
     </div>
+    </div>
+  </section>
   </div>
 </div>
 {% endblock %}

@@ -1,27 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <div>
-    <h1 class="h4 mb-1">Admin Reports</h1>
-    <div class="text-muted">{{ report_label }}</div>
-  </div>
-  <div class="d-flex flex-wrap gap-2">
-    <a class="btn btn-success" href="{% url 'admin-reports-export-all' %}?start_date={{ start_date }}&end_date={{ end_date }}">
-      Export All
-    </a>
-    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-daily' %}?start_date={{ start_date }}&end_date={{ end_date }}">
-      Legacy Daily CSV
-    </a>
-    <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-balances' %}">
-      Legacy Balances CSV
-    </a>
-    <a class="btn btn-outline-secondary" href="{% url 'admin-dashboard' %}">Back</a>
-  </div>
-</div>
+<div class="dashboard-background p-3 p-lg-4">
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Reports</div>
+      <h1 class="module-title">Reports</h1>
+      <div class="module-subcopy">Generate and export operational reports by date range. {{ report_label }}</div>
+    </div>
+    <div class="module-action-row">
+      <a class="btn btn-success" href="{% url 'admin-reports-export-all' %}?start_date={{ start_date }}&end_date={{ end_date }}">
+        Export All
+      </a>
+      <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-daily' %}?start_date={{ start_date }}&end_date={{ end_date }}">
+        Legacy Daily CSV
+      </a>
+      <a class="btn btn-outline-primary" href="{% url 'admin-reports-export-balances' %}">
+        Legacy Balances CSV
+      </a>
+      <a class="btn btn-outline-secondary" href="{% url 'admin-dashboard' %}">Back</a>
+    </div>
+  </section>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
+<div class="module-card">
+  <div class="module-card-body">
     <div class="d-flex flex-wrap gap-2 mb-3">
       <a class="btn {% if report_period == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-reports' %}?period=daily">Daily</a>
       <a class="btn {% if report_period == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-reports' %}?period=weekly">Weekly</a>
@@ -46,11 +49,11 @@
   </div>
 </div>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
+<div class="module-card">
+  <div class="module-card-body">
     <div class="d-flex flex-wrap gap-2">
       {% for section in sections %}
-        <a class="btn btn-outline-dark" href="#{{ section.key }}">{{ section.title }}</a>
+        <a class="topbar-pill" href="#{{ section.key }}">{{ section.title }}</a>
       {% endfor %}
     </div>
   </div>
@@ -59,8 +62,8 @@
 <div class="row g-3 mb-3">
   {% for metric in summary_metrics %}
     <div class="col-md-3">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
+      <div class="module-card h-100">
+        <div class="module-card-body">
           <div class="text-muted small">{{ metric.label }}</div>
           <div class="h5 mb-0">{{ metric.value }}</div>
         </div>
@@ -71,31 +74,42 @@
 
 <div class="row g-3 mb-3">
   <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <h2 class="h6 mb-3">Revenue trend</h2>
-        <canvas id="revenueChart" height="130"></canvas>
+    <div class="fg-chart-card module-card h-100">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Revenue trend</h2>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="chart-shell chart-shell--reports">
+          <canvas id="revenueChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
   <div class="col-lg-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <h2 class="h6 mb-3">Occupancy trend</h2>
-        <canvas id="occupancyChart" height="130"></canvas>
+    <div class="fg-chart-card module-card h-100">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Occupancy trend</h2>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="chart-shell chart-shell--reports">
+          <canvas id="occupancyChart"></canvas>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 {% for section in sections %}
-  <section id="{{ section.key }}" class="card shadow-sm mb-3">
-    <div class="card-body border-bottom">
+  <section id="{{ section.key }}" class="module-card">
+    <div class="module-card-header">
       <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <div class="section-eyebrow mb-2">System report</div>
-          <h2 class="h5 mb-1">{{ section.title }}</h2>
-          <div class="text-muted small">{{ section.subtitle }}</div>
+          <h2 class="module-card-title">{{ section.title }}</h2>
+          <div class="module-card-copy">{{ section.subtitle }}</div>
         </div>
         <a class="btn btn-outline-success" href="{% url 'admin-reports-export-section' section.key %}?start_date={{ start_date }}&end_date={{ end_date }}">
           Export {{ section.title }}
@@ -103,13 +117,13 @@
       </div>
     </div>
 
-    <div class="card-body">
+    <div class="module-card-body">
       <div class="row g-3 mb-3">
         {% for metric in section.metrics %}
           <div class="col-md-4 col-xl-2">
-            <div class="border rounded-3 h-100 p-3 bg-light-subtle">
+            <div class="mini-metric h-100">
               <div class="text-muted small">{{ metric.label }}</div>
-              <div class="fw-semibold mt-1">{{ metric.value }}</div>
+              <div class="metric-value mt-1">{{ metric.value }}</div>
             </div>
           </div>
         {% endfor %}
@@ -121,6 +135,7 @@
             <h3 class="h6 mb-0">{{ table.title }}</h3>
             <span class="text-muted small">{{ display_range }}</span>
           </div>
+          <div class="module-table-wrap">
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead class="table-light">
@@ -156,49 +171,58 @@
               {% endif %}
             </table>
           </div>
+          </div>
         </div>
       {% endfor %}
     </div>
   </section>
 {% endfor %}
+</div>
+</div>
 
 {{ chart_labels_json|json_script:"report-labels" }}
 {{ revenue_data_json|json_script:"report-revenue" }}
 {{ occupancy_data_json|json_script:"report-occupancy" }}
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-  const labels = JSON.parse(document.getElementById("report-labels").textContent);
-  const revenue = JSON.parse(document.getElementById("report-revenue").textContent);
-  const occupancy = JSON.parse(document.getElementById("report-occupancy").textContent);
+  window.addEventListener("load", function () {
+    if (!window.FGCharts) {
+      return;
+    }
+    const labels = JSON.parse(document.getElementById("report-labels").textContent);
+    const revenue = JSON.parse(document.getElementById("report-revenue").textContent);
+    const occupancy = JSON.parse(document.getElementById("report-occupancy").textContent);
 
-  new Chart(document.getElementById("revenueChart"), {
-    type: "line",
-    data: {
-      labels,
+    window.FGCharts.upsert(document.getElementById("revenueChart"), {
+      type: "line",
+      labels: labels,
+      xAxisTitle: "Reporting period",
+      yAxisTitle: "Revenue (GHS)",
+      tooltipPrefix: "GHS ",
+      legend: false,
       datasets: [{
         label: "Revenue (GHS)",
         data: revenue,
-        borderColor: "#23444b",
-        backgroundColor: "rgba(35,68,75,0.1)",
+        borderColor: "#203F46",
+        gradientFill: true,
         fill: true,
-        tension: 0.25
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } } }
-  });
+        tension: 0.32,
+      }],
+    });
 
-  new Chart(document.getElementById("occupancyChart"), {
-    type: "bar",
-    data: {
-      labels,
+    window.FGCharts.upsert(document.getElementById("occupancyChart"), {
+      type: "bar",
+      labels: labels,
+      xAxisTitle: "Reporting period",
+      yAxisTitle: "Occupied rooms",
+      legend: false,
       datasets: [{
         label: "Occupied Rooms",
         data: occupancy,
-        backgroundColor: "#c7ab83"
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } } }
+        backgroundColor: "#CFAE84",
+        borderRadius: 12,
+        maxBarThickness: 32,
+      }],
+    });
   });
 </script>
 {% endblock %}

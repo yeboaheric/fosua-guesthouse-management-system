@@ -3,82 +3,94 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Stock movements</div>
-        <h1 class="page-title mb-2">Audit trail</h1>
-        <div class="page-subtitle">Every purchase, sale, adjustment, damage record, and operational use stays on file.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Inventory transactions</div>
+        <h1 class="module-title">Stock Transactions</h1>
+        <div class="module-subcopy">Review purchases, sales, adjustments, damage records, and other stock movements.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_type %}type={{ selected_type|urlencode }}&{% endif %}{% if start_date %}start_date={{ start_date }}&{% endif %}{% if end_date %}end_date={{ end_date }}&{% endif %}export=csv"><i data-lucide="download"></i> CSV export</a>
         <a class="topbar-pill" href="{% url 'inventory-items' %}"><i data-lucide="package"></i> Items</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
-      <div class="col-lg-4">
-        <label class="form-label" for="q">Search</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Item, user, reference, note">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="module-filter-grid">
+          <div class="module-filter-field module-form-field--half">
+            <label class="form-label" for="q">Search</label>
+            <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Item, user, reference, note">
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="type">Transaction type</label>
+            <select class="form-select" name="type" id="type">
+              <option value="">All types</option>
+              {% for value, label in type_choices %}
+                <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="start_date">Start</label>
+            <input class="form-control" type="date" name="start_date" id="start_date" value="{{ start_date }}">
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="end_date">End</label>
+            <input class="form-control" type="date" name="end_date" id="end_date" value="{{ end_date }}">
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+          </div>
+        </form>
       </div>
-      <div class="col-lg-3">
-        <label class="form-label" for="type">Transaction type</label>
-        <select class="form-select" name="type" id="type">
-          <option value="">All types</option>
-          {% for value, label in type_choices %}
-            <option value="{{ value }}" {% if selected_type == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-2">
-        <label class="form-label" for="start_date">Start</label>
-        <input class="form-control" type="date" name="start_date" id="start_date" value="{{ start_date }}">
-      </div>
-      <div class="col-lg-2">
-        <label class="form-label" for="end_date">End</label>
-        <input class="form-control" type="date" name="end_date" id="end_date" value="{{ end_date }}">
-      </div>
-      <div class="col-lg-1">
-        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
-      </div>
-    </form>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Item</th>
-            <th>Type</th>
-            <th>Before</th>
-            <th>Changed</th>
-            <th>After</th>
-            <th>User</th>
-            <th>Time</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for transaction in transactions %}
-            <tr>
-              <td>{{ transaction.item.name }}<div class="text-muted small">{{ transaction.reference|default:"-" }}</div></td>
-              <td><span class="status-pill neutral">{{ transaction.get_transaction_type_display }}</span></td>
-              <td>{{ transaction.quantity_before|quantity }}</td>
-              <td>{{ transaction.quantity_changed|quantity }}</td>
-              <td>{{ transaction.quantity_after|quantity }}</td>
-              <td>{{ transaction.created_by.get_username|default:"-" }}</td>
-              <td>{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
-              <td>{{ transaction.notes|default:"-" }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="8" class="text-muted">No transactions yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Transaction history</h2>
+          <div class="module-card-copy">Before and after quantities, change types, user names, and notes for every stock movement.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Item</th>
+                  <th>Type</th>
+                  <th>Before</th>
+                  <th>Changed</th>
+                  <th>After</th>
+                  <th>User</th>
+                  <th>Time</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for transaction in transactions %}
+                  <tr>
+                    <td>{{ transaction.item.name }}<div class="text-muted small">{{ transaction.reference|default:"-" }}</div></td>
+                    <td><span class="status-pill neutral">{{ transaction.get_transaction_type_display }}</span></td>
+                    <td>{{ transaction.quantity_before|quantity }}</td>
+                    <td>{{ transaction.quantity_changed|quantity }}</td>
+                    <td>{{ transaction.quantity_after|quantity }}</td>
+                    <td>{{ transaction.created_by.get_username|default:"-" }}</td>
+                    <td>{{ transaction.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ transaction.notes|default:"-" }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="8" class="text-muted">No transactions yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

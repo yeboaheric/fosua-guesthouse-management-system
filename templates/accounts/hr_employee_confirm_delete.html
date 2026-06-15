@@ -2,23 +2,28 @@
 {% load static %}
 
 {% block content %}
-<div class="dashboard-background p-4 rounded-4 shadow-sm">
-  <div class="brand-panel p-4 mb-4">
-    <h1 class="h4 mb-1">Delete employee</h1>
-    <div class="brand-gold-line"></div>
-  </div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Staff management</div>
+        <h1 class="module-title">Delete employee</h1>
+        <div class="module-subcopy">Remove this employee record only if you are sure it should leave the active staff database.</div>
+      </div>
+    </section>
 
-  <div class="card shadow-sm border-0">
-    <div class="card-body p-4">
-      <p>Are you sure you want to delete <strong>{{ employee.first_name }} {{ employee.last_name }}</strong>?</p>
-      <form method="post">
-        {% csrf_token %}
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-danger">Yes, delete</button>
-          <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}">Cancel</a>
-        </div>
-      </form>
-    </div>
+    <section class="module-card">
+      <div class="module-card-body">
+        <p>Are you sure you want to delete <strong>{{ employee.first_name }} {{ employee.last_name }}</strong>?</p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">Yes, delete</button>
+            <a class="btn btn-outline-secondary" href="{% url 'hr-list' %}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

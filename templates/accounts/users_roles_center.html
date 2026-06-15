@@ -3,16 +3,17 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Users and roles</div>
-        <h1 class="page-title mb-2">Role-based access control</h1>
-        <div class="page-subtitle">Create users, build custom roles, assign permissions, and review audit history from one secure workspace.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Users and roles</div>
+        <h1 class="module-title">Users &amp; Roles</h1>
+        <div class="module-subcopy">Manage system accounts and control access permissions for hotel staff.</div>
       </div>
-      <span class="status-pill success"><i data-lucide="shield-check"></i> Database-driven permissions</span>
-    </div>
-  </div>
+      <div class="module-action-row">
+        <span class="status-pill success"><i data-lucide="shield-check"></i> Database-driven permissions</span>
+      </div>
+    </section>
 
   <div class="row g-3 mb-3">
     <div class="col-md-3">
@@ -47,9 +48,14 @@
 
   <div class="row g-3 mb-3">
     <div class="col-xl-5">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Create user</div>
-        <h2 class="h5 mb-3">Add a staff account</h2>
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Add a staff account</h2>
+            <div class="module-card-copy">Create login access, assign roles, and connect the account to staff records.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
         <form method="post" enctype="multipart/form-data" class="d-grid gap-3">
           {% csrf_token %}
           <input type="hidden" name="action" value="create_user">
@@ -132,17 +138,22 @@
 
           <button type="submit" class="btn btn-primary">Create user</button>
         </form>
-      </div>
+        </div>
+      </section>
     </div>
 
     <div class="col-xl-7">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+      <section class="module-card h-100">
+        <div class="module-card-header">
           <div>
-            <div class="section-eyebrow mb-2">Create role</div>
-            <h2 class="h5 mb-1">Add a custom role</h2>
-            <div class="text-muted small">New roles can inherit a preset if they match an existing hotel role name.</div>
+            <h2 class="module-card-title">Custom roles and permissions</h2>
+            <div class="module-card-copy">Create hotel-specific roles, then adjust access rights for each module and action.</div>
           </div>
+        </div>
+        <div class="module-card-body">
+        <div class="mb-3">
+          <h3 class="h6 mb-1">Add a custom role</h3>
+          <div class="text-muted small">New roles can inherit a preset if they match an existing hotel role name.</div>
         </div>
 
         <form method="post" class="d-flex flex-column flex-lg-row gap-2 mb-4">
@@ -158,12 +169,14 @@
           </div>
         </form>
 
-        <div class="section-eyebrow mb-2">Role permissions</div>
-        <h2 class="h5 mb-3">Permissions matrix</h2>
+        <div class="mb-3">
+          <h3 class="h6 mb-1">Permissions matrix</h3>
+          <div class="text-muted small">Open a role below to review and save its current module permissions.</div>
+        </div>
         <div class="d-grid gap-3">
           {% for role_item in available_roles %}
             {% with role_form=role_permission_forms|get_item:role_item.pk %}
-              <details class="p-3 rounded-4 border bg-white" {% if forloop.first %}open{% endif %}>
+              <details class="result-card" {% if forloop.first %}open{% endif %}>
                 <summary class="d-flex flex-wrap justify-content-between align-items-center gap-2 cursor-pointer">
                   <div>
                     <div class="fw-semibold">{{ role_item.name }}</div>
@@ -230,21 +243,26 @@
             <div class="text-muted">No roles found.</div>
           {% endfor %}
         </div>
-      </div>
+        </div>
+      </section>
     </div>
   </div>
 
   <div class="row g-3 mb-3">
     <div class="col-xl-8">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">User roster</div>
-        <h2 class="h5 mb-1">Manage accounts</h2>
-        <div class="text-muted small mb-3">Update profile details, activate or deactivate staff, and remove accounts when needed.</div>
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Manage accounts</h2>
+            <div class="module-card-copy">Update profile details, activate or deactivate staff, and remove accounts when needed.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
 
         <div class="d-grid gap-3">
           {% for user_item in users %}
             {% with role_form=role_forms|get_item:user_item.pk %}
-              <div class="p-3 rounded-4 border bg-white">
+              <div class="result-card">
                 <form method="post" enctype="multipart/form-data" class="d-grid gap-3">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="update_user">
@@ -341,18 +359,23 @@
             <div class="text-center text-muted py-4">No users found.</div>
           {% endfor %}
         </div>
-      </div>
+        </div>
+      </section>
     </div>
 
     <div class="col-xl-4">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Audit trail</div>
-        <h2 class="h5 mb-1">Recent actions</h2>
-        <div class="text-muted small mb-3">Important user and role changes captured by the system.</div>
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Recent actions</h2>
+            <div class="module-card-copy">Important user and role changes captured by the system.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
 
         <div class="d-grid gap-2">
           {% for log in recent_audit_logs %}
-            <div class="p-3 rounded-4 border bg-white">
+            <div class="result-card">
               <div class="d-flex justify-content-between gap-2">
                 <div>
                   <div class="fw-semibold">{{ log.get_action_display }}</div>
@@ -368,8 +391,10 @@
             <div class="text-center text-muted py-4">No audit logs yet.</div>
           {% endfor %}
         </div>
-      </div>
+        </div>
+      </section>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}

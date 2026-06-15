@@ -1,195 +1,200 @@
 {% extends "base.html" %}
-{% load static accounts_extras %}
+{% load accounts_extras %}
+
+{% block topbar_context %}
+  <div class="topbar-kicker">Reception dashboard</div>
+  <div class="topbar-heading">Reception Dashboard</div>
+  <div class="topbar-subheading">Monitor front desk activity, arrivals, departures, and guest service tasks for {{ today|date:"j F, Y" }}.</div>
+{% endblock %}
 
 {% block content %}
-<div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Reception workspace</div>
-        <h1 class="page-title mb-2">Front desk dashboard</h1>
-        <div class="page-subtitle">Fast access to bookings, availability, event space, and shift handover.</div>
+<div class="dashboard-skin">
+  <div class="dashboard-grid-main">
+    <section class="dashboard-hero-card">
+      <div class="dashboard-hero-header">
+        <div>
+          <div class="section-eyebrow mb-2">Front desk pulse</div>
+          <h2 class="h3 mb-2">Today at reception</h2>
+          <div class="dashboard-hero-value">{{ active_bookings }} active stays</div>
+        </div>
+        <div class="dashboard-chip-row">
+          <div class="dashboard-filter-pill">Live desk view</div>
+        </div>
       </div>
-    </div>
+      <div class="dashboard-chip-row mb-4">
+        <div class="dashboard-chip is-active">Bookings</div>
+        <div class="dashboard-chip">Arrivals</div>
+        <div class="dashboard-chip">Departures</div>
+        <div class="dashboard-chip">Rooms</div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="dashboard-action-card h-100">
+            <i data-lucide="calendar-plus"></i>
+            <strong>New booking</strong>
+            <span class="text-muted small">Create reservations and walk-ins fast.</span>
+            <a class="topbar-pill justify-content-center mt-2" href="{% url 'booking-create' %}">Open booking form</a>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="dashboard-action-card h-100">
+            <i data-lucide="bed-double"></i>
+            <strong>Room availability</strong>
+            <span class="text-muted small">Check open rooms before promising a stay.</span>
+            <a class="topbar-pill justify-content-center mt-2" href="{% url 'room-availability' %}">View room board</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="dashboard-hero-card p-0 overflow-hidden">
+      <div class="dashboard-grid-stats">
+        <div class="dashboard-panel">
+          <div class="dashboard-panel-icon dashboard-icon-cyan"><i data-lucide="door-open"></i></div>
+          <div class="dashboard-panel-title">Available rooms</div>
+          <div class="dashboard-panel-value">{{ available_rooms }}</div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="dashboard-panel-icon dashboard-icon-pink"><i data-lucide="clock-3"></i></div>
+          <div class="dashboard-panel-title">Arrivals next hour</div>
+          <div class="dashboard-panel-value">{{ upcoming_check_ins|length }}</div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="dashboard-panel-icon dashboard-icon-blue"><i data-lucide="log-out"></i></div>
+          <div class="dashboard-panel-title">Departures next hour</div>
+          <div class="dashboard-panel-value">{{ upcoming_check_outs|length }}</div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="dashboard-panel-icon dashboard-icon-orange"><i data-lucide="wallet-cards"></i></div>
+          <div class="dashboard-panel-title">Pending balances</div>
+          <div class="dashboard-panel-value">{{ pending_payments }}</div>
+        </div>
+      </div>
+    </section>
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Available rooms</div>
-        <div class="metric-value">{{ available_rooms }}</div>
-        <div class="text-muted small mt-2">Ready for the next walk-in or reservation</div>
+  <div class="dashboard-grid-secondary">
+    <section class="dashboard-panel">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <div>
+          <div class="section-eyebrow mb-2">Upcoming arrivals</div>
+          <h2 class="h4 mb-1">Check-ins due soon</h2>
+        </div>
+        <div class="dashboard-filter-pill">Today</div>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Active bookings</div>
-        <div class="metric-value">{{ active_bookings }}</div>
-        <div class="text-muted small mt-2">Guests currently being served</div>
+      <div class="dashboard-list-table table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Guest</th>
+              <th>Room</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in upcoming_check_ins %}
+              <tr>
+                <td>{{ booking.guest }}</td>
+                <td>Room {{ booking.room.room_number }}</td>
+                <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
+                <td>{{ booking.check_in_time|time:"H:i" }}</td>
+              </tr>
+            {% empty %}
+              {% for booking in recent_bookings|slice:":5" %}
+                <tr>
+                  <td>{{ booking.guest }}</td>
+                  <td>Room {{ booking.room.room_number }}</td>
+                  <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
+                  <td>{{ booking.created_at|date:"d M, H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="text-muted">No arrivals queued right now.</td></tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Pending balances</div>
-        <div class="metric-value">{{ pending_payments }}</div>
-        <div class="text-muted small mt-2">Accounts needing payment follow-up</div>
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="section-eyebrow mb-2">Desk actions</div>
+      <h2 class="h4 mb-3">Reception shortcuts</h2>
+      <div class="dashboard-actions-grid">
+        <a class="dashboard-action-card" href="{% url 'booking-list' %}">
+          <i data-lucide="calendar-range"></i>
+          <strong>Reservations</strong>
+        </a>
+        <a class="dashboard-action-card" href="{% url 'guest-create' %}">
+          <i data-lucide="users"></i>
+          <strong>Add guest</strong>
+        </a>
+        {% if user|can_access_module:'services' %}
+          <a class="dashboard-action-card" href="{% url 'event-booking-list' %}">
+            <i data-lucide="sparkles"></i>
+            <strong>Event space</strong>
+          </a>
+        {% endif %}
+        {% if user|can_access_module:'handovers' %}
+          <a class="dashboard-action-card" href="{% url 'handover-list' %}">
+            <i data-lucide="clipboard-list"></i>
+            <strong>Shift handover</strong>
+          </a>
+        {% endif %}
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Staff on duty</div>
-        <div class="metric-value">{{ staff_on_duty }}</div>
-        <div class="text-muted small mt-2">Roster coverage for today</div>
-      </div>
-    </div>
+    </section>
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Arrivals next hour</div>
-        <div class="metric-value">{{ upcoming_check_ins|length }}</div>
-        <div class="text-muted small mt-2">Check-ins starting soon</div>
+  <div class="dashboard-grid-secondary">
+    <section class="dashboard-panel">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <div>
+          <div class="section-eyebrow mb-2">Recent bookings</div>
+          <h2 class="h4 mb-1">Desk booking log</h2>
+        </div>
+        <div class="dashboard-filter-pill">{{ reserved_rooms }} reserved</div>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Departures next hour</div>
-        <div class="metric-value">{{ upcoming_check_outs|length }}</div>
-        <div class="text-muted small mt-2">Check-outs due soon</div>
+      <div class="dashboard-list-table table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Guest</th>
+              <th>Room</th>
+              <th>Stay</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in recent_bookings %}
+              <tr>
+                <td>{{ booking.guest }}</td>
+                <td>Room {{ booking.room.room_number }}</td>
+                <td>{{ booking.check_in|date:"d M" }} - {{ booking.check_out|date:"d M" }}</td>
+                <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="text-muted">No recent bookings yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Reserved rooms</div>
-        <div class="metric-value">{{ reserved_rooms }}</div>
-        <div class="text-muted small mt-2">Confirmed reservations</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Unread alerts</div>
-        <div class="metric-value">{{ unread_notifications_count|default:0 }}</div>
-        <div class="text-muted small mt-2">Notifications waiting for review</div>
-      </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="row g-3">
-    <div class="col-lg-7">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Reception shortcuts</div>
-            <h2 class="h5 mb-1">Most-used front desk actions</h2>
-            <div class="text-muted small">Everything the desk team needs in one place</div>
+    <section class="dashboard-panel">
+      <div class="section-eyebrow mb-2">Live activity</div>
+      <h2 class="h4 mb-3">Front desk feed</h2>
+      <div class="dashboard-activity-list">
+        {% for item in recent_activity|slice:":5" %}
+          <div class="dashboard-activity-item">
+            <div class="fw-semibold">{{ item.title }}</div>
+            <div class="text-muted small">{{ item.meta }}</div>
+            <div class="text-muted small mt-1">{{ item.time|date:"d M, H:i" }}</div>
           </div>
-        </div>
-        <div class="row g-3">
-          {% if user|can_access_module:'reservations' %}
-          <div class="col-sm-6">
-            <div class="surface-panel p-3 h-100">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <strong>Reservations</strong>
-                <i data-lucide="calendar-range"></i>
-              </div>
-              <p class="text-muted small mb-3">Create, confirm, check in, and check out guests quickly.</p>
-              <a class="topbar-pill w-100 justify-content-center" href="{% url 'booking-list' %}">Open reservation board</a>
-            </div>
-          </div>
-          {% endif %}
-          {% if user|can_access_module:'rooms' %}
-          <div class="col-sm-6">
-            <div class="surface-panel p-3 h-100">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <strong>Rooms</strong>
-                <i data-lucide="bed-double"></i>
-              </div>
-              <p class="text-muted small mb-3">Check live availability and room status at a glance.</p>
-              <a class="topbar-pill w-100 justify-content-center" href="{% url 'room-availability' %}">Open availability</a>
-            </div>
-          </div>
-          {% endif %}
-          {% if user|can_access_module:'services' %}
-          <div class="col-sm-6">
-            <div class="surface-panel p-3 h-100">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <strong>Event space</strong>
-                <i data-lucide="sparkles"></i>
-              </div>
-              <p class="text-muted small mb-3">Track event bookings, purpose, and guest counts.</p>
-              <a class="topbar-pill w-100 justify-content-center" href="{% url 'event-booking-list' %}">Open event bookings</a>
-            </div>
-          </div>
-          {% endif %}
-          {% if user|can_access_module:'handovers' %}
-          <div class="col-sm-6">
-            <div class="surface-panel p-3 h-100">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <strong>Shift handover</strong>
-                <i data-lucide="clipboard-list"></i>
-              </div>
-              <p class="text-muted small mb-3">Review the handover log before starting the next shift.</p>
-              <div class="d-grid gap-2">
-                <a class="topbar-pill w-100 justify-content-center" href="{% url 'handover-list' %}">Open handover log</a>
-                <a class="btn btn-outline-secondary btn-sm" href="{% url 'roster-report' %}">View duty rosters</a>
-              </div>
-            </div>
-          </div>
-          {% endif %}
-          {% if user|can_access_module:'inventory' %}
-          <div class="col-sm-6">
-            <div class="surface-panel p-3 h-100">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <strong>Inventory</strong>
-                <i data-lucide="boxes"></i>
-              </div>
-              <p class="text-muted small mb-3">Check stock, low items, and movement history.</p>
-              <a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-dashboard' %}">Open inventory</a>
-            </div>
-          </div>
-          {% endif %}
-          {% if user|can_access_module:'pos' %}
-          <div class="col-sm-6">
-            <div class="surface-panel p-3 h-100">
-              <div class="d-flex align-items-center justify-content-between mb-3">
-                <strong>POS</strong>
-                <i data-lucide="receipt"></i>
-              </div>
-              <p class="text-muted small mb-3">Quick sale terminal for drinks, snacks, and supplies.</p>
-              <a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-pos' %}">Open POS</a>
-            </div>
-          </div>
-          {% endif %}
-        </div>
+        {% empty %}
+          <div class="text-muted">No recent activity yet.</div>
+        {% endfor %}
       </div>
-    </div>
-
-    <div class="col-lg-5">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Live status</div>
-            <h2 class="h5 mb-1">Today at the desk</h2>
-            <div class="text-muted small">Operational snapshot for the receptionist</div>
-          </div>
-        </div>
-        <div class="timeline-list">
-          {% for item in recent_activity|slice:":8" %}
-            <div class="timeline-item">
-              <div class="timeline-marker"></div>
-              <div>
-                <div class="fw-semibold">{{ item.title }}</div>
-                <div class="text-muted small">{{ item.meta }}</div>
-                <div class="text-muted small">{{ item.time|date:"d/m/Y H:i" }}</div>
-              </div>
-            </div>
-          {% empty %}
-            <div class="text-muted">No recent activity yet.</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
+    </section>
   </div>
 </div>
 {% endblock %}

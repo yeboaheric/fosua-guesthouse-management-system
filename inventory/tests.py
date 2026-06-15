@@ -12,6 +12,7 @@ from inventory.models import (
     InventorySubcategory,
     InventoryTransaction,
     Sale,
+    SaleItem,
     Supplier,
 )
 
@@ -43,6 +44,14 @@ class InventoryPermissionTests(TestCase):
             handovers_access=True,
             users_roles_access=False,
         )
+        self.sale = Sale.objects.create(
+            cashier=self.admin,
+            customer_name="Counter Guest",
+            payment_method=Sale.PaymentMethod.CASH,
+            subtotal="10.00",
+            grand_total="10.00",
+            amount_paid="10.00",
+        )
 
     def test_receptionist_cannot_open_inventory_dashboard(self):
         self.client.force_login(self.reception)
@@ -53,7 +62,26 @@ class InventoryPermissionTests(TestCase):
         self.client.force_login(self.reception)
         response = self.client.get(reverse("inventory-pos"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Fast checkout terminal")
+        self.assertContains(response, "Point of Sale")
+
+    def test_receptionist_cannot_access_pos_sale_edit_route(self):
+        self.client.force_login(self.reception)
+        response = self.client.get(reverse("inventory-sale-update", args=[self.sale.pk]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertRedirects(response, reverse("inventory-sale-detail", args=[self.sale.pk]))
+        self.assertContains(response, "Access Denied: You are not authorized to manage POS sales.")
+
+    def test_receptionist_cannot_see_edit_on_pos_sale_pages(self):
+        self.client.force_login(self.reception)
+        sale_list_response = self.client.get(reverse("inventory-sales"))
+        self.assertEqual(sale_list_response.status_code, 200)
+        self.assertNotContains(sale_list_response, reverse("inventory-sale-update", args=[self.sale.pk]))
+        self.assertNotContains(sale_list_response, reverse("inventory-sale-delete", args=[self.sale.pk]))
+
+        sale_detail_response = self.client.get(reverse("inventory-sale-detail", args=[self.sale.pk]))
+        self.assertEqual(sale_detail_response.status_code, 200)
+        self.assertNotContains(sale_detail_response, reverse("inventory-sale-update", args=[self.sale.pk]))
+        self.assertNotContains(sale_detail_response, reverse("inventory-sale-delete", args=[self.sale.pk]))
 
 
 class InventoryPosWorkflowTests(TestCase):
@@ -157,6 +185,86 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn(sale.receipt_number, response["Content-Disposition"])
 
+    def test_admin_can_open_and_save_pos_sale_edit(self):
+        sale = Sale.objects.create(
+            cashier=self.user,
+            customer_name="Walk-in",
+            payment_method=Sale.PaymentMethod.CASH,
+            subtotal="30.00",
+            grand_total="30.00",
+            amount_paid="30.00",
+        )
+        SaleItem.objects.create(
+            sale=sale,
+            item=self.item,
+            quantity="3.000",
+            unit_price="10.00",
+            line_total="30.00",
+        )
+
+        self.client.force_login(self.user)
+
+        sale_list_response = self.client.get(reverse("inventory-sales"))
+        self.assertContains(sale_list_response, reverse("inventory-sale-update", args=[sale.pk]))
+        self.assertContains(sale_list_response, reverse("inventory-sale-delete", args=[sale.pk]))
+
+        sale_detail_response = self.client.get(reverse("inventory-sale-detail", args=[sale.pk]))
+        self.assertContains(sale_detail_response, reverse("inventory-sale-update", args=[sale.pk]))
+        self.assertContains(sale_detail_response, reverse("inventory-sale-delete", args=[sale.pk]))
+
+        edit_response = self.client.get(reverse("inventory-sale-update", args=[sale.pk]))
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertContains(edit_response, "Edit POS Sale")
+
+        update_response = self.client.post(
+            reverse("inventory-sale-update", args=[sale.pk]),
+            {
+                "customer_name": "Corrected Guest",
+                "customer_phone": "0244000000",
+                "customer_email": "guest@example.com",
+                "payment_method": Sale.PaymentMethod.MOBILE_MONEY,
+                "tax_amount": "2.00",
+                "discount_amount": "1.00",
+                "amount_paid": "35.00",
+                "notes": "Corrected after cashier review",
+            },
+            follow=True,
+        )
+        self.assertEqual(update_response.status_code, 200)
+        sale.refresh_from_db()
+        self.assertEqual(sale.customer_name, "Corrected Guest")
+        self.assertEqual(sale.payment_method, Sale.PaymentMethod.MOBILE_MONEY)
+        self.assertEqual(str(sale.subtotal), "30.00")
+        self.assertEqual(str(sale.grand_total), "31.00")
+        self.assertEqual(str(sale.amount_paid), "35.00")
+        self.assertContains(update_response, "Sale")
+
+    def test_admin_can_delete_sale_and_restore_stock(self):
+        self.client.force_login(self.user)
+        cart = json.dumps([{"id": self.item.pk, "quantity": 2}])
+        checkout_response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "20.00",
+                "notes": "Delete sale test",
+                "cart": cart,
+            },
+        )
+        self.assertEqual(checkout_response.status_code, 302)
+        sale = Sale.objects.latest("created_at")
+        self.item.refresh_from_db()
+        self.assertEqual(str(self.item.quantity_in_stock), "8.000")
+
+        delete_response = self.client.post(reverse("inventory-sale-delete", args=[sale.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.item.refresh_from_db()
+        self.assertFalse(Sale.objects.filter(pk=sale.pk).exists())
+        self.assertEqual(str(self.item.quantity_in_stock), "10.000")
+        self.assertContains(delete_response, "Sale deleted successfully.")
+
     def test_sale_list_csv_export_works(self):
         Sale.objects.create(
             cashier=self.user,
@@ -175,11 +283,11 @@ class InventoryPosWorkflowTests(TestCase):
         self.client.force_login(self.user)
         dashboard = self.client.get(reverse("inventory-dashboard"))
         self.assertEqual(dashboard.status_code, 200)
-        self.assertContains(dashboard, "Stock and POS overview")
+        self.assertContains(dashboard, "Monitor stock levels, item movement, and point-of-sale activity across the hotel.")
 
         reports = self.client.get(reverse("inventory-reports"))
         self.assertEqual(reports.status_code, 200)
-        self.assertContains(reports, "Sales and stock analytics")
+        self.assertContains(reports, "Generate stock and sales reports for the selected date range.")
 
     def test_quantity_fields_render_without_trailing_zeroes(self):
         self.client.force_login(self.user)
@@ -193,8 +301,8 @@ class InventoryPosWorkflowTests(TestCase):
 
         adjustment_form = self.client.get(reverse("inventory-item-adjust", args=[self.item.pk]))
         self.assertEqual(adjustment_form.status_code, 200)
-        self.assertContains(adjustment_form, "Adjust Mango Juice from 10")
-        self.assertNotContains(adjustment_form, "Adjust Mango Juice from 10.000")
+        self.assertContains(adjustment_form, "Adjust the stock level for Mango Juice and record the reason for the change.")
+        self.assertNotContains(adjustment_form, "Adjust the stock level for Mango Juice and record the reason for the change from 10.000")
 
         item_list = self.client.get(reverse("inventory-items"))
         self.assertEqual(item_list.status_code, 200)

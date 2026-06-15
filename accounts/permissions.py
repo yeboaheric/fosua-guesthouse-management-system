@@ -32,6 +32,8 @@ ACTION_CHOICES = [
     ("manage", "Manage"),
 ]
 
+ADMIN_ROLE_NAMES = ("Admin", "Super Administrator", "Hotel Administrator")
+
 MODULE_FIELDS = {
     module_name: f"{module_name}_access" for module_name, _ in ACCESS_MODULE_CHOICES
 }
@@ -272,6 +274,14 @@ def user_has_permission(user, module_name: str, action: str = "view") -> bool:
     if action == "view":
         return bool(module_access.get(MODULE_FIELDS.get(module_name, ""), False) or "view" in action_set)
     return action in action_set
+
+
+def user_is_admin_role(user) -> bool:
+    if not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    return user.groups.filter(name__in=ADMIN_ROLE_NAMES).exists()
 
 
 def seed_default_role_names():

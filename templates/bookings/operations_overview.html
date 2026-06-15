@@ -1,403 +1,325 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <div>
-    <h1 class="h4 mb-1">Operations Overview</h1>
-    <div class="text-muted">
-      {% if view_mode == "weekly" %}
-        Weekly view for {{ range_label }}
-      {% else %}
-        Daily view for {{ selected_date|date:"D, d M Y" }}
-      {% endif %}
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Operations overview</div>
+      <h1 class="module-title">Operations Overview</h1>
+      <div class="module-subcopy">
+        {% if view_mode == "weekly" %}
+          Review hotel operations for {{ range_label }}, including reservations, arrivals, departures, rooms, and event activity.
+        {% else %}
+          Review hotel operations for {{ selected_date|date:"l, d F Y" }}, including front desk activity, room movement, and event bookings.
+        {% endif %}
+      </div>
     </div>
-  </div>
-  <a class="btn btn-outline-secondary" href="{% url 'dashboard' %}">Back to Dashboard</a>
-</div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{% url 'dashboard' %}">Back to dashboard</a>
+    </div>
+  </section>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-      <div class="btn-group" role="group" aria-label="Date navigation">
-        <a class="btn btn-outline-primary" href="{% url 'operations-overview' %}{{ previous_url }}" aria-label="Previous period">&larr;</a>
-        <a class="btn btn-outline-primary" href="{% url 'operations-overview' %}{{ next_url }}" aria-label="Next period">&rarr;</a>
-        <a class="btn btn-primary" href="{% url 'operations-overview' %}{{ today_url }}">Today</a>
-      </div>
-      <div class="btn-group" role="group" aria-label="View toggle">
-        <a class="btn {% if view_mode == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'operations-overview' %}{{ day_view_url }}">Daily View</a>
-        <a class="btn {% if view_mode == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'operations-overview' %}{{ week_view_url }}">Weekly View</a>
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Navigation and date controls</h2>
+        <div class="module-card-copy">Move day to day or week to week, jump directly to a date or week, or apply a custom range when using weekly mode.</div>
       </div>
     </div>
+    <div class="module-card-body module-stack">
+      <div class="module-form-actions">
+        <div class="module-action-row">
+          <a class="btn btn-outline-primary" href="{% url 'operations-overview' %}{{ previous_url }}" aria-label="Previous period">Previous</a>
+          <a class="btn btn-outline-primary" href="{% url 'operations-overview' %}{{ next_url }}" aria-label="Next period">Next</a>
+          <a class="btn btn-primary" href="{% url 'operations-overview' %}{{ today_url }}">Today</a>
+        </div>
+        <div class="module-form-actions-end">
+          <a class="btn {% if view_mode == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'operations-overview' %}{{ day_view_url }}">Daily view</a>
+          <a class="btn {% if view_mode == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'operations-overview' %}{{ week_view_url }}">Weekly view</a>
+        </div>
+      </div>
 
-    <form method="get" class="row g-3 align-items-end">
-      <input type="hidden" name="view" value="{{ view_mode }}">
-      <div class="col-md-3">
-        <label class="form-label" for="id_date">Date</label>
-        <input class="form-control" type="date" id="id_date" name="date" value="{{ selected_date_input }}">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label" for="id_week">Week</label>
-        <input class="form-control" type="week" id="id_week" name="week" value="{{ selected_week_input }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="id_range_start">Range start</label>
-        <input class="form-control" type="date" id="id_range_start" name="range_start" value="{{ range_start_input }}">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="id_range_end">Range end</label>
-        <input class="form-control" type="date" id="id_range_end" name="range_end" value="{{ range_end_input }}">
-      </div>
-      <div class="col-md-2 d-grid">
-        <button class="btn btn-primary" type="submit">Apply</button>
-      </div>
-    </form>
-  </div>
-</div>
+      <form method="get" class="module-filter-grid">
+        <input type="hidden" name="view" value="{{ view_mode }}">
+        <div class="module-filter-field">
+          <label class="form-label" for="id_date">Date</label>
+          <input class="form-control" type="date" id="id_date" name="date" value="{{ selected_date_input }}">
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="id_week">Week</label>
+          <input class="form-control" type="week" id="id_week" name="week" value="{{ selected_week_input }}">
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="id_range_start">Range start</label>
+          <input class="form-control" type="date" id="id_range_start" name="range_start" value="{{ range_start_input }}">
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="id_range_end">Range end</label>
+          <input class="form-control" type="date" id="id_range_end" name="range_end" value="{{ range_end_input }}">
+        </div>
+        <div class="module-filter-field module-form-field--full">
+          <div class="module-form-actions">
+            <span class="module-badge">{% if view_mode == "weekly" %}Weekly command view{% else %}Daily command view{% endif %}</span>
+            <div class="module-form-actions-end">
+              <button class="btn btn-primary" type="submit">Apply view</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
 
-{% if view_mode == "weekly" %}
-  <div class="row g-3 mb-3">
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Check-Ins</div>
-          <div class="h5 mb-0">{{ weekly_totals.check_ins }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Check-Outs</div>
-          <div class="h5 mb-0">{{ weekly_totals.check_outs }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Reservations</div>
-          <div class="h5 mb-0">{{ weekly_totals.reservations }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Cancelled</div>
-          <div class="h5 mb-0">{{ weekly_totals.cancelled }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Maintenance</div>
-          <div class="h5 mb-0">{{ weekly_totals.maintenance }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Cleaning</div>
-          <div class="h5 mb-0">{{ weekly_totals.cleaning }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Events</div>
-          <div class="h5 mb-0">{{ weekly_totals.events }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Cancelled Events</div>
-          <div class="h5 mb-0">{{ weekly_totals.cancelled_events }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
+  {% if view_mode == "weekly" %}
+    <section class="module-metric-grid">
+      <article class="module-metric-card"><span class="module-metric-label">Check-ins</span><strong class="module-metric-value">{{ weekly_totals.check_ins }}</strong><span class="module-metric-note">Arrivals logged in this period</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Check-outs</span><strong class="module-metric-value">{{ weekly_totals.check_outs }}</strong><span class="module-metric-note">Departures logged in this period</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Reservations</span><strong class="module-metric-value">{{ weekly_totals.reservations }}</strong><span class="module-metric-note">Bookings created across the range</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Cancelled</span><strong class="module-metric-value">{{ weekly_totals.cancelled }}</strong><span class="module-metric-note">Cancelled bookings in the range</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Maintenance</span><strong class="module-metric-value">{{ weekly_totals.maintenance }}</strong><span class="module-metric-note">Room maintenance observations</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Cleaning</span><strong class="module-metric-value">{{ weekly_totals.cleaning }}</strong><span class="module-metric-note">Cleaning observations in the range</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Events</span><strong class="module-metric-value">{{ weekly_totals.events }}</strong><span class="module-metric-note">Event bookings scheduled</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Cancelled events</span><strong class="module-metric-value">{{ weekly_totals.cancelled_events }}</strong><span class="module-metric-note">Event cancellations recorded</span></article>
+    </section>
 
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <h2 class="h6 mb-3">Operations Breakdown by Day</h2>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Day</th>
-              <th>Date</th>
-              <th>Check-Ins</th>
-              <th>Check-Outs</th>
-              <th>Reservations</th>
-              <th>Cancelled</th>
-              <th>Maintenance</th>
-              <th>Cleaning</th>
-              <th>Events</th>
-              <th>Cancelled Events</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for day in week_days %}
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Weekly breakdown</h2>
+          <div class="module-card-copy">A day-by-day summary of hotel movement for the selected weekly or custom range.</div>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="module-table-wrap table-responsive">
+          <table class="table align-middle">
+            <thead class="table-light">
               <tr>
-                <td>{{ day.day_name }}</td>
-                <td>{{ day.date|date:"d/m/Y" }}</td>
-                <td>{{ day.snapshot.check_ins_count }}</td>
-                <td>{{ day.snapshot.check_outs_count }}</td>
-                <td>{{ day.snapshot.reservations_count }}</td>
-                <td>{{ day.snapshot.cancelled_count }}</td>
-                <td>{{ day.snapshot.maintenance_count }}</td>
-                <td>{{ day.snapshot.cleaning_count }}</td>
-                <td>{{ day.snapshot.events_count }}</td>
-                <td>{{ day.snapshot.cancelled_events_count }}</td>
+                <th>Day</th>
+                <th>Date</th>
+                <th>Check-ins</th>
+                <th>Check-outs</th>
+                <th>Reservations</th>
+                <th>Cancelled</th>
+                <th>Maintenance</th>
+                <th>Cleaning</th>
+                <th>Events</th>
+                <th>Cancelled events</th>
               </tr>
-            {% empty %}
-              <tr><td colspan="10" class="text-center text-muted py-3">No operations data found for this period.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-{% else %}
-  <div class="row g-3 mb-3">
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Check-Ins</div>
-          <div class="h5 mb-0">{{ check_ins_count }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Check-Outs</div>
-          <div class="h5 mb-0">{{ check_outs_count }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Reservations</div>
-          <div class="h5 mb-0">{{ reservations_count }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Cancelled</div>
-          <div class="h5 mb-0">{{ cancelled_count }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Maintenance</div>
-          <div class="h5 mb-0">{{ maintenance_count }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-2">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Cleaning</div>
-          <div class="h5 mb-0">{{ cleaning_count }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3 mb-3">
-    <div class="col-md-3">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Events</div>
-          <div class="h5 mb-0">{{ events_count }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="text-muted small">Cancelled Events</div>
-          <div class="h5 mb-0">{{ cancelled_events_count }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3">
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Check-Ins</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Time</th><th>Status</th></tr></thead>
+            </thead>
             <tbody>
-              {% for booking in today_check_ins %}
-                <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.check_in_time|time:"H:i" }}</td><td>{{ booking.get_status_display }}</td></tr>
-              {% empty %}
-                <tr><td colspan="4" class="text-center text-muted py-3">No check-ins for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Check-Outs</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Time</th><th>Status</th></tr></thead>
-            <tbody>
-              {% for booking in today_check_outs %}
-                <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.check_out_time|time:"H:i" }}</td><td>{{ booking.get_status_display }}</td></tr>
-              {% empty %}
-                <tr><td colspan="4" class="text-center text-muted py-3">No check-outs for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Reservations Made</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Created</th></tr></thead>
-            <tbody>
-              {% for booking in reservations_made %}
-                <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.created_at|date:"H:i" }}</td></tr>
-              {% empty %}
-                <tr><td colspan="3" class="text-center text-muted py-3">No reservations created for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Cancelled Bookings</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Updated</th></tr></thead>
-            <tbody>
-              {% for booking in cancelled_bookings %}
-                <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.updated_at|date:"H:i" }}</td></tr>
-              {% empty %}
-                <tr><td colspan="3" class="text-center text-muted py-3">No cancellations for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Rooms Under Maintenance</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Room</th><th>Type</th><th>Status Started</th><th>Last Changed</th></tr></thead>
-            <tbody>
-              {% for room in maintenance_rooms %}
+              {% for day in week_days %}
                 <tr>
-                  <td>{{ room.room_number }}</td>
-                  <td>{{ room.get_room_type_display }}</td>
-                  <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
-                  <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
+                  <td>{{ day.day_name }}</td>
+                  <td>{{ day.date|date:"d M Y" }}</td>
+                  <td>{{ day.snapshot.check_ins_count }}</td>
+                  <td>{{ day.snapshot.check_outs_count }}</td>
+                  <td>{{ day.snapshot.reservations_count }}</td>
+                  <td>{{ day.snapshot.cancelled_count }}</td>
+                  <td>{{ day.snapshot.maintenance_count }}</td>
+                  <td>{{ day.snapshot.cleaning_count }}</td>
+                  <td>{{ day.snapshot.events_count }}</td>
+                  <td>{{ day.snapshot.cancelled_events_count }}</td>
                 </tr>
               {% empty %}
-                <tr><td colspan="4" class="text-center text-muted py-3">No rooms under maintenance for this date.</td></tr>
+                <tr><td colspan="10" class="module-empty">No operations data found for this period.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
-    </div>
+    </section>
+  {% else %}
+    <section class="module-metric-grid">
+      <article class="module-metric-card"><span class="module-metric-label">Check-ins</span><strong class="module-metric-value">{{ check_ins_count }}</strong><span class="module-metric-note">Guests arriving on this date</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Check-outs</span><strong class="module-metric-value">{{ check_outs_count }}</strong><span class="module-metric-note">Guests departing on this date</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Reservations</span><strong class="module-metric-value">{{ reservations_count }}</strong><span class="module-metric-note">New room bookings created</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Cancelled</span><strong class="module-metric-value">{{ cancelled_count }}</strong><span class="module-metric-note">Cancelled room reservations</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Maintenance</span><strong class="module-metric-value">{{ maintenance_count }}</strong><span class="module-metric-note">Rooms under maintenance</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Cleaning</span><strong class="module-metric-value">{{ cleaning_count }}</strong><span class="module-metric-note">Rooms currently cleaning</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Events</span><strong class="module-metric-value">{{ events_count }}</strong><span class="module-metric-note">Scheduled event bookings</span></article>
+      <article class="module-metric-card"><span class="module-metric-label">Cancelled events</span><strong class="module-metric-value">{{ cancelled_events_count }}</strong><span class="module-metric-note">Cancelled event activity</span></article>
+    </section>
 
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Rooms Cleaning In Progress</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Room</th><th>Type</th><th>Status Started</th><th>Last Changed</th></tr></thead>
-            <tbody>
-              {% for room in cleaning_rooms %}
-                <tr>
-                  <td>{{ room.room_number }}</td>
-                  <td>{{ room.get_room_type_display }}</td>
-                  <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
-                  <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="4" class="text-center text-muted py-3">No rooms currently cleaning for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+    <div class="row g-4">
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Check-ins</h2><div class="module-card-copy">Arrivals expected or already processed for the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Time</th><th>Status</th></tr></thead>
+                <tbody>
+                  {% for booking in today_check_ins %}
+                    <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.check_in_time|time:"H:i" }}</td><td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td></tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="module-empty">No check-ins for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
 
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Event Space Bookings</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Event</th><th>Guest</th><th>Start</th><th>End</th><th>Created</th></tr></thead>
-            <tbody>
-              {% for event_booking in today_event_bookings %}
-                <tr>
-                  <td>{{ event_booking.event_title }}</td>
-                  <td>{{ event_booking.guest }}</td>
-                  <td>{{ event_booking.event_start|date:"d/m/Y H:i" }}</td>
-                  <td>{{ event_booking.event_end|date:"d/m/Y H:i" }}</td>
-                  <td>{{ event_booking.created_at|date:"d/m/Y H:i" }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="5" class="text-center text-muted py-3">No events scheduled for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Check-outs</h2><div class="module-card-copy">Departures due or completed on the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Time</th><th>Status</th></tr></thead>
+                <tbody>
+                  {% for booking in today_check_outs %}
+                    <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.check_out_time|time:"H:i" }}</td><td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td></tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="module-empty">No check-outs for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
 
-    <div class="col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-body"><h2 class="h6 mb-0">Cancelled Event Bookings</h2></div>
-        <div class="table-responsive">
-          <table class="table mb-0">
-            <thead class="table-light"><tr><th>Event</th><th>Guest</th><th>Updated</th></tr></thead>
-            <tbody>
-              {% for event_booking in cancelled_event_bookings %}
-                <tr>
-                  <td>{{ event_booking.event_title }}</td>
-                  <td>{{ event_booking.guest }}</td>
-                  <td>{{ event_booking.updated_at|date:"H:i" }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="3" class="text-center text-muted py-3">No cancelled events for this date.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Reservations made</h2><div class="module-card-copy">Room reservations created on the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Created</th></tr></thead>
+                <tbody>
+                  {% for booking in reservations_made %}
+                    <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.created_at|date:"H:i" }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No reservations created for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Cancelled bookings</h2><div class="module-card-copy">Room cancellations recorded on the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Guest</th><th>Room</th><th>Updated</th></tr></thead>
+                <tbody>
+                  {% for booking in cancelled_bookings %}
+                    <tr><td>{{ booking.guest }}</td><td>{{ booking.room.room_number }}</td><td>{{ booking.updated_at|date:"H:i" }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No cancellations for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Rooms under maintenance</h2><div class="module-card-copy">Operational room blocks active on the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Room</th><th>Type</th><th>Status started</th><th>Last changed</th></tr></thead>
+                <tbody>
+                  {% for room in maintenance_rooms %}
+                    <tr>
+                      <td>{{ room.room_number }}</td>
+                      <td>{{ room.get_room_type_display }}</td>
+                      <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
+                      <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="module-empty">No rooms under maintenance for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Rooms cleaning in progress</h2><div class="module-card-copy">Cleaning movement active on the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Room</th><th>Type</th><th>Status started</th><th>Last changed</th></tr></thead>
+                <tbody>
+                  {% for room in cleaning_rooms %}
+                    <tr>
+                      <td>{{ room.room_number }}</td>
+                      <td>{{ room.get_room_type_display }}</td>
+                      <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
+                      <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="4" class="module-empty">No rooms currently cleaning for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Event space bookings</h2><div class="module-card-copy">Event activity scheduled for the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Event</th><th>Guest</th><th>Start</th><th>End</th><th>Created</th></tr></thead>
+                <tbody>
+                  {% for event_booking in today_event_bookings %}
+                    <tr>
+                      <td>{{ event_booking.event_title }}</td>
+                      <td>{{ event_booking.guest }}</td>
+                      <td>{{ event_booking.event_start|date:"d/m/Y H:i" }}</td>
+                      <td>{{ event_booking.event_end|date:"d/m/Y H:i" }}</td>
+                      <td>{{ event_booking.created_at|date:"d/m/Y H:i" }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="5" class="module-empty">No events scheduled for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Cancelled event bookings</h2><div class="module-card-copy">Event cancellations logged for the selected date.</div></div></div>
+          <div class="module-card-body">
+            <div class="module-table-wrap table-responsive">
+              <table class="table align-middle">
+                <thead class="table-light"><tr><th>Event</th><th>Guest</th><th>Updated</th></tr></thead>
+                <tbody>
+                  {% for event_booking in cancelled_event_bookings %}
+                    <tr>
+                      <td>{{ event_booking.event_title }}</td>
+                      <td>{{ event_booking.guest }}</td>
+                      <td>{{ event_booking.updated_at|date:"H:i" }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No cancelled events for this date.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
-  </div>
-{% endif %}
+  {% endif %}
+</div>
 {% endblock %}

@@ -1,117 +1,169 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Bookings</h1>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-primary" href="{% url 'event-booking-list' %}">Event Space Bookings</a>
-    <a class="btn btn-primary" href="{% url 'booking-create' %}">New Booking</a>
-  </div>
-</div>
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Reservations</div>
+      <h1 class="module-title">Room Bookings</h1>
+      <div class="module-subcopy">Manage all guest room reservations and booking records from one front desk page.</div>
+    </div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{% url 'event-booking-list' %}">Event reservations</a>
+      <a class="btn btn-primary" href="{% url 'booking-create' %}">New booking</a>
+    </div>
+  </section>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-3 align-items-end">
-      <div class="col-lg-3 col-md-6">
-        <label class="form-label" for="q">Search</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Guest, room, Ghana Card, note">
-      </div>
-      <div class="col-lg-2 col-md-6">
-        <label class="form-label" for="status">Status</label>
-        <select class="form-select" name="status" id="status">
-          <option value="">All Statuses</option>
-          {% for value, label in status_choices %}
-            <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-2 col-md-6">
-        <label class="form-label" for="check_in">Check-in date</label>
-        <input class="form-control" type="date" name="check_in" id="check_in" value="{{ check_in }}">
-      </div>
-      <div class="col-lg-2 col-md-6">
-        <label class="form-label" for="check_out">Check-out date</label>
-        <input class="form-control" type="date" name="check_out" id="check_out" value="{{ check_out }}">
-      </div>
-      <div class="col-lg-1 col-md-6">
-        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
-      </div>
-      <div class="col-lg-2 col-md-6">
-        <a class="btn btn-outline-secondary w-100" href="{% url 'booking-list' %}">Reset</a>
-      </div>
-    </form>
-  </div>
-</div>
+  <section class="module-metric-grid">
+    <article class="module-metric-card">
+      <span class="module-metric-label">Visible bookings</span>
+      <strong class="module-metric-value">{{ bookings|length }}</strong>
+      <span class="module-metric-note">Records matching the current filters</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Status focus</span>
+      <strong class="module-metric-value">{% if selected_status %}{{ selected_status|title }}{% else %}All{% endif %}</strong>
+      <span class="module-metric-note">Current status slice for this queue</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Check-in filter</span>
+      <strong class="module-metric-value">{% if check_in %}{{ check_in }}{% else %}-{% endif %}</strong>
+      <span class="module-metric-note">Arrival boundary applied to the list</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Check-out filter</span>
+      <strong class="module-metric-value">{% if check_out %}{{ check_out }}{% else %}-{% endif %}</strong>
+      <span class="module-metric-note">Departure boundary applied to the list</span>
+    </article>
+  </section>
 
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Guest</th>
-          <th>Room</th>
-          <th>Dates</th>
-          <th>Status</th>
-          <th>Total</th>
-          <th>Paid</th>
-          <th>Balance</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for booking in bookings %}
-          <tr>
-            <td>{{ booking.guest }}</td>
-            <td>{{ booking.room.room_number }}</td>
-            <td>{{ booking.check_in }} to {{ booking.check_out }}</td>
-            <td>{{ booking.get_status_display }}</td>
-            <td>GHS {{ booking.total_amount }}</td>
-            <td>GHS {{ booking.paid_total }}</td>
-            <td>GHS {{ booking.balance_due }}</td>
-            <td class="text-end">
-              <div class="d-flex justify-content-end gap-2 flex-wrap">
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'booking-detail' booking.pk %}">View</a>
-                <a class="btn btn-sm btn-outline-secondary" href="{% url 'booking-update' booking.pk %}">Edit</a>
-                <a class="btn btn-sm btn-outline-dark" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'booking-payments' booking.pk %}">Payments</a>
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Refine the queue</h2>
+        <div class="module-card-copy">Search by guest, room, Ghana Card, or notes, then narrow the desk list by status and stay dates.</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <form method="get" class="module-filter-grid">
+        <div class="module-filter-field">
+          <label class="form-label" for="q">Search</label>
+          <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Guest, room, Ghana Card, note">
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="status">Status</label>
+          <select class="form-select" name="status" id="status">
+            <option value="">All statuses</option>
+            {% for value, label in status_choices %}
+              <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="check_in">Check-in date</label>
+          <input class="form-control" type="date" name="check_in" id="check_in" value="{{ check_in }}">
+        </div>
+        <div class="module-filter-field">
+          <label class="form-label" for="check_out">Check-out date</label>
+          <input class="form-control" type="date" name="check_out" id="check_out" value="{{ check_out }}">
+        </div>
+        <div class="module-filter-field module-form-field--full">
+          <div class="module-form-actions">
+            <span class="module-badge">Live reservations view</span>
+            <div class="module-form-actions-end">
+              <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Reset</a>
+              <button class="btn btn-primary" type="submit">Apply filters</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
 
-                {% if booking.status == "pending" %}
-                  <form method="post" action="{% url 'booking-confirm' booking.pk %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-outline-primary" type="submit">Confirm</button>
-                  </form>
-                {% endif %}
-
-                {% if booking.status == "pending" or booking.status == "confirmed" %}
-                  <form method="post" action="{% url 'booking-check-in' booking.pk %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-success" type="submit">Check In</button>
-                  </form>
-                {% endif %}
-
-                {% if booking.status == "checked_in" %}
-                  <form method="post" action="{% url 'booking-check-out' booking.pk %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-dark" type="submit">Check Out</button>
-                  </form>
-                {% endif %}
-
-                {% if booking.status == "pending" or booking.status == "confirmed" %}
-                  <form method="post" action="{% url 'booking-cancel' booking.pk %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-outline-danger" type="submit">Cancel</button>
-                  </form>
-                {% endif %}
-              </div>
-            </td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="8" class="text-center text-muted py-4">No bookings found.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Bookings register</h2>
+        <div class="module-card-copy">All guest room reservations with account balance visibility and desk actions.</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <div class="module-table-wrap table-responsive">
+        <table class="table table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Guest</th>
+              <th>Room</th>
+              <th>Dates</th>
+              <th>Status</th>
+              <th>Total</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in bookings %}
+              <tr>
+                <td>
+                  <div class="fw-semibold">{{ booking.guest }}</div>
+                  <div class="text-muted small">Booked {{ booking.created_at|date:"d M Y, H:i" }}</div>
+                </td>
+                <td>
+                  <div class="fw-semibold">Room {{ booking.room.room_number }}</div>
+                  <div class="text-muted small">{{ booking.room.get_room_type_display }}</div>
+                </td>
+                <td>{{ booking.check_in|date:"d M Y" }} to {{ booking.check_out|date:"d M Y" }}</td>
+                <td>
+                  <span class="status-pill {% if booking.status == 'checked_in' or booking.status == 'checked_out' %}success{% elif booking.status == 'pending' %}warning{% elif booking.status == 'cancelled' %}danger{% else %}neutral{% endif %}">
+                    {{ booking.get_status_display }}
+                  </span>
+                </td>
+                <td>GHS {{ booking.total_amount }}</td>
+                <td>GHS {{ booking.paid_total }}</td>
+                <td>GHS {{ booking.balance_due }}</td>
+                <td class="text-end">
+                  <div class="module-table-actions">
+                    <a class="status-pill neutral" href="{% url 'booking-detail' booking.pk %}">View</a>
+                    <a class="status-pill success" href="{% url 'booking-update' booking.pk %}">Edit</a>
+                    <a class="status-pill neutral" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
+                    <a class="status-pill success" href="{% url 'booking-payments' booking.pk %}">Payments</a>
+                    {% if booking.status == "pending" %}
+                      <form method="post" action="{% url 'booking-confirm' booking.pk %}">
+                        {% csrf_token %}
+                        <button class="status-pill success border-0" type="submit">Confirm</button>
+                      </form>
+                    {% endif %}
+                    {% if booking.status == "pending" or booking.status == "confirmed" %}
+                      <form method="post" action="{% url 'booking-check-in' booking.pk %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-success" type="submit">Check in</button>
+                      </form>
+                    {% endif %}
+                    {% if booking.status == "checked_in" %}
+                      <form method="post" action="{% url 'booking-check-out' booking.pk %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-dark" type="submit">Check out</button>
+                      </form>
+                    {% endif %}
+                    {% if booking.status == "pending" or booking.status == "confirmed" %}
+                      <form method="post" action="{% url 'booking-cancel' booking.pk %}">
+                        {% csrf_token %}
+                        <button class="status-pill danger border-0" type="submit">Cancel</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="8" class="module-empty">No bookings match the current filters.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}

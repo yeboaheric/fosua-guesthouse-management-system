@@ -2,41 +2,53 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="section-eyebrow mb-2">Inventory item</div>
-    <h1 class="page-title mb-2">{{ title|default:"Inventory item" }}</h1>
-    <div class="page-subtitle">Capture category, supplier, stock levels, and pricing.</div>
-  </div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Inventory item</div>
+        <h1 class="module-title">{{ title|default:"Inventory item" }}</h1>
+        <div class="module-subcopy">Create or update item details, stock levels, supplier information, and pricing.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Back to items</a>
+      </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-      {% endif %}
-      <div class="row g-3">
-        {% for field in form %}
-          <div class="{% if field.field.widget.input_type == 'checkbox' %}col-md-3{% elif field.name == 'description' or field.name == 'image' %}col-12{% else %}col-md-6{% endif %}">
-            {% if field.field.widget.input_type == 'checkbox' %}
-              <div class="form-check mt-4">
-                {{ field }}
-                <label class="form-check-label ms-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post" enctype="multipart/form-data" class="module-stack">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="module-form-grid">
+            {% for field in form %}
+              <div class="{% if field.field.widget.input_type == 'checkbox' %}module-form-field module-form-field--narrow{% elif field.name == 'description' or field.name == 'image' %}module-form-field module-form-field--full{% else %}module-form-field module-form-field--half{% endif %}">
+                {% if field.field.widget.input_type == 'checkbox' %}
+                  <div class="form-check mt-4">
+                    {{ field }}
+                    <label class="form-check-label ms-2" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+                  </div>
+                {% else %}
+                  <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                  {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+                {% endif %}
               </div>
-            {% else %}
-              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-              {{ field }}
-              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
-            {% endif %}
+            {% endfor %}
           </div>
-        {% endfor %}
+          <div class="module-form-actions">
+            <div class="module-card-copy">This item will sync into stock adjustments, POS sales, and transaction history automatically.</div>
+            <div class="module-form-actions-end">
+              <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Cancel</a>
+              <button class="btn btn-primary" type="submit">Save item</button>
+            </div>
+          </div>
+        </form>
       </div>
-      <div class="d-flex gap-2 mt-4">
-        <button class="btn btn-primary" type="submit">Save item</button>
-        <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Cancel</a>
-      </div>
-    </form>
+    </section>
   </div>
 </div>
 {% endblock %}

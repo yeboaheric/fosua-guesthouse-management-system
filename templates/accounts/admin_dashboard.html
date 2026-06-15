@@ -1,338 +1,358 @@
 {% extends "base.html" %}
-{% load static accounts_extras %}
+{% load accounts_extras %}
+
+{% block topbar_context %}
+  <div class="topbar-kicker">Admin dashboard</div>
+  <div class="topbar-heading">Dashboard Overview</div>
+  <div class="topbar-subheading">Monitor reservations, room status, revenue, staff activity, and hotel operations for {{ today|date:"j F, Y" }}.</div>
+{% endblock %}
 
 {% block content %}
-<div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Admin control room</div>
-        <h1 class="page-title mb-2">Hotel command center</h1>
-        <div class="page-subtitle">Welcome back, {{ user.get_full_name|default:user.username }}. Live operations for {{ today }}.</div>
-      </div>
-    </div>
+<div class="dashboard-skin">
+  <div class="dashboard-stat-grid">
+    {% for card in dashboard_summary_cards %}
+      <a class="dashboard-stat-card" href="{{ card.href }}" style="--stagger: {{ forloop.counter0 }};">
+        <span class="dashboard-stat-label">{{ card.label }}</span>
+        <strong class="dashboard-stat-value">{{ card.value }}</strong>
+        <span class="dashboard-stat-meta">{{ card.meta }}</span>
+      </a>
+    {% endfor %}
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Occupancy rate</div>
-        <div class="metric-value">{{ occupancy_rate }}%</div>
-        <div class="text-muted small mt-2">Rooms in active use right now</div>
+  <div class="dashboard-grid-main dashboard-grid-main--balanced">
+    <section class="dashboard-hero-card">
+      <div class="dashboard-hero-header">
+        <div>
+          <div class="section-eyebrow mb-2">Bookings overview</div>
+          <h2 class="h3 mb-2">Reservation movement over time</h2>
+          <div class="dashboard-hero-caption">Daily, weekly, and monthly reservation movement from live booking records.</div>
+        </div>
+        <div class="dashboard-chip-row dashboard-chip-row--interactive">
+          <button class="dashboard-chip is-active" type="button" data-dashboard-period="daily" data-loading-ignore="true">Daily</button>
+          <button class="dashboard-chip" type="button" data-dashboard-period="weekly" data-loading-ignore="true">Weekly</button>
+          <button class="dashboard-chip" type="button" data-dashboard-period="monthly" data-loading-ignore="true">Monthly</button>
+        </div>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Available rooms</div>
-        <div class="metric-value">{{ available_rooms }}</div>
-        <div class="text-muted small mt-2">Ready for new bookings</div>
+      <div class="chart-shell chart-shell--hero">
+        <canvas id="dashboardBookingsChart" aria-label="Bookings overview chart"></canvas>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Active bookings</div>
-        <div class="metric-value">{{ active_bookings }}</div>
-        <div class="text-muted small mt-2">Confirmed or in-house stays</div>
+    </section>
+
+    <section class="dashboard-panel dashboard-feed-panel">
+      <div class="dashboard-panel-header mb-3">
+        <div>
+          <div class="section-eyebrow mb-2">Recent activity</div>
+          <h2 class="h4 mb-1">Live hotel movement</h2>
+          <div class="text-muted small">Bookings, payments, room changes, staff events, and housekeeping updates.</div>
+        </div>
+        <a class="dashboard-filter-pill dashboard-filter-pill--icon" href="{% url 'notifications-center' %}">
+          <i data-lucide="bell-ring"></i>
+          <span>View feed</span>
+        </a>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Staff on duty</div>
-        <div class="metric-value">{{ staff_on_duty }}</div>
-        <div class="text-muted small mt-2">Rotas covering today</div>
+      <div class="dashboard-live-feed" id="dashboardLiveFeed">
+        {% for item in recent_activity|slice:":10" %}
+          <a class="dashboard-feed-item" href="{{ item.href|default:'#' }}">
+            <span class="dashboard-feed-icon"><i data-lucide="{{ item.icon }}"></i></span>
+            <span class="dashboard-feed-copy">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.meta }}</span>
+            </span>
+            <span class="dashboard-feed-time">{{ item.time_label }}</span>
+          </a>
+        {% empty %}
+          <div class="text-muted">No recent activity yet.</div>
+        {% endfor %}
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Daily revenue</div>
-        <div class="metric-value">GHS {{ daily_revenue }}</div>
-        <div class="text-muted small mt-2">Room and event collections</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Monthly revenue</div>
-        <div class="metric-value">GHS {{ monthly_revenue }}</div>
-        <div class="text-muted small mt-2">Month-to-date performance</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Pending balances</div>
-        <div class="metric-value">{{ pending_payments }}</div>
-        <div class="text-muted small mt-2">Open booking and event accounts</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Total guests</div>
-        <div class="metric-value">{{ total_guests }}</div>
-        <div class="text-muted small mt-2">Guest profiles stored in the system</div>
-      </div>
-    </div>
+    </section>
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Reserved rooms</div>
-        <div class="metric-value">{{ reserved_rooms }}</div>
-        <div class="text-muted small mt-2">Confirmed reservations</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Arrivals next hour</div>
-        <div class="metric-value">{{ upcoming_check_ins|length }}</div>
-        <div class="text-muted small mt-2">Check-ins starting soon</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Departures next hour</div>
-        <div class="metric-value">{{ upcoming_check_outs|length }}</div>
-        <div class="text-muted small mt-2">Check-outs due soon</div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Unread alerts</div>
-        <div class="metric-value">{{ unread_notifications_count|default:0 }}</div>
-        <div class="text-muted small mt-2">Notifications waiting for review</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3 mb-3">
-    <div class="col-xl-7">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Performance analytics</div>
-            <h2 class="h5 mb-1">Revenue and occupancy trends</h2>
-            <div class="text-muted small">Rolling 7-day view of operations</div>
-          </div>
-          <span class="status-pill success"><i data-lucide="trending-up"></i> Live</span>
+  <div class="dashboard-grid-secondary dashboard-grid-secondary--dashboard">
+    <section class="dashboard-ring-card">
+      <div class="section-eyebrow mb-2">Occupancy rate</div>
+      <h3 class="h5 mb-3">Occupied vs available rooms</h3>
+      <div class="dashboard-ring-wrap">
+        <div class="dashboard-ring-canvas chart-shell chart-shell--donut">
+          <canvas id="dashboardOccupancyChart" aria-label="Occupancy rate chart"></canvas>
         </div>
-        {{ chart_labels_json|json_script:"dashboard-labels" }}
-        {{ revenue_data_json|json_script:"dashboard-revenue" }}
-        {{ occupancy_data_json|json_script:"dashboard-occupancy" }}
-        <div class="row g-3">
-          <div class="col-md-6"><canvas id="dashboardRevenueChart" height="180"></canvas></div>
-          <div class="col-md-6"><canvas id="dashboardOccupancyChart" height="180"></canvas></div>
-        </div>
-      </div>
-    </div>
-    <div class="col-xl-5">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Room status overview</div>
-            <h2 class="h5 mb-1">Operational snapshot</h2>
-            <div class="text-muted small">Color-coded status across all rooms</div>
-          </div>
-        </div>
-        <div class="d-grid gap-2">
-          {% for item in room_status_breakdown %}
-            <div class="d-flex justify-content-between align-items-center p-3 rounded-4 border" style="background: rgba(255,255,255,0.55);">
-              <div>
-                <div class="fw-semibold">{{ item.label }}</div>
-                <div class="text-muted small">Rooms currently in this state</div>
-              </div>
-              <span class="status-pill {{ item.tone }}">{{ item.count }}</span>
+        <div class="dashboard-ring-legend">
+          {% for item in dashboard_occupancy_breakdown %}
+            <div class="dashboard-ring-legend-item">
+              <span class="dashboard-ring-legend-label">
+                <span
+                  class="dashboard-ring-dot"
+                  style="background:{% cycle '#2F8A57' '#CFAE84' '#8F6F4F' %};"
+                ></span>
+                {{ item.label }}
+              </span>
+              <strong>{{ item.count }} <span class="text-muted small">({{ item.percentage }}%)</span></strong>
             </div>
           {% endfor %}
         </div>
       </div>
-    </div>
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="section-eyebrow mb-2">Operations focus</div>
+      <h2 class="h4 mb-3">Priority actions</h2>
+      <div class="dashboard-actions-grid">
+        <a class="dashboard-action-card" href="{% url 'booking-create' %}">
+          <i data-lucide="calendar-plus"></i>
+          <strong>New booking</strong>
+          <span class="text-muted small">Create a reservation or walk-in.</span>
+        </a>
+        <a class="dashboard-action-card" href="{% url 'guest-create' %}">
+          <i data-lucide="user-plus"></i>
+          <strong>Add guest</strong>
+          <span class="text-muted small">Register a new guest profile.</span>
+        </a>
+        <a class="dashboard-action-card" href="{% url 'room-list' %}">
+          <i data-lucide="bed-double"></i>
+          <strong>Manage rooms</strong>
+          <span class="text-muted small">Review room inventory and status.</span>
+        </a>
+        <a class="dashboard-action-card" href="{% url 'admin-reports' %}">
+          <i data-lucide="file-bar-chart"></i>
+          <strong>Open reports</strong>
+          <span class="text-muted small">Download formal reporting packs.</span>
+        </a>
+      </div>
+    </section>
   </div>
 
-  <div class="row g-3 mb-3">
-    <div class="col-xl-8">
-      <div class="surface-panel p-4 h-100">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Recent activity</div>
-            <h2 class="h5 mb-1">Everything moving through the hotel</h2>
-            <div class="text-muted small">Bookings, payments, event work, and room updates</div>
-          </div>
-          <a class="topbar-pill" href="{% url 'notifications-center' %}"><i data-lucide="bell-ring"></i> View feed</a>
+  <div class="dashboard-grid-secondary">
+    <section class="dashboard-panel">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <div>
+          <div class="section-eyebrow mb-2">Latest bookings</div>
+          <h2 class="h4 mb-1">Recent guest activity</h2>
         </div>
-        <div class="timeline-list">
-          {% for item in recent_activity %}
-            <div class="timeline-item">
-              <div class="timeline-marker"></div>
-              <div>
-                <div class="fw-semibold">{{ item.title }}</div>
-                <div class="text-muted small">{{ item.meta }}</div>
-                <div class="text-muted small">{{ item.time|date:"d/m/Y · H:i" }}</div>
-              </div>
-            </div>
-          {% empty %}
-            <div class="text-muted">No recent activity yet.</div>
-          {% endfor %}
-        </div>
+        <a class="dashboard-filter-pill" href="{% url 'booking-list' %}">Open bookings</a>
       </div>
-    </div>
-
-    <div class="col-xl-4">
-      <div class="surface-panel p-4 mb-3">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Quick actions</div>
-            <h2 class="h5 mb-1">Fast daily tasks</h2>
-          </div>
-        </div>
-        <div class="row g-2">
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'booking-create' %}"><i data-lucide="calendar-plus"></i> Booking</a></div>
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'guest-create' %}"><i data-lucide="users"></i> Guests</a></div>
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'room-create' %}"><i data-lucide="bed-double"></i> Rooms</a></div>
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'admin-reports' %}"><i data-lucide="chart-column"></i> Reports</a></div>
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i> Users & Roles</a></div>
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i> Inventory</a></div>
-          <div class="col-6"><a class="topbar-pill w-100 justify-content-center" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a></div>
-        </div>
-      </div>
-
-      <div class="surface-panel p-4 mb-3">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Workforce planning</div>
-            <h2 class="h5 mb-1">Rosters and shift control</h2>
-          </div>
-        </div>
-        <div class="d-grid gap-2">
-          {% if user|can_access_module:'staff_management' %}
-            <a class="topbar-pill justify-content-center" href="{% url 'hr-rota-list' %}"><i data-lucide="calendar-range"></i> Weekly duty roster</a>
-            <a class="topbar-pill justify-content-center" href="{% url 'roster-report' %}"><i data-lucide="clipboard-check"></i> Duty roster report</a>
-          {% endif %}
-          {% if user|can_access_module:'handovers' %}
-            <a class="topbar-pill justify-content-center" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i> Shift handovers</a>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="surface-panel p-4">
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <div>
-            <div class="section-eyebrow">Operational priorities</div>
-            <h2 class="h5 mb-1">Needs attention today</h2>
-          </div>
-        </div>
-        <div class="d-grid gap-2">
-          <div class="d-flex justify-content-between p-3 rounded-4 border">
-            <span>Pending payments</span>
-            <strong>{{ pending_payments }}</strong>
-          </div>
-          <div class="d-flex justify-content-between p-3 rounded-4 border">
-            <span>Cleaning rooms</span>
-            <strong>{{ cleaning_rooms }}</strong>
-          </div>
-          <div class="d-flex justify-content-between p-3 rounded-4 border">
-            <span>Maintenance rooms</span>
-            <strong>{{ maintenance_rooms }}</strong>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3">
-    <div class="col-xl-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Recent bookings</div>
-        <div class="table-responsive soft-table">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+      <div class="dashboard-list-table table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Guest</th>
+              <th>Room</th>
+              <th>Status</th>
+              <th>Stay</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for booking in recent_bookings %}
               <tr>
-                <th>Guest</th>
-                <th>Room</th>
-                <th>Status</th>
-                <th>Dates</th>
+                <td>
+                  <div class="dashboard-product-row">
+                    <div class="dashboard-product-avatar">{{ booking.guest.first_name|slice:":1"|upper }}</div>
+                    <div>
+                      <div class="fw-semibold">
+                        <a href="{% url 'booking-detail' booking.pk %}">{{ booking.guest }}</a>
+                      </div>
+                      <div class="text-muted small">Booked {{ booking.created_at|date:"d M, H:i" }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td>Room {{ booking.room.room_number }}</td>
+                <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
+                <td>{{ booking.check_in|date:"d M" }} - {{ booking.check_out|date:"d M" }}</td>
               </tr>
-            </thead>
-            <tbody>
-              {% for booking in recent_bookings %}
-                <tr>
-                  <td>{{ booking.guest }}</td>
-                  <td>Room {{ booking.room.room_number }}</td>
-                  <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
-                  <td>{{ booking.check_in|date:"d/m" }} - {{ booking.check_out|date:"d/m" }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="4" class="text-muted">No recent bookings yet.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+            {% empty %}
+              <tr><td colspan="4" class="text-muted">No recent bookings yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    </div>
-    <div class="col-xl-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Recent payments</div>
-        <div class="table-responsive soft-table">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+    </section>
+
+    <section class="dashboard-panel">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <div>
+          <div class="section-eyebrow mb-2">Recent payments</div>
+          <h2 class="h4 mb-1">Cash collected recently</h2>
+        </div>
+        <a class="dashboard-filter-pill" href="{% url 'payments-center' %}">Open payments</a>
+      </div>
+      <div class="dashboard-list-table table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Guest</th>
+              <th>Room</th>
+              <th>Amount</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payment in recent_payments %}
               <tr>
-                <th>Guest</th>
-                <th>Room</th>
-                <th>Amount</th>
-                <th>Time</th>
+                <td>{{ payment.booking.guest }}</td>
+                <td>Room {{ payment.booking.room.room_number }}</td>
+                <td>GHS {{ payment.amount }}</td>
+                <td>{{ payment.paid_at|date:"d M, H:i" }}</td>
               </tr>
-            </thead>
-            <tbody>
-              {% for payment in recent_payments %}
-                <tr>
-                  <td>{{ payment.booking.guest }}</td>
-                  <td>Room {{ payment.booking.room.room_number }}</td>
-                  <td>GHS {{ payment.amount }}</td>
-                  <td>{{ payment.paid_at|date:"d/m/Y H:i" }}</td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="4" class="text-muted">No payments recorded yet.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+            {% empty %}
+              <tr><td colspan="4" class="text-muted">No recent payments yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-    </div>
+    </section>
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{{ dashboard_chart_series_json|json_script:"dashboard-chart-series" }}
+{{ dashboard_occupancy_json|json_script:"dashboard-occupancy-breakdown" }}
 <script>
-  const labels = JSON.parse(document.getElementById("dashboard-labels").textContent);
-  const revenue = JSON.parse(document.getElementById("dashboard-revenue").textContent);
-  const occupancy = JSON.parse(document.getElementById("dashboard-occupancy").textContent);
+  (function () {
+    let initialized = false;
 
-  new Chart(document.getElementById("dashboardRevenueChart"), {
-    type: "line",
-    data: {
-      labels,
-      datasets: [{
-        label: "Revenue",
-        data: revenue,
-        borderColor: "#3d7dff",
-        backgroundColor: "rgba(61,125,255,0.14)",
-        fill: true,
-        tension: 0.35,
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } } }
-  });
+    function bootDashboardOverview() {
+      if (initialized || !window.FGCharts) {
+        return;
+      }
 
-  new Chart(document.getElementById("dashboardOccupancyChart"), {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [{
-        label: "Occupied rooms",
-        data: occupancy,
-        backgroundColor: "#1f3b44",
-        borderRadius: 10,
-      }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } } }
-  });
+      const chartSeriesElement = document.getElementById("dashboard-chart-series");
+      const occupancyElement = document.getElementById("dashboard-occupancy-breakdown");
+      const bookingsCanvas = document.getElementById("dashboardBookingsChart");
+      const occupancyCanvas = document.getElementById("dashboardOccupancyChart");
+      const liveFeed = document.getElementById("dashboardLiveFeed");
+      const periodButtons = Array.from(document.querySelectorAll("[data-dashboard-period]"));
+      if (!chartSeriesElement || !occupancyElement || !bookingsCanvas || !occupancyCanvas || !periodButtons.length) {
+        return;
+      }
+
+      initialized = true;
+      const chartSeries = JSON.parse(chartSeriesElement.textContent);
+      const occupancyRows = JSON.parse(occupancyElement.textContent);
+      let selectedPeriod = "daily";
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function refreshIcons() {
+        if (window.lucide) {
+          window.lucide.createIcons();
+        }
+      }
+
+      function renderFeed(items) {
+        if (!liveFeed) {
+          return;
+        }
+        if (!items.length) {
+          liveFeed.innerHTML = '<div class="text-muted">No recent activity yet.</div>';
+          return;
+        }
+        liveFeed.innerHTML = items.map(function (item) {
+          const href = escapeHtml(item.href || "#");
+          return `
+            <a class="dashboard-feed-item" href="${href}">
+              <span class="dashboard-feed-icon"><i data-lucide="${escapeHtml(item.icon)}"></i></span>
+              <span class="dashboard-feed-copy">
+                <strong>${escapeHtml(item.title)}</strong>
+                <span>${escapeHtml(item.meta)}</span>
+              </span>
+              <span class="dashboard-feed-time">${escapeHtml(item.time_label)}</span>
+            </a>
+          `;
+        }).join("");
+        refreshIcons();
+      }
+
+      function renderPeriod(period) {
+        const periodData = chartSeries[period] || chartSeries.daily;
+        selectedPeriod = period;
+
+        periodButtons.forEach((button) => {
+          button.classList.toggle("is-active", button.dataset.dashboardPeriod === period);
+          button.setAttribute("aria-pressed", button.dataset.dashboardPeriod === period ? "true" : "false");
+        });
+
+        window.FGCharts.upsert(bookingsCanvas, {
+          type: "line",
+          labels: periodData.labels,
+          xAxisTitle: period === "daily" ? "Day" : period === "weekly" ? "Week" : "Month",
+          yAxisTitle: "Bookings count",
+          datasets: [
+            {
+              label: "Bookings",
+              data: periodData.bookings,
+              borderColor: "#203F46",
+              gradientFill: true,
+              fill: true,
+              tension: 0.32,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+            },
+          ],
+        });
+      }
+
+      window.FGCharts.upsert(occupancyCanvas, {
+        type: "doughnut",
+        labels: occupancyRows.map((item) => item.label),
+        tooltipSuffix: "%",
+        showPercentageTooltip: true,
+        cutout: "72%",
+        datasets: [
+          {
+            label: "Occupancy",
+            data: occupancyRows.map((item) => item.percentage),
+            rawValues: occupancyRows.map((item) => item.count),
+            backgroundColor: ["#203F46", "#CFAE84", "#8F6F4F"],
+            borderWidth: 0,
+            hoverOffset: 6,
+          },
+        ],
+      });
+
+      periodButtons.forEach((button) => {
+        button.addEventListener("click", function (event) {
+          event.preventDefault();
+          renderPeriod(button.dataset.dashboardPeriod);
+        });
+      });
+
+      function refreshFeed() {
+        fetch("{% url 'admin-dashboard-activity-feed' %}", {
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+          },
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error("Failed to load feed");
+            }
+            return response.json();
+          })
+          .then(function (payload) {
+            renderFeed(payload.items || []);
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+
+      renderPeriod(selectedPeriod);
+      refreshIcons();
+      refreshFeed();
+      window.setInterval(refreshFeed, 45000);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bootDashboardOverview, { once: true });
+      window.addEventListener("load", bootDashboardOverview, { once: true });
+      return;
+    }
+
+    bootDashboardOverview();
+  })();
 </script>
 {% endblock %}

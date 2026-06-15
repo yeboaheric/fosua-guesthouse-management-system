@@ -19,11 +19,12 @@ from django.db.models import Count, DecimalField, ExpressionWrapper, F, Max, Q, 
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncDate
-from django.http import HttpResponse, QueryDict
+from django.http import HttpResponse, JsonResponse, QueryDict
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.timesince import timesince
 
 from accounts.audit import log_audit_event
 from accounts.decorators import group_required
@@ -69,6 +70,7 @@ from accounts.permissions import (
     default_permissions_for_role,
     seed_default_role_names,
     user_has_permission,
+    user_is_admin_role,
 )
 from bookings.models import Booking, EventBooking, Payment
 from bookings.models import EventPayment
@@ -131,6 +133,67 @@ def _seed_default_roles():
             )
 
 
+def _month_start(value):
+    return value.replace(day=1)
+
+
+def _shift_month(value, delta):
+    month_index = (value.month - 1) + delta
+    year = value.year + month_index // 12
+    month = (month_index % 12) + 1
+    return date(year, month, 1)
+
+
+def _week_start(value):
+    return value - timedelta(days=value.weekday())
+
+
+def _dashboard_chart_series(today):
+    daily_days = _report_days(today - timedelta(days=6), today)
+    weekly_starts = [_week_start(today) - timedelta(weeks=index) for index in range(7, -1, -1)]
+    monthly_starts = [_shift_month(_month_start(today), -index) for index in range(5, -1, -1)]
+
+    earliest_required_day = min(daily_days[0], weekly_starts[0], monthly_starts[0])
+
+    booking_counts_daily = defaultdict(int)
+    booking_counts_weekly = defaultdict(int)
+    booking_counts_monthly = defaultdict(int)
+    for created_at in Booking.objects.filter(created_at__date__gte=earliest_required_day).values_list("created_at__date", flat=True):
+        booking_counts_daily[created_at] += 1
+        booking_counts_weekly[_week_start(created_at)] += 1
+        booking_counts_monthly[_month_start(created_at)] += 1
+
+    revenue_daily = defaultdict(Decimal)
+    revenue_weekly = defaultdict(Decimal)
+    revenue_monthly = defaultdict(Decimal)
+    payment_rows = chain(
+        Payment.objects.filter(paid_at__date__gte=earliest_required_day).values_list("paid_at__date", "amount"),
+        EventPayment.objects.filter(paid_at__date__gte=earliest_required_day).values_list("paid_at__date", "amount"),
+    )
+    for paid_at, amount in payment_rows:
+        revenue_daily[paid_at] += amount or Decimal("0")
+        revenue_weekly[_week_start(paid_at)] += amount or Decimal("0")
+        revenue_monthly[_month_start(paid_at)] += amount or Decimal("0")
+
+    return {
+        "daily": {
+            "labels": [day.strftime("%d %b") for day in daily_days],
+            "bookings": [booking_counts_daily.get(day, 0) for day in daily_days],
+            "revenue": [float(revenue_daily.get(day, Decimal("0"))) for day in daily_days],
+        },
+        "weekly": {
+            "labels": [f"Week of {day.strftime('%d %b')}" for day in weekly_starts],
+            "bookings": [booking_counts_weekly.get(day, 0) for day in weekly_starts],
+            "revenue": [float(revenue_weekly.get(day, Decimal("0"))) for day in weekly_starts],
+        },
+        "monthly": {
+            "labels": [day.strftime("%b %Y") for day in monthly_starts],
+            "bookings": [booking_counts_monthly.get(day, 0) for day in monthly_starts],
+            "revenue": [float(revenue_monthly.get(day, Decimal("0"))) for day in monthly_starts],
+        },
+    }
+
+
 def _dashboard_snapshot(user=None):
     today = timezone.localdate()
     now = timezone.localtime()
@@ -148,7 +211,9 @@ def _dashboard_snapshot(user=None):
             Booking.BookingStatus.CHECKED_IN,
         ]
     ).count()
+    total_bookings = Booking.objects.count()
     total_guests = Guest.objects.count()
+    total_staff = Employee.objects.exclude(employment_status="terminated").count()
     staff_on_duty = Rota.objects.filter(
         period_start__lte=today,
         period_end__gte=today,
@@ -239,6 +304,21 @@ def _dashboard_snapshot(user=None):
         status__in=[Booking.BookingStatus.CHECKED_IN],
     )
     reserved_rooms = Booking.objects.filter(status=Booking.BookingStatus.CONFIRMED).count()
+    chart_series = _dashboard_chart_series(today)
+    room_status_breakdown = []
+    for item in [
+            {"label": "Available", "count": available_rooms},
+            {"label": "Occupied", "count": occupied_rooms},
+            {"label": "Cleaning", "count": cleaning_rooms},
+            {"label": "Maintenance", "count": maintenance_rooms},
+    ]:
+        percentage = round((item["count"] / total_rooms) * 100, 1) if total_rooms else 0
+        room_status_breakdown.append({**item, "percentage": percentage})
+    occupancy_chart_breakdown = [
+        {"label": "Occupied", "count": occupied_rooms, "percentage": round((occupied_rooms / total_rooms) * 100, 1) if total_rooms else 0},
+        {"label": "Available", "count": available_rooms, "percentage": round((available_rooms / total_rooms) * 100, 1) if total_rooms else 0},
+        {"label": "Under maintenance", "count": maintenance_rooms, "percentage": round((maintenance_rooms / total_rooms) * 100, 1) if total_rooms else 0},
+    ]
 
     snapshot = {
         "today": today,
@@ -249,7 +329,9 @@ def _dashboard_snapshot(user=None):
         "cleaning_rooms": cleaning_rooms,
         "maintenance_rooms": maintenance_rooms,
         "active_bookings": active_bookings,
+        "total_bookings": total_bookings,
         "total_guests": total_guests,
+        "total_staff": total_staff,
         "staff_on_duty": staff_on_duty,
         "room_revenue_today": room_revenue_today,
         "event_revenue_today": event_revenue_today,
@@ -266,16 +348,14 @@ def _dashboard_snapshot(user=None):
         "today_check_outs": today_check_outs,
         "upcoming_check_ins": upcoming_check_ins,
         "upcoming_check_outs": upcoming_check_outs,
-        "room_status_breakdown": [
-            {"label": "Available", "count": available_rooms, "tone": "success"},
-            {"label": "Occupied", "count": occupied_rooms, "tone": "primary"},
-            {"label": "Cleaning", "count": cleaning_rooms, "tone": "warning"},
-            {"label": "Maintenance", "count": maintenance_rooms, "tone": "danger"},
-        ],
+        "room_status_breakdown": room_status_breakdown,
         "recent_activity": _recent_activity_feed(),
         "recent_bookings": Booking.objects.select_related("guest", "room").order_by("-created_at")[:6],
         "recent_payments": Payment.objects.select_related("booking__guest", "booking__room", "received_by").order_by("-paid_at")[:6],
         "recent_event_bookings": EventBooking.objects.select_related("guest").order_by("-created_at")[:6],
+        "dashboard_occupancy_breakdown": occupancy_chart_breakdown,
+        "dashboard_chart_series_json": json.dumps(chart_series),
+        "dashboard_occupancy_json": json.dumps(occupancy_chart_breakdown),
         "chart_labels_json": json.dumps([row["date"] for row in last_7_rows]),
         "revenue_data_json": json.dumps([float(row["revenue_collected"]) for row in last_7_rows]),
         "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in last_7_rows]),
@@ -289,6 +369,81 @@ def _dashboard_snapshot(user=None):
         ).count()
     else:
         snapshot["unread_notifications_count"] = 0
+
+    snapshot["dashboard_summary_cards"] = [
+        {
+            "label": "Occupancy rate",
+            "value": _display_percent(occupancy_rate),
+            "meta": "Rooms in active use right now",
+            "href": reverse("room-availability"),
+        },
+        {
+            "label": "Available rooms",
+            "value": available_rooms,
+            "meta": "Ready for new bookings",
+            "href": reverse("room-list"),
+        },
+        {
+            "label": "Active bookings",
+            "value": active_bookings,
+            "meta": "Confirmed or in-house stays",
+            "href": reverse("booking-list"),
+        },
+        {
+            "label": "Staff on duty",
+            "value": staff_on_duty,
+            "meta": "Rotas covering today",
+            "href": reverse("hr-rota-list"),
+        },
+        {
+            "label": "Daily revenue",
+            "value": _display_money(room_revenue_today + event_revenue_today),
+            "meta": "Room and event collections",
+            "href": reverse("analytics-center"),
+        },
+        {
+            "label": "Monthly revenue",
+            "value": _display_money(room_revenue_month + event_revenue_month),
+            "meta": "Month-to-date performance",
+            "href": reverse("analytics-center"),
+        },
+        {
+            "label": "Pending balances",
+            "value": pending_room_balances + pending_event_balances,
+            "meta": "Open booking and event accounts",
+            "href": reverse("payments-center"),
+        },
+        {
+            "label": "Total guests",
+            "value": total_guests,
+            "meta": "Guest profiles stored in the system",
+            "href": reverse("guest-list"),
+        },
+        {
+            "label": "Reserved rooms",
+            "value": reserved_rooms,
+            "meta": "Confirmed reservations",
+            "href": reverse("booking-list"),
+        },
+        {
+            "label": "Arrivals next hour",
+            "value": upcoming_check_ins.count(),
+            "meta": "Check-ins starting soon",
+            "href": reverse("booking-list"),
+        },
+        {
+            "label": "Departures next hour",
+            "value": upcoming_check_outs.count(),
+            "meta": "Check-outs due soon",
+            "href": reverse("booking-list"),
+        },
+        {
+            "label": "Unread alerts",
+            "value": snapshot["unread_notifications_count"],
+            "meta": "Notifications waiting for review",
+            "href": reverse("notifications-center"),
+        },
+    ]
 
     return snapshot
 
@@ -361,6 +516,11 @@ def admin_dashboard(request):
     context = _dashboard_snapshot(user=request.user)
     context["role_label"] = "Admin"
     return render(request, "accounts/admin_dashboard.html", context)
+
+
+@group_required("Admin")
+def admin_dashboard_activity_feed(request):
+    return JsonResponse({"items": _recent_activity_feed(limit=12)})
 
 
 @group_required("Receptionist", "Admin", module="dashboard")
@@ -520,6 +680,7 @@ def payments_center(request):
         "payment_method": payment_method,
         "payment_scope": payment_scope,
         "payment_methods": Payment.PaymentMethod.choices,
+        "can_manage_payment_records": user_is_admin_role(request.user),
     }
     return render(request, "accounts/payments_center.html", context)
 
@@ -1935,6 +2096,22 @@ def _display_quantity(value):
 
 def _display_percent(value):
     return f"{float(value or 0):.2f}%"
+
+
+def _relative_time(value):
+    if not value:
+        return "-"
+    local_value = timezone.localtime(value)
+    now = timezone.localtime()
+    if local_value.date() == now.date():
+        delta = now - local_value
+        if delta < timedelta(minutes=1):
+            return "Just now"
+        if delta < timedelta(hours=1):
+            minutes = max(int(delta.total_seconds() // 60), 1)
+            return f"{minutes} min{'s' if minutes != 1 else ''} ago"
+        return f"Today {local_value.strftime('%I:%M%p').lstrip('0').lower()}"
+    return f"{timesince(local_value, now)} ago"
 
 
 def _money_total(queryset, field_name):
@@ -4201,72 +4378,194 @@ def _daily_report_rows(start_date, end_date, total_rooms):
     return daily_rows
 
 
-def _recent_activity_feed():
-    recent_bookings = Booking.objects.select_related("guest", "room").order_by("-created_at")[:5]
-    recent_payments = Payment.objects.select_related("booking__guest", "booking__room").order_by("-paid_at")[:5]
+def _serialize_activity_feed(feed):
+    serialized = []
+    for entry in feed:
+        serialized.append(
+            {
+                "icon": entry["icon"],
+                "title": entry["title"],
+                "meta": entry["meta"],
+                "href": entry.get("href", ""),
+                "timestamp": timezone.localtime(entry["time"]).isoformat(),
+                "time_label": _relative_time(entry["time"]),
+            }
+        )
+    return serialized
+
+
+def _recent_activity_feed(limit=20):
+    recent_bookings = Booking.objects.select_related("guest", "room").order_by("-created_at")[:6]
+    recent_payments = Payment.objects.select_related("booking__guest", "booking__room").order_by("-paid_at")[:6]
     recent_event_bookings = EventBooking.objects.select_related("guest").order_by("-created_at")[:5]
     recent_event_payments = EventPayment.objects.select_related("event_booking__guest").order_by("-paid_at")[:5]
-    recent_rooms = Room.objects.exclude(last_status_changed_at__isnull=True).order_by("-last_status_changed_at")[:5]
+    recent_rooms = Room.objects.exclude(last_status_changed_at__isnull=True).order_by("-last_status_changed_at")[:6]
     recent_status_changes = StatusHistory.objects.select_related("changed_by", "content_type").order_by("-changed_at")[:10]
     recent_notifications = Notification.objects.order_by("-created_at")[:10]
+    recent_housekeeping = HousekeepingItemLog.objects.select_related("item", "room").order_by("-used_at", "-created_at")[:6]
+    recent_hires = Employee.objects.order_by("-created_at")[:5]
+    recent_terminations = Employee.objects.filter(
+        employment_status="terminated",
+        termination_date__isnull=False,
+    ).order_by("-updated_at")[:5]
+    recent_leave_approvals = LeaveRequest.objects.select_related("employee").filter(
+        approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+        approved_at__isnull=False,
+    ).order_by("-approved_at")[:5]
+
+    pending_booking_balances = Booking.objects.select_related("guest", "room").annotate(
+        paid_total=Coalesce(
+            Sum("payments__amount"),
+            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+        ),
+        balance=ExpressionWrapper(
+            F("total_amount") - F("paid_total"),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        ),
+    ).filter(balance__gt=0).order_by("-updated_at")[:5]
+
+    pending_event_balances = EventBooking.objects.select_related("guest").annotate(
+        paid_total=Coalesce(
+            Sum("payments__amount"),
+            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+        ),
+        balance=ExpressionWrapper(
+            F("total_amount") - F("paid_total"),
+            output_field=DecimalField(max_digits=10, decimal_places=2),
+        ),
+    ).filter(balance__gt=0).order_by("-updated_at")[:5]
 
     feed = []
     for item in recent_bookings:
         feed.append(
             {
                 "time": item.created_at,
+                "icon": "calendar-range",
                 "title": f"Booking created for {item.guest}",
                 "meta": f"Room {item.room.room_number} · {item.get_status_display()}",
+                "href": reverse("booking-detail", args=[item.pk]),
             }
         )
     for item in recent_payments:
         feed.append(
             {
                 "time": item.paid_at,
+                "icon": "wallet",
                 "title": f"Payment received from {item.booking.guest}",
                 "meta": f"Room {item.booking.room.room_number} · GHS {item.amount}",
+                "href": reverse("payments-center"),
+            }
+        )
+    for item in pending_booking_balances:
+        feed.append(
+            {
+                "time": item.updated_at,
+                "icon": "badge-alert",
+                "title": f"Outstanding balance for {item.guest}",
+                "meta": f"Room {item.room.room_number} · GHS {item.balance}",
+                "href": reverse("payments-center"),
             }
         )
     for item in recent_event_bookings:
         feed.append(
             {
                 "time": item.created_at,
+                "icon": "party-popper",
                 "title": f"Event booked: {item.event_title}",
                 "meta": f"{item.event_space_name} · {item.expected_guests} guests",
+                "href": reverse("event-booking-list"),
             }
         )
     for item in recent_event_payments:
         feed.append(
             {
                 "time": item.paid_at,
+                "icon": "wallet-cards",
                 "title": f"Event payment received from {item.event_booking.guest}",
                 "meta": f"{item.event_booking.event_title} · GHS {item.amount}",
+                "href": reverse("payments-center"),
+            }
+        )
+    for item in pending_event_balances:
+        feed.append(
+            {
+                "time": item.updated_at,
+                "icon": "receipt-text",
+                "title": f"Outstanding event balance for {item.guest}",
+                "meta": f"{item.event_title} · GHS {item.balance}",
+                "href": reverse("payments-center"),
             }
         )
     for item in recent_rooms:
         feed.append(
             {
                 "time": item.last_status_changed_at,
+                "icon": "bed-double",
                 "title": f"Room {item.room_number} status updated",
                 "meta": f"{item.get_status_display()} · {item.get_room_type_display()}",
+                "href": reverse("room-list"),
+            }
+        )
+    for item in recent_housekeeping:
+        feed.append(
+            {
+                "time": item.used_at,
+                "icon": "sparkles",
+                "title": f"Housekeeping logged {format_quantity(item.quantity_used)} {item.unit} of {item.item_name}",
+                "meta": f"{'Room ' + item.room.room_number if item.room_id else 'General use'} · Stock left {format_quantity(item.quantity_in_stock)} {item.unit}",
+                "href": reverse("housekeeping-dashboard"),
+            }
+        )
+    for employee in recent_hires:
+        feed.append(
+            {
+                "time": employee.created_at,
+                "icon": "user-plus",
+                "title": f"New staff profile created for {employee.first_name} {employee.last_name}",
+                "meta": f"{employee.get_position_display()} · {employee.department or 'No department set'}",
+                "href": reverse("hr-detail", args=[employee.pk]),
+            }
+        )
+    for employee in recent_terminations:
+        feed.append(
+            {
+                "time": employee.updated_at,
+                "icon": "user-minus",
+                "title": f"{employee.first_name} {employee.last_name} marked as terminated",
+                "meta": f"{employee.termination_reason_choice or employee.termination_reason or 'Termination recorded'}",
+                "href": reverse("hr-detail", args=[employee.pk]),
+            }
+        )
+    for leave_request in recent_leave_approvals:
+        feed.append(
+            {
+                "time": leave_request.approved_at,
+                "icon": "calendar-check-2",
+                "title": f"{leave_request.employee.first_name} {leave_request.employee.last_name} leave approved",
+                "meta": f"{leave_request.get_leave_type_display()} · {leave_request.days} day(s)",
+                "href": reverse("hr-detail", args=[leave_request.employee.pk]),
             }
         )
     for history in recent_status_changes:
         feed.append(
             {
                 "time": history.changed_at,
+                "icon": "refresh-cw",
                 "title": f"{history.object_repr} status changed",
                 "meta": f"{history.previous_status or 'Unknown'} → {history.new_status}",
+                "href": reverse("notifications-center"),
             }
         )
     for notification in recent_notifications:
         feed.append(
             {
                 "time": notification.created_at,
+                "icon": "bell-ring",
                 "title": notification.title,
                 "meta": notification.message,
+                "href": notification.link or reverse("notifications-center"),
             }
         )
 
     feed.sort(key=lambda row: row["time"], reverse=True)
-    return feed[:20]
+    return _serialize_activity_feed(feed[:limit])

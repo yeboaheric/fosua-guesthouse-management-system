@@ -1,52 +1,84 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Rooms</h1>
-  <a class="btn btn-primary" href="{% url 'room-create' %}">Add Room</a>
-</div>
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Rooms</div>
+      <h1 class="module-title">Rooms</h1>
+      <div class="module-subcopy">Manage room records, room types, pricing, availability, and operational status changes.</div>
+    </div>
+    <div class="module-action-row">
+      <a class="btn btn-primary" href="{% url 'room-create' %}">Add Room</a>
+    </div>
+  </section>
 
-<div class="row g-3 mb-3">
-  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Deluxe Rooms</div><div class="h5 mb-0">{{ deluxe_count }} / 8</div></div></div></div>
-  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Standard Rooms</div><div class="h5 mb-0">{{ standard_count }} / 4</div></div></div></div>
-  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Maintenance</div><div class="h5 mb-0">{{ maintenance_count }}</div></div></div></div>
-  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Cleaning In Progress</div><div class="h5 mb-0">{{ cleaning_count }}</div></div></div></div>
-</div>
+  <section class="module-metric-grid">
+    <article class="module-metric-card">
+      <span class="module-metric-label">Deluxe Rooms</span>
+      <strong class="module-metric-value">{{ deluxe_count }} / 8</strong>
+      <span class="module-metric-note">Configured deluxe room stock</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Standard Rooms</span>
+      <strong class="module-metric-value">{{ standard_count }} / 4</strong>
+      <span class="module-metric-note">Configured standard room stock</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Maintenance</span>
+      <strong class="module-metric-value">{{ maintenance_count }}</strong>
+      <span class="module-metric-note">Rooms currently blocked for repairs</span>
+    </article>
+    <article class="module-metric-card">
+      <span class="module-metric-label">Cleaning in progress</span>
+      <strong class="module-metric-value">{{ cleaning_count }}</strong>
+      <span class="module-metric-note">Rooms still being prepared for turnover</span>
+    </article>
+  </section>
 
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Number</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Status Started</th>
-          <th>Last Changed</th>
-          <th>Rate</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for room in rooms %}
-          <tr>
-            <td>{{ room.room_number }}</td>
-            <td>{{ room.get_room_type_display }}</td>
-            <td>{{ room.get_status_display }}</td>
-            <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
-            <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
-            <td>GHS {{ room.base_rate }}</td>
-            <td class="text-end">
-              <a class="btn btn-sm btn-outline-secondary" href="{% url 'room-update' room.pk %}">Edit</a>
-            </td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="7" class="text-center text-muted py-4">No rooms added yet.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Room register</h2>
+        <div class="module-card-copy">View each room, its status, pricing, and direct room management actions.</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <div class="module-table-wrap table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Number</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Status Started</th>
+              <th>Last Changed</th>
+              <th>Rate</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for room in rooms %}
+              <tr>
+                <td>{{ room.room_number }}</td>
+                <td>{{ room.get_room_type_display }}</td>
+                <td>{{ room.get_status_display }}</td>
+                <td>{{ room.status_started_at|date:"d/m/Y H:i:s" }}</td>
+                <td>{{ room.last_status_changed_at|date:"d/m/Y H:i:s" }}</td>
+                <td>GHS {{ room.base_rate }}</td>
+                <td class="text-end">
+                  <a class="status-pill neutral" href="{% url 'room-update' room.pk %}">Edit</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="module-empty">No rooms added yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
   </div>
-</div>
 {% endblock %}

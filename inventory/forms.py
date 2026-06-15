@@ -119,3 +119,37 @@ class POSCheckoutForm(forms.Form):
         if not value:
             raise forms.ValidationError("Cart is empty.")
         return value
+
+
+class SaleEditForm(forms.ModelForm):
+    class Meta:
+        model = Sale
+        fields = [
+            "customer_name",
+            "customer_phone",
+            "customer_email",
+            "payment_method",
+            "tax_amount",
+            "discount_amount",
+            "amount_paid",
+            "notes",
+        ]
+        widgets = {
+            "customer_name": forms.TextInput(attrs={"class": "form-control"}),
+            "customer_phone": forms.TextInput(attrs={"class": "form-control"}),
+            "customer_email": forms.EmailInput(attrs={"class": "form-control"}),
+            "payment_method": forms.Select(attrs={"class": "form-select"}),
+            "tax_amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "discount_amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "amount_paid": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+    def clean_tax_amount(self):
+        return self.cleaned_data.get("tax_amount") or Decimal("0.00")
+
+    def clean_discount_amount(self):
+        return self.cleaned_data.get("discount_amount") or Decimal("0.00")
+
+    def clean_amount_paid(self):
+        return self.cleaned_data.get("amount_paid") or Decimal("0.00")

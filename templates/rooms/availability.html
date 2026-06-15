@@ -1,55 +1,75 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Room Availability</h1>
-  <a class="btn btn-outline-secondary" href="{% url 'room-list' %}">Rooms</a>
-</div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Rooms</div>
+        <h1 class="module-title">Room availability</h1>
+        <div class="module-subcopy">Check available rooms for a selected date range before confirming a stay or walk-in booking.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'room-list' %}">Rooms</a>
+      </div>
+    </section>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-3 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label" for="check_in">Check In</label>
-        <input class="form-control" type="date" id="check_in" name="check_in" value="{{ check_in|default:'' }}" required>
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label" for="check_in">Check In</label>
+            <input class="form-control" type="date" id="check_in" name="check_in" value="{{ check_in|default:'' }}" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="check_out">Check Out</label>
+            <input class="form-control" type="date" id="check_out" name="check_out" value="{{ check_out|default:'' }}" required>
+          </div>
+          <div class="col-md-4">
+            <button class="btn btn-primary w-100" type="submit">Check Availability</button>
+          </div>
+        </form>
       </div>
-      <div class="col-md-4">
-        <label class="form-label" for="check_out">Check Out</label>
-        <input class="form-control" type="date" id="check_out" name="check_out" value="{{ check_out|default:'' }}" required>
-      </div>
-      <div class="col-md-4">
-        <button class="btn btn-primary w-100" type="submit">Check Availability</button>
-      </div>
-    </form>
+    </section>
+
+    {% if available_rooms != None %}
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Available rooms</h2>
+            <div class="module-card-copy">Rooms that are free for the full selected stay window.</div>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+          <div class="module-table-wrap">
+            <div class="table-responsive">
+              <table class="table mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th>Room</th>
+                    <th>Type</th>
+                    <th>Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for room in available_rooms %}
+                    <tr>
+                      <td>{{ room.room_number }}</td>
+                      <td>{{ room.get_room_type_display }}</td>
+                      <td>GHS {{ room.base_rate }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-4">No rooms available for this date range.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    {% endif %}
   </div>
 </div>
-
-{% if available_rooms != None %}
-  <div class="card shadow-sm">
-    <div class="table-responsive">
-      <table class="table mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Room</th>
-            <th>Type</th>
-            <th>Rate</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for room in available_rooms %}
-            <tr>
-              <td>{{ room.room_number }}</td>
-              <td>{{ room.get_room_type_display }}</td>
-              <td>GHS {{ room.base_rate }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="3" class="text-center text-muted py-4">No rooms available for this date range.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-{% endif %}
 {% endblock %}

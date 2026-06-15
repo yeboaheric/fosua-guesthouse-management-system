@@ -2,67 +2,84 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="section-eyebrow mb-2">Settings</div>
-    <h1 class="page-title mb-2">System configuration</h1>
-    <div class="page-subtitle">Hospitality settings, room categories, payments, security, and integrations.</div>
-  </div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Settings</div>
+        <h1 class="module-title">Settings</h1>
+        <div class="module-subcopy">Manage hotel system settings, payment options, room categories, security, and integrations.</div>
+      </div>
+    </section>
 
-  <div class="row g-3 mb-3">
-    <div class="col-lg-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Room categories</div>
-        <div class="timeline-list">
-          {% for room in room_categories %}
-            <div class="timeline-item">
-              <div class="timeline-marker"></div>
-              <div class="d-flex justify-content-between gap-3 align-items-center w-100">
-                <div>
-                  <div class="fw-semibold">{{ room.label }}</div>
-                  <div class="text-muted small">Configured room inventory in the system</div>
+    <section class="module-metric-grid">
+      <article class="module-metric-card">
+        <span class="module-metric-label">Hotel profile</span>
+        <span class="module-metric-value">Branding</span>
+        <span class="module-metric-note">Logo, name, and guest-facing identity controls.</span>
+      </article>
+      <article class="module-metric-card">
+        <span class="module-metric-label">Communication</span>
+        <span class="module-metric-value">Email</span>
+        <span class="module-metric-note">Receipts, alerts, and automated guest messaging.</span>
+      </article>
+      <article class="module-metric-card">
+        <span class="module-metric-label">Backups</span>
+        <span class="module-metric-value">Cloud ready</span>
+        <span class="module-metric-note">Deployment-safe infrastructure and host-friendly setup.</span>
+      </article>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Room categories</h2>
+              <div class="module-card-copy">Configured room inventory groups currently available in the system.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="timeline-list">
+              {% for room in room_categories %}
+                <div class="timeline-item">
+                  <div class="timeline-marker"></div>
+                  <div class="d-flex justify-content-between gap-3 align-items-center w-100">
+                    <div>
+                      <div class="fw-semibold">{{ room.label }}</div>
+                      <div class="text-muted small">Configured room inventory in the system</div>
+                    </div>
+                    <span class="status-pill neutral">{{ room.count }}</span>
+                  </div>
                 </div>
-                <span class="status-pill neutral">{{ room.count }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="col-lg-6">
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Payments and security</h2>
+              <div class="module-card-copy">Methods accepted on the property and the controls protecting staff actions.</div>
+            </div>
+          </div>
+          <div class="module-card-body module-stack">
+            <div>
+              <div class="module-kicker mb-2">Payment methods</div>
+              <div class="d-flex flex-wrap gap-2">
+                {% for method in payment_methods %}
+                  <span class="status-pill neutral">{{ method }}</span>
+                {% endfor %}
               </div>
             </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-6">
-      <div class="surface-panel p-4 h-100">
-        <div class="section-eyebrow mb-2">Payment methods</div>
-        <div class="d-flex flex-wrap gap-2">
-          {% for method in payment_methods %}
-            <span class="status-pill neutral">{{ method }}</span>
-          {% endfor %}
-        </div>
-        <hr class="my-4">
-        <div class="section-eyebrow mb-2">Security</div>
-        <div class="text-muted small">Role-based access, authenticated dashboards, and protected staff actions are enforced across the app.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3">
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Hotel profile</div>
-        <div class="metric-value">Branding</div>
-        <div class="text-muted small mt-2">Logo, name, and hotel identity</div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Communication</div>
-        <div class="metric-value">Email</div>
-        <div class="text-muted small mt-2">Receipt delivery and notifications</div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="mini-metric h-100">
-        <div class="metric-label">Backups</div>
-        <div class="metric-value">Cloud ready</div>
-        <div class="text-muted small mt-2">Deployment-safe and host-friendly</div>
+            <div class="module-summary-block">
+              <div class="module-inline-label">Security</div>
+              <strong>Role-based access active</strong>
+              <div class="text-muted small mt-2">Authenticated dashboards, module permissions, and protected staff actions are enforced across the app.</div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>

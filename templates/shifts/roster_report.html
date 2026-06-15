@@ -2,18 +2,17 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Duty Roster</div>
-        <h1 class="page-title mb-2">Roster reporting & export</h1>
-        <div class="page-subtitle">This report now reads from the same weekly duty roster records used in staff management.</div>
-      </div>
+  <div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Duty roster</div>
+      <h1 class="module-title">Duty Roster Reports</h1>
+      <div class="module-subcopy">Review and export staff shift assignments for the selected reporting period.</div>
     </div>
-  </div>
+  </section>
 
-  <!-- Filters -->
-  <div class="surface-panel p-4 mb-3">
+  <section class="module-card">
+    <div class="module-card-body">
     <form method="get" class="row g-3 align-items-end">
       <div class="col-md-6 col-lg-2">
         {{ form.start_date.label_tag }}
@@ -53,13 +52,20 @@
         {% endif %}
       </div>
     </form>
-  </div>
+    </div>
+  </section>
 
-  <!-- Rosters List -->
-  <div class="surface-panel p-4">
-    <div class="section-eyebrow mb-3">Rosters</div>
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Rosters</h2>
+        <div class="module-card-copy">Filtered roster records ready for review or export.</div>
+      </div>
+    </div>
+    <div class="module-card-body p-0">
     {% if rosters %}
-      <div class="table-responsive soft-table">
+      <div class="module-table-wrap">
+      <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
               <tr>
@@ -85,18 +91,21 @@
                 <td>{{ roster.daily_hours|floatformat:2 }}</td>
                 <td>{{ roster.total_hours|floatformat:2 }}</td>
                 <td class="text-end">
-                  <a href="{% url 'roster-detail' roster.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                  <a href="{% url 'roster-detail' roster.pk %}" class="status-pill neutral">View</a>
                 </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      </div>
     {% else %}
       <div class="text-muted py-4 text-center">
         No rosters found. Try adjusting your filters or create a new roster.
       </div>
     {% endif %}
+    </div>
+  </section>
   </div>
 </div>
 {% endblock %}

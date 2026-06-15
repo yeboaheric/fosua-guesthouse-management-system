@@ -134,6 +134,42 @@ class PaymentForm(forms.ModelForm):
             field.widget.attrs["class"] = css_class
 
 
+class PaymentAdminEditForm(forms.ModelForm):
+    paid_at = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        input_formats=["%Y-%m-%dT%H:%M"],
+    )
+
+    class Meta:
+        model = Payment
+        fields = ["amount", "method", "reference", "notes"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.paid_at:
+            self.initial["paid_at"] = self.instance.paid_at.astimezone().strftime("%Y-%m-%dT%H:%M")
+        for field_name, field in self.fields.items():
+            if field_name == "paid_at":
+                field.widget.attrs["class"] = "form-control"
+                continue
+            css_class = (
+                "form-select"
+                if isinstance(field.widget, forms.Select)
+                else "form-control"
+            )
+            field.widget.attrs["class"] = css_class
+
+    def save(self, commit=True):
+        payment = super().save(commit=False)
+        payment.paid_at = self.cleaned_data["paid_at"]
+        if commit:
+            payment.save()
+        return payment
+
+
 class EventBookingForm(forms.ModelForm):
     class Meta:
         model = EventBooking
@@ -199,3 +235,39 @@ class EventPaymentForm(forms.ModelForm):
                 else "form-control"
             )
             field.widget.attrs["class"] = css_class
+
+
+class EventPaymentAdminEditForm(forms.ModelForm):
+    paid_at = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        input_formats=["%Y-%m-%dT%H:%M"],
+    )
+
+    class Meta:
+        model = EventPayment
+        fields = ["amount", "method", "reference", "notes"]
+        widgets = {
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.paid_at:
+            self.initial["paid_at"] = self.instance.paid_at.astimezone().strftime("%Y-%m-%dT%H:%M")
+        for field_name, field in self.fields.items():
+            if field_name == "paid_at":
+                field.widget.attrs["class"] = "form-control"
+                continue
+            css_class = (
+                "form-select"
+                if isinstance(field.widget, forms.Select)
+                else "form-control"
+            )
+            field.widget.attrs["class"] = css_class
+
+    def save(self, commit=True):
+        payment = super().save(commit=False)
+        payment.paid_at = self.cleaned_data["paid_at"]
+        if commit:
+            payment.save()
+        return payment

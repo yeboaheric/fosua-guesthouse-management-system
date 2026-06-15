@@ -1,13 +1,21 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Handover Report #{{ handover.id }}</h1>
-  <a class="btn btn-outline-secondary" href="{% url 'handover-list' %}">Back</a>
-</div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Operations handover</div>
+        <h1 class="module-title">Operations Handover</h1>
+        <div class="module-subcopy">Review handover report #{{ handover.id }}, the original shift summary, and follow-up notes shared between hotel teams.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'handover-list' %}">Back</a>
+      </div>
+    </section>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
+    <section class="module-card">
+      <div class="module-card-body">
     <div class="row g-3 mb-3">
       <div class="col-md-3"><strong>Prepared By:</strong><br>{{ handover.prepared_by.username }}</div>
       <div class="col-md-3"><strong>Start:</strong><br>{{ handover.started_at|date:"d/m/Y H:i" }}</div>
@@ -27,13 +35,13 @@
     <hr>
     <h2 class="h6">Original Handover Note</h2>
     <p class="mb-0">{{ handover.summary|default:"No summary provided." }}</p>
-  </div>
-</div>
+      </div>
+    </section>
 
 <div class="row g-3">
   <div class="col-lg-5">
-    <div class="card shadow-sm">
-      <div class="card-body">
+    <section class="module-card h-100">
+      <div class="module-card-body">
         <h2 class="h6">Add Your Shift Update</h2>
         <p class="text-muted small">You can append updates, but the original handover report cannot be modified.</p>
         <form method="post">
@@ -51,12 +59,14 @@
           <button class="btn btn-primary" type="submit">Add Update</button>
         </form>
       </div>
-    </div>
+    </section>
   </div>
 
   <div class="col-lg-7">
-    <div class="card shadow-sm">
-      <div class="card-body"><h2 class="h6 mb-0">Shift Updates</h2></div>
+    <section class="module-card h-100">
+      <div class="module-card-header"><h2 class="module-card-title">Shift Updates</h2></div>
+      <div class="module-card-body p-0">
+      <div class="module-table-wrap">
       <div class="table-responsive">
         <table class="table mb-0">
           <thead class="table-light">
@@ -81,7 +91,11 @@
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+      </div>
+    </section>
+  </div>
+</div>
   </div>
 </div>
 {% endblock %}

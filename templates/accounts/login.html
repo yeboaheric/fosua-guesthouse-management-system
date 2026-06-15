@@ -15,15 +15,17 @@
     <main class="container py-5">
       <div class="row justify-content-center align-items-center min-vh-100">
         <div class="col-md-6 col-lg-5">
-          <div class="surface-panel overflow-hidden">
-            <div class="brand-panel p-4 text-center">
-              <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-wordmark mb-3">
-              <div class="brand-gold-line"></div>
-            </div>
-            <div class="card-body p-4 p-lg-5">
-              <div class="section-eyebrow mb-2">Secure login</div>
-              <h1 class="page-title mb-2">Management Login</h1>
-              <p class="page-subtitle mb-4">Access the hotel operations suite with your staff credentials.</p>
+          <div class="module-shell">
+            <section class="module-hero">
+              <div class="module-hero-copy text-center">
+                <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-wordmark mb-3">
+                <div class="module-kicker">Secure login</div>
+                <h1 class="module-title">Staff Login</h1>
+                <p class="module-subcopy mx-auto">Sign in with your staff credentials to access hotel operations and guest service tools.</p>
+              </div>
+            </section>
+            <section class="module-card">
+              <div class="module-card-body p-4 p-lg-5">
               <form method="post">
                 {% csrf_token %}
                 <div class="mb-3">
@@ -43,8 +45,9 @@
               <div class="d-flex justify-content-between align-items-center mt-3 small">
                 <a href="{% url 'password_reset' %}" class="text-decoration-none">Forgot password?</a>
               </div>
+              </div>
+            </section>
             </div>
-          </div>
         </div>
       </div>
     </main>

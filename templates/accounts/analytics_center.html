@@ -2,22 +2,22 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 align-items-xl-center">
-      <div>
-        <div class="section-eyebrow mb-2">Analytics</div>
-        <h1 class="page-title mb-2">Business intelligence</h1>
-        <div class="page-subtitle">{{ report_window.display_range }}</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Analytics</div>
+        <h1 class="module-title">Analytics</h1>
+        <div class="module-subcopy">Track performance metrics across hotel operations for {{ report_window.display_range|lower }}.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{{ export_xlsx_url }}"><i data-lucide="download"></i> Export Excel</a>
         <a class="topbar-pill" href="{{ export_pdf_url }}"><i data-lucide="file-text"></i> Export PDF</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
       <div class="col-md-2">
         <label class="form-label">Period</label>
         <select class="form-select" name="period">
@@ -67,10 +67,11 @@
         <button class="btn btn-primary" type="submit">Apply filters</button>
         <a class="btn btn-outline-secondary" href="{% url 'analytics-center' %}">Reset</a>
       </div>
-    </form>
-  </div>
+        </form>
+      </div>
+    </section>
 
-  <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3">
     {% for metric in summary_metrics %}
       <div class="col-sm-6 col-xl">
         <div class="mini-metric h-100">
@@ -81,8 +82,9 @@
     {% endfor %}
   </div>
 
-  {% for section in sections %}
-    <div class="surface-panel p-4 mb-3">
+    {% for section in sections %}
+    <section class="module-card">
+      <div class="module-card-body">
       <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 align-items-lg-center mb-3">
         <div>
           <div class="section-eyebrow mb-2">{{ section.title }}</div>
@@ -104,9 +106,11 @@
       <div class="row g-3 mb-3">
         {% for chart in section.charts %}
           <div class="col-lg-{% if section.charts|length == 1 %}12{% elif section.charts|length == 2 %}6{% else %}4{% endif %}">
-            <div class="border rounded-4 p-3 h-100 bg-white">
+            <div class="fg-chart-card border rounded-4 p-3 h-100 bg-white">
               <div class="fw-semibold mb-3">{{ chart.title }}</div>
-              <canvas id="{{ chart.id }}" height="220"></canvas>
+              <div class="chart-shell chart-shell--analytics">
+                <canvas id="{{ chart.id }}"></canvas>
+              </div>
             </div>
           </div>
         {% endfor %}
@@ -115,7 +119,8 @@
       {% for table in section.tables %}
         <div class="mb-3">
           <div class="fw-semibold mb-2">{{ table.title }}</div>
-          <div class="table-responsive soft-table">
+          <div class="module-table-wrap">
+          <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
               <thead class="table-light">
                 <tr>
@@ -146,44 +151,23 @@
               </tbody>
             </table>
           </div>
+          </div>
         </div>
       {% endfor %}
-    </div>
-  {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
 </div>
 
 {{ charts_json|json_script:"analytics-charts-data" }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-  const analyticsCharts = JSON.parse(document.getElementById("analytics-charts-data").textContent);
-
-  analyticsCharts.forEach((chart) => {
-    const element = document.getElementById(chart.id);
-    if (!element) {
+  window.addEventListener("load", function () {
+    if (!window.FGCharts) {
       return;
     }
-    new Chart(element, {
-      type: chart.type,
-      data: {
-        labels: chart.labels,
-        datasets: chart.datasets,
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: chart.type === "pie" || chart.type === "doughnut" ? {} : {
-          y: {
-            beginAtZero: true,
-          }
-        },
-        plugins: {
-          legend: {
-            display: true,
-            position: "bottom",
-          },
-        },
-      },
-    });
+    const analyticsCharts = JSON.parse(document.getElementById("analytics-charts-data").textContent);
+    window.FGCharts.renderMany(analyticsCharts);
   });
 </script>
 {% endblock %}

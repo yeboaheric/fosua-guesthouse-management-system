@@ -1,19 +1,30 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div>
-    <h1 class="h4 mb-0">Shift Handovers</h1>
-    <div class="text-muted small">Keep every shift handover note and update in one operations stream.</div>
-  </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-primary" href="{% url 'handover-create' %}">End Shift</a>
-  </div>
-</div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Operations handover</div>
+        <h1 class="module-title">Operations Handover</h1>
+        <div class="module-subcopy">Log and review shift handover notes between hotel teams.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'handover-create' %}">End Shift</a>
+      </div>
+    </section>
 
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Handover reports</h2>
+          <div class="module-card-copy">Prepared-by details, shift windows, and quick access into each report.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
       <thead class="table-light">
         <tr>
           <th>ID</th>
@@ -35,7 +46,7 @@
             <td>{{ handover.check_ins_count }}</td>
             <td>{{ handover.check_outs_count }}</td>
             <td class="text-end">
-              <a class="btn btn-sm btn-outline-secondary" href="{% url 'handover-detail' handover.pk %}">Open</a>
+              <a class="status-pill neutral" href="{% url 'handover-detail' handover.pk %}">Open</a>
             </td>
           </tr>
         {% empty %}
@@ -44,7 +55,11 @@
           </tr>
         {% endfor %}
       </tbody>
-    </table>
+          </table>
+        </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

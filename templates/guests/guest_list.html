@@ -1,58 +1,78 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Guests</h1>
-  <a class="btn btn-primary" href="{% url 'guest-create' %}">Add Guest</a>
-</div>
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Guests</div>
+        <h1 class="module-title">Guests</h1>
+        <div class="module-subcopy">Manage guest profiles, contact details, and identity records used across hotel operations.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'guest-create' %}">Add Guest</a>
+      </div>
+    </section>
 
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-3 align-items-end">
-      <div class="col-md-8">
-        <label class="form-label" for="q">Search guests</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, phone, email, Ghana Card, digital address">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="module-filter-grid">
+          <div class="module-filter-field module-filter-field--full">
+            <label class="form-label" for="q">Search guests</label>
+            <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, phone, email, Ghana Card, digital address">
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <a class="btn btn-outline-secondary w-100" href="{% url 'guest-list' %}">Reset</a>
+          </div>
+        </form>
       </div>
-      <div class="col-md-2">
-        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
-      </div>
-      <div class="col-md-2">
-        <a class="btn btn-outline-secondary w-100" href="{% url 'guest-list' %}">Reset</a>
-      </div>
-    </form>
-  </div>
-</div>
+    </section>
 
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover mb-0 align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>Name</th>
-          <th>Phone</th>
-          <th>Email</th>
-          <th>Ghana Card Number</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for guest in guests %}
-          <tr>
-            <td>{{ guest.first_name }} {{ guest.last_name }}</td>
-            <td>{{ guest.phone_number }}</td>
-            <td>{{ guest.email|default:"-" }}</td>
-            <td>{{ guest.ghana_card_number|default:"-" }}</td>
-            <td class="text-end">
-              <a class="btn btn-sm btn-outline-secondary" href="{% url 'guest-update' guest.pk %}">Edit</a>
-            </td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="5" class="text-center text-muted py-4">No guest records yet.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Guest records</h2>
+          <div class="module-card-copy">Profile details stay aligned with bookings, contact information, and identity data.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Ghana Card Number</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for guest in guests %}
+                  <tr>
+                    <td>{{ guest.first_name }} {{ guest.last_name }}</td>
+                    <td>{{ guest.phone_number }}</td>
+                    <td>{{ guest.email|default:"-" }}</td>
+                    <td>{{ guest.ghana_card_number|default:"-" }}</td>
+                    <td class="text-end">
+                      <a class="status-pill neutral" href="{% url 'guest-update' guest.pk %}">Edit</a>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No guest records yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

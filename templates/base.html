@@ -4,10 +4,12 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Fosua Guesthouse Management</title>
+    <title>Fosua Guest House - Aduman</title>
     <script>
       document.documentElement.setAttribute("data-app-loading", "true");
       document.documentElement.setAttribute("data-loading-started-at", String(Date.now()));
+      document.documentElement.setAttribute("data-theme", localStorage.getItem("fg-theme") || "light");
+      document.documentElement.setAttribute("data-sidebar-state", localStorage.getItem("fg-sidebar-state") || "expanded");
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,13 +23,23 @@
     </div>
     {% if user.is_authenticated %}
       <div class="app-shell-layout">
-        <aside class="app-sidebar d-none d-lg-flex">
+        <aside class="app-sidebar d-none d-lg-flex" id="appSidebar">
           <div class="sidebar-brand">
-            <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse" class="sidebar-logo">
-            <div>
-              <div class="sidebar-brand-name">Fosua Guesthouse</div>
-              <div class="sidebar-brand-subtitle">Luxury operations suite</div>
+            <div class="sidebar-brand-copy sidebar-brand-lockup">
+              <a class="sidebar-brand-home" href="{% url 'dashboard' %}" aria-label="Fosua Guest House - Aduman">
+                <img src="{% static 'branding/fosua-logo.png' %}" alt="Fosua Guest House Aduman" class="sidebar-logo sidebar-logo--full">
+              </a>
             </div>
+            <button
+              class="sidebar-brand-toggle"
+              id="sidebarToggle"
+              type="button"
+              aria-controls="appSidebar"
+              aria-expanded="true"
+              aria-label="Collapse navigation"
+            >
+              <i data-lucide="chevron-left"></i>
+            </button>
           </div>
 
           <nav class="sidebar-nav">
@@ -35,12 +47,12 @@
             {% if user|can_access_module:'reservations' %}<a class="sidebar-link {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}" href="{% url 'booking-list' %}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>{% endif %}
             {% if user|can_access_module:'rooms' %}<a class="sidebar-link {{ request|nav_active:'room-list room-create room-update room-availability' }}" href="{% url 'room-list' %}"><i data-lucide="bed-double"></i><span>Rooms</span></a>{% endif %}
             {% if user|can_access_module:'guests' %}<a class="sidebar-link {{ request|nav_active:'guest-list guest-create guest-update' }}" href="{% url 'guest-list' %}"><i data-lucide="users"></i><span>Guests</span></a>{% endif %}
-            {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
+            {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
             {% if user|can_access_module:'services' %}<a class="sidebar-link {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}" href="{% url 'services-center' %}"><i data-lucide="concierge-bell"></i><span>Services</span></a>{% endif %}
             {% if user|can_access_module:'housekeeping' %}<a class="sidebar-link {{ request|nav_active:'housekeeping-dashboard housekeeping-center housekeeping-log-edit housekeeping-report-export' }}" href="{% url 'housekeeping-dashboard' %}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>{% endif %}
             {% if user|can_access_module:'dashboard' %}<a class="sidebar-link {{ request|nav_active:'operations-overview' }}" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i><span>Operations Overview</span></a>{% endif %}
             {% if user|can_access_module:'handovers' %}<a class="sidebar-link {{ request|nav_active:'handover-list handover-create handover-detail roster-report roster-detail roster-export-excel' }}" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i><span>Shift Handovers</span></a>{% endif %}
-            {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
+            {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail inventory-sale-update' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
             {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
             {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
             {% if user|can_access_module:'users_roles' %}
@@ -49,12 +61,24 @@
             {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
             {% if user|can_access_module:'analytics' %}<a class="sidebar-link {{ request|nav_active:'analytics-center' }}" href="{% url 'analytics-center' %}"><i data-lucide="chart-column"></i><span>Analytics</span></a>{% endif %}
             {% if user|can_access_module:'notifications' %}<a class="sidebar-link {{ request|nav_active:'notifications-center' }}" href="{% url 'notifications-center' %}"><i data-lucide="bell-ring"></i><span>Notifications</span></a>{% endif %}
-            {% if user|can_access_module:'settings' %}<a class="sidebar-link {{ request|nav_active:'settings-center' }}" href="{% url 'settings-center' %}"><i data-lucide="settings-2"></i><span>Settings</span></a>{% endif %}
           </nav>
 
           <div class="sidebar-footer">
-            <div class="status-chip"><span class="status-dot"></span> Live operations</div>
-            <div class="small text-muted mt-2">{{ user.username }}</div>
+            <div class="sidebar-footer-links">
+              {% if user|can_access_module:'settings' %}
+                <a class="sidebar-footer-link {{ request|nav_active:'settings-center' }}" href="{% url 'settings-center' %}">
+                  <i data-lucide="settings-2"></i>
+                  <span>Settings</span>
+                </a>
+              {% endif %}
+              <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button class="sidebar-footer-link sidebar-footer-button" type="submit">
+                  <i data-lucide="log-out"></i>
+                  <span>Log out</span>
+                </button>
+              </form>
+            </div>
           </div>
         </aside>
 
@@ -62,7 +86,7 @@
           <div class="offcanvas-header">
             <div>
               <h5 class="offcanvas-title mb-1" id="mobileNavPanelLabel">Navigation</h5>
-              <div class="small text-muted">Fosua Guesthouse</div>
+              <div class="small text-muted">Fosua Guest House - Aduman</div>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
           </div>
@@ -72,12 +96,12 @@
               {% if user|can_access_module:'reservations' %}<a class="sidebar-link {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}" href="{% url 'booking-list' %}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>{% endif %}
               {% if user|can_access_module:'rooms' %}<a class="sidebar-link {{ request|nav_active:'room-list room-create room-update room-availability' }}" href="{% url 'room-list' %}"><i data-lucide="bed-double"></i><span>Rooms</span></a>{% endif %}
               {% if user|can_access_module:'guests' %}<a class="sidebar-link {{ request|nav_active:'guest-list guest-create guest-update' }}" href="{% url 'guest-list' %}"><i data-lucide="users"></i><span>Guests</span></a>{% endif %}
-              {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
+              {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
               {% if user|can_access_module:'services' %}<a class="sidebar-link {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}" href="{% url 'services-center' %}"><i data-lucide="concierge-bell"></i><span>Services</span></a>{% endif %}
               {% if user|can_access_module:'housekeeping' %}<a class="sidebar-link {{ request|nav_active:'housekeeping-dashboard housekeeping-center housekeeping-log-edit housekeeping-report-export' }}" href="{% url 'housekeeping-dashboard' %}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>{% endif %}
               {% if user|can_access_module:'dashboard' %}<a class="sidebar-link {{ request|nav_active:'operations-overview' }}" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i><span>Operations Overview</span></a>{% endif %}
               {% if user|can_access_module:'handovers' %}<a class="sidebar-link {{ request|nav_active:'handover-list handover-create handover-detail roster-report roster-detail roster-export-excel' }}" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i><span>Shift Handovers</span></a>{% endif %}
-              {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
+              {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail inventory-sale-update' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
               {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
               {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
               {% if user|can_access_module:'users_roles' %}
@@ -94,20 +118,23 @@
         <div class="app-main">
           <header class="app-topbar">
             <div class="topbar-left">
+              <div class="topbar-context d-none d-lg-flex">
+                {% block topbar_context %}
+                  <div class="topbar-kicker">Hotel operations</div>
+                  <div class="topbar-heading">Fosua Guest House - Aduman</div>
+                  <div class="topbar-subheading">Manage guest service, rooms, staff, payments, and daily hotel operations.</div>
+                {% endblock %}
+              </div>
               <button class="icon-btn d-lg-none" type="button" aria-label="Toggle sidebar" data-bs-toggle="offcanvas" data-bs-target="#mobileNavPanel">
                 <i data-lucide="menu"></i>
               </button>
               <form class="global-search" action="{% url 'global-search' %}" method="get">
                 <i data-lucide="search"></i>
-                <input type="search" name="q" placeholder="Search guests, rooms, bookings, invoices, payments, staff..." value="{{ request.GET.q|default:'' }}">
+                <input type="search" name="q" placeholder="Search guests, rooms, bookings, payments" value="{{ request.GET.q|default:'' }}">
               </form>
             </div>
 
             <div class="topbar-right">
-              <span class="status-pill success d-none d-xl-inline-flex"><i data-lucide="badge-check"></i> Live operations</span>
-              {% if user|can_access_module:'reservations' %}
-                <a class="topbar-pill d-none d-xl-inline-flex" href="{% url 'booking-create' %}"><i data-lucide="plus"></i> New booking</a>
-              {% endif %}
               {% if user|can_access_module:'notifications' %}
                 <a class="topbar-icon position-relative" href="{% url 'notifications-center' %}" aria-label="Notifications">
                   <i data-lucide="bell"></i>
@@ -116,12 +143,14 @@
                   {% endif %}
                 </a>
               {% endif %}
-              <a class="topbar-icon" href="{% url 'dashboard' %}" aria-label="Messages"><i data-lucide="message-circle"></i></a>
               <button class="topbar-icon" type="button" id="themeToggle" aria-label="Toggle dark mode"><i data-lucide="moon-star"></i></button>
               <div class="dropdown">
                 <button class="profile-trigger dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                   <div class="profile-avatar">{{ user.username|slice:":1"|upper }}</div>
-                  <span class="d-none d-md-inline">{{ user.username }}</span>
+                  <div class="profile-copy d-none d-md-flex">
+                    <span class="profile-name">{{ user.get_full_name|default:user.username }}</span>
+                    <span class="profile-role">{{ user|primary_group|default:"Hotel staff" }}</span>
+                  </div>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow">
                   <li><a class="dropdown-item" href="{% url 'dashboard' %}">Profile</a></li>
@@ -169,7 +198,7 @@
               <a href="{% url 'guest-list' %}" class="mobile-bottom-item {{ request|nav_active:'guest-list guest-create guest-update' }}"><i data-lucide="users"></i><span>Guests</span></a>
             {% endif %}
             {% if user|can_access_module:'payments' %}
-              <a href="{% url 'payments-center' %}" class="mobile-bottom-item {{ request|nav_active:'payments-center' }}"><i data-lucide="credit-card"></i><span>Payments</span></a>
+              <a href="{% url 'payments-center' %}" class="mobile-bottom-item {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}"><i data-lucide="credit-card"></i><span>Payments</span></a>
             {% endif %}
             {% if user|can_access_module:'services' %}
               <a href="{% url 'services-center' %}" class="mobile-bottom-item {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}"><i data-lucide="concierge-bell"></i><span>Services</span></a>
@@ -184,7 +213,7 @@
               <a href="{% url 'handover-list' %}" class="mobile-bottom-item {{ request|nav_active:'handover-list handover-create handover-detail roster-report roster-detail roster-export-excel' }}"><i data-lucide="clipboard-list"></i><span>Handovers</span></a>
             {% endif %}
             {% if user|can_access_module:'inventory' %}
-              <a href="{% url 'inventory-dashboard' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail' }}"><i data-lucide="boxes"></i><span>Inventory</span></a>
+              <a href="{% url 'inventory-dashboard' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail inventory-sale-update' }}"><i data-lucide="boxes"></i><span>Inventory</span></a>
             {% endif %}
             {% if user|can_access_module:'pos' %}
               <a href="{% url 'inventory-pos' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-pos inventory-pos-checkout' }}"><i data-lucide="receipt"></i><span>POS</span></a>
@@ -212,30 +241,11 @@
       </div>
     {% endif %}
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="{% static 'js/app-loading.js' %}"></script>
-    <script>
-      (function () {
-        const root = document.documentElement;
-        const storedTheme = localStorage.getItem("fg-theme");
-        if (storedTheme) {
-          root.setAttribute("data-theme", storedTheme);
-        }
-
-        const toggle = document.getElementById("themeToggle");
-        if (toggle) {
-          toggle.addEventListener("click", function () {
-            const nextTheme = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
-            root.setAttribute("data-theme", nextTheme);
-            localStorage.setItem("fg-theme", nextTheme);
-          });
-        }
-
-        if (window.lucide) {
-          lucide.createIcons();
-        }
-      })();
-    </script>
+    <script src="{% static 'js/fg-charts.js' %}"></script>
+    <script src="{% static 'js/app-shell.js' %}"></script>
   </body>
 </html>

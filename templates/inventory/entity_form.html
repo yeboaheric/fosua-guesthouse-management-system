@@ -2,14 +2,18 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="section-eyebrow mb-2">{{ title|default:"Manage record" }}</div>
-    <h1 class="page-title mb-2">{{ title|default:"Manage record" }}</h1>
-    <div class="page-subtitle">Use this form to update inventory master data.</div>
-  </div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">{{ title|default:"Manage record" }}</div>
+        <h1 class="module-title">{{ title|default:"Manage record" }}</h1>
+        <div class="module-subcopy">Create or update inventory reference records used across stock management.</div>
+      </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <form method="post">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post">
       {% csrf_token %}
       {% if form.non_field_errors %}
         <div class="alert alert-danger">{{ form.non_field_errors }}</div>
@@ -37,6 +41,8 @@
         <a class="btn btn-outline-secondary" href="javascript:history.back()">Cancel</a>
       </div>
     </form>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

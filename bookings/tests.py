@@ -208,7 +208,7 @@ class BookingWorkflowTests(TestCase):
             {"view": "daily", "date": "2026-07-01"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Daily view for Wed, 01 Jul 2026")
+        self.assertContains(response, "Review hotel operations for Wednesday, 01 July 2026")
         self.assertEqual(response.context["selected_date"], date(2026, 7, 1))
         self.assertEqual(response.context["check_ins_count"], 2)
         self.assertEqual(response.context["reservations_count"], 1)
@@ -235,8 +235,8 @@ class BookingWorkflowTests(TestCase):
             {"view": "weekly", "week": "2026-W27"},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Weekly view for 29 Jun 2026 - 05 Jul 2026")
-        self.assertContains(response, "Operations Breakdown by Day")
+        self.assertContains(response, "Review hotel operations for 29 Jun 2026 - 05 Jul 2026")
+        self.assertContains(response, "Weekly breakdown")
         self.assertContains(response, "Monday")
         self.assertContains(response, "Thursday")
         self.assertEqual(len(response.context["week_days"]), 7)
@@ -337,6 +337,68 @@ class BookingWorkflowTests(TestCase):
         bookings = list(response.context["bookings"])
         self.assertEqual({booking.pk for booking in bookings}, {self.booking.pk, self.booking_two.pk})
 
+    def test_receptionist_cannot_manage_room_payments(self):
+        payment = Payment.objects.create(
+            booking=self.booking,
+            amount="120.00",
+            method=Payment.PaymentMethod.CASH,
+            reference="ROOM-PAY-1",
+            received_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+        payments_response = self.client.get(reverse("booking-payments", args=[self.booking.pk]))
+        self.assertNotContains(payments_response, reverse("booking-payment-update", args=[payment.pk]))
+        self.assertNotContains(payments_response, reverse("booking-payment-delete", args=[payment.pk]))
+
+        edit_response = self.client.get(reverse("booking-payment-update", args=[payment.pk]), follow=True)
+        self.assertRedirects(edit_response, reverse("booking-payments", args=[self.booking.pk]))
+        self.assertContains(edit_response, "Access Denied: You are not authorized to manage payments.")
+
+    def test_admin_can_edit_and_delete_room_payments(self):
+        admin_group = Group.objects.create(name="Admin")
+        admin_user = User.objects.create_user(username="booking-admin", password="pass123456")
+        admin_user.groups.add(admin_group)
+        payment = Payment.objects.create(
+            booking=self.booking,
+            amount="120.00",
+            method=Payment.PaymentMethod.CASH,
+            reference="ROOM-PAY-2",
+            received_by=self.user,
+        )
+
+        self.client.force_login(admin_user)
+
+        payments_response = self.client.get(reverse("booking-payments", args=[self.booking.pk]))
+        self.assertContains(payments_response, reverse("booking-payment-update", args=[payment.pk]))
+        self.assertContains(payments_response, reverse("booking-payment-delete", args=[payment.pk]))
+
+        edit_response = self.client.get(reverse("booking-payment-update", args=[payment.pk]))
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertContains(edit_response, "Edit Payment")
+
+        update_response = self.client.post(
+            reverse("booking-payment-update", args=[payment.pk]),
+            {
+                "amount": "150.00",
+                "method": Payment.PaymentMethod.CARD,
+                "reference": "ROOM-PAY-2A",
+                "notes": "Corrected room payment",
+                "paid_at": "2026-07-02T10:30",
+            },
+            follow=True,
+        )
+        self.assertEqual(update_response.status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(str(payment.amount), "150.00")
+        self.assertEqual(payment.method, Payment.PaymentMethod.CARD)
+        self.assertEqual(payment.reference, "ROOM-PAY-2A")
+
+        delete_response = self.client.post(reverse("booking-payment-delete", args=[payment.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(Payment.objects.filter(pk=payment.pk).exists())
+        self.assertContains(delete_response, "Payment deleted successfully.")
+
 
 class EventBookingWorkflowTests(TestCase):
     def setUp(self):
@@ -414,3 +476,65 @@ class EventBookingWorkflowTests(TestCase):
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual(create_response.status_code, 200)
         self.assertEqual(payments_response.status_code, 200)
+
+    def test_receptionist_cannot_manage_event_payments(self):
+        payment = EventPayment.objects.create(
+            event_booking=self.event_booking,
+            amount="220.00",
+            method=EventPayment.PaymentMethod.CASH,
+            reference="EVENT-PAY-1",
+            received_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+        payments_response = self.client.get(reverse("event-booking-payments", args=[self.event_booking.pk]))
+        self.assertNotContains(payments_response, reverse("event-payment-update", args=[payment.pk]))
+        self.assertNotContains(payments_response, reverse("event-payment-delete", args=[payment.pk]))
+
+        edit_response = self.client.get(reverse("event-payment-update", args=[payment.pk]), follow=True)
+        self.assertRedirects(edit_response, reverse("event-booking-payments", args=[self.event_booking.pk]))
+        self.assertContains(edit_response, "Access Denied: You are not authorized to manage payments.")
+
+    def test_admin_can_edit_and_delete_event_payments(self):
+        admin_group = Group.objects.create(name="Admin")
+        admin_user = User.objects.create_user(username="event-admin", password="pass123456")
+        admin_user.groups.add(admin_group)
+        payment = EventPayment.objects.create(
+            event_booking=self.event_booking,
+            amount="220.00",
+            method=EventPayment.PaymentMethod.CASH,
+            reference="EVENT-PAY-2",
+            received_by=self.user,
+        )
+
+        self.client.force_login(admin_user)
+
+        payments_response = self.client.get(reverse("event-booking-payments", args=[self.event_booking.pk]))
+        self.assertContains(payments_response, reverse("event-payment-update", args=[payment.pk]))
+        self.assertContains(payments_response, reverse("event-payment-delete", args=[payment.pk]))
+
+        edit_response = self.client.get(reverse("event-payment-update", args=[payment.pk]))
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertContains(edit_response, "Edit Payment")
+
+        update_response = self.client.post(
+            reverse("event-payment-update", args=[payment.pk]),
+            {
+                "amount": "250.00",
+                "method": EventPayment.PaymentMethod.BANK_TRANSFER,
+                "reference": "EVENT-PAY-2A",
+                "notes": "Corrected event payment",
+                "paid_at": "2026-07-03T11:45",
+            },
+            follow=True,
+        )
+        self.assertEqual(update_response.status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(str(payment.amount), "250.00")
+        self.assertEqual(payment.method, EventPayment.PaymentMethod.BANK_TRANSFER)
+        self.assertEqual(payment.reference, "EVENT-PAY-2A")
+
+        delete_response = self.client.post(reverse("event-payment-delete", args=[payment.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(EventPayment.objects.filter(pk=payment.pk).exists())
+        self.assertContains(delete_response, "Event payment deleted successfully.")

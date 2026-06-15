@@ -2,19 +2,21 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Inventory subcategories</div>
-        <h1 class="page-title mb-2">Refine stock groups</h1>
-        <div class="page-subtitle">Break down drinks and foodstuff into operational groups.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Inventory subcategories</div>
+        <h1 class="module-title">Inventory Subcategories</h1>
+        <div class="module-subcopy">Organize stock items into smaller operational groups for easier control and reporting.</div>
       </div>
-      <a class="topbar-pill" href="{% url 'inventory-categories' %}"><i data-lucide="layers-3"></i> Categories</a>
-    </div>
-  </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'inventory-categories' %}"><i data-lucide="layers-3"></i> Categories</a>
+      </div>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="post" class="row g-3 align-items-end">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post" class="row g-3 align-items-end">
       {% csrf_token %}
       {% for field in form %}
         <div class="{% if field.name == 'description' %}col-12{% else %}col-md-4{% endif %}">
@@ -27,10 +29,13 @@
         <button class="btn btn-primary w-100" type="submit">Add</button>
       </div>
     </form>
-  </div>
+      </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
+    <section class="module-card">
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+        <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
           <tr>
@@ -63,7 +68,10 @@
           {% endfor %}
         </tbody>
       </table>
+        </div>
+      </div>
     </div>
+    </section>
   </div>
 </div>
 {% endblock %}

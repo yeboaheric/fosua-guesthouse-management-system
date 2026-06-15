@@ -1,131 +1,149 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Guest Booking Account</h1>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Back</a>
-    <a class="btn btn-outline-dark" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
-  </div>
-</div>
-
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-4">
-        <div class="text-muted small">Guest</div>
-        <div class="h6 mb-0">{{ booking.guest }}</div>
-        <div>{{ booking.guest.phone_number }}</div>
-        <div>{{ booking.guest.email|default:"-" }}</div>
-      </div>
-      <div class="col-md-4">
-        <div class="text-muted small">Booking Window</div>
-        <div class="h6 mb-0">
-          {{ booking.check_in }} {{ booking.check_in_time|time:"H:i" }}
-          to
-          {{ booking.check_out }} {{ booking.check_out_time|time:"H:i" }}
-        </div>
-        <div>Created: {{ booking.created_at|date:"d/m/Y H:i" }}</div>
-      </div>
-      <div class="col-md-4">
-        <div class="text-muted small">Account Summary</div>
-        <div class="h6 mb-0">Total: GHS {{ group_total }}</div>
-        <div>Paid: GHS {{ group_paid }}</div>
-        <div>Balance: GHS {{ group_balance }}</div>
-      </div>
+<div class="module-shell">
+  <section class="module-hero">
+    <div class="module-hero-copy">
+      <div class="module-kicker">Room bookings</div>
+      <h1 class="module-title">Booking Details</h1>
+      <div class="module-subcopy">Review reservation details, room assignments, payment activity, and booking status history for {{ booking.guest }}.</div>
     </div>
-  </div>
-</div>
-
-<div class="row g-3">
-  <div class="col-lg-7">
-    <div class="card shadow-sm">
-      <div class="card-body"><h2 class="h6 mb-0">Booked Rooms</h2></div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Room</th>
-              <th>Dates Booked</th>
-              <th>Status</th>
-              <th>Booked At</th>
-              <th>Total</th>
-              <th>Paid</th>
-              <th>Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in related_bookings %}
-              <tr>
-                <td>{{ item.room.room_number }} ({{ item.room.get_room_type_display }})</td>
-                <td>
-                  {{ item.check_in }} {{ item.check_in_time|time:"H:i" }}
-                  to
-                  {{ item.check_out }} {{ item.check_out_time|time:"H:i" }}
-                </td>
-                <td>{{ item.get_status_display }}</td>
-                <td>{{ item.created_at|date:"d/m/Y H:i" }}</td>
-                <td>GHS {{ item.total_amount }}</td>
-                <td>GHS {{ item.amount_paid }}</td>
-                <td>GHS {{ item.balance_due }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+    <div class="module-action-row">
+      <a class="btn btn-outline-primary" href="{% url 'booking-list' %}">Back to bookings</a>
+      <a class="btn btn-outline-dark" href="{% url 'receipt-preview' booking.pk %}">Receipt</a>
     </div>
-  </div>
+  </section>
 
-  <div class="col-lg-5">
-    <div class="card shadow-sm">
-      <div class="card-body"><h2 class="h6 mb-0">Payment History</h2></div>
-      <div class="table-responsive">
-        <table class="table mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Paid At</th>
-              <th>Room</th>
-              <th>Method</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for payment in payments %}
-              <tr>
-                <td>{{ payment.paid_at|date:"d/m/Y H:i" }}</td>
-                <td>{{ payment.booking.room.room_number }}</td>
-                <td>{{ payment.get_method_display }}</td>
-                <td>GHS {{ payment.amount }}</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="4" class="text-center text-muted py-3">No payments yet.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
+  <section class="module-summary-grid">
+    <article class="module-summary-block">
+      <div class="module-inline-label">Guest</div>
+      <strong>{{ booking.guest }}</strong>
+      <div class="text-muted small mt-1">{{ booking.guest.phone_number }}</div>
+      <div class="text-muted small">{{ booking.guest.email|default:"-" }}</div>
+    </article>
+    <article class="module-summary-block">
+      <div class="module-inline-label">Stay window</div>
+      <strong>{{ booking.check_in|date:"d M Y" }} - {{ booking.check_out|date:"d M Y" }}</strong>
+      <div class="text-muted small mt-1">{{ booking.check_in_time|time:"H:i" }} to {{ booking.check_out_time|time:"H:i" }}</div>
+      <div class="text-muted small">Created {{ booking.created_at|date:"d M Y, H:i" }}</div>
+    </article>
+    <article class="module-summary-block">
+      <div class="module-inline-label">Account total</div>
+      <strong>GHS {{ group_total }}</strong>
+      <div class="text-muted small mt-1">Paid GHS {{ group_paid }}</div>
+      <div class="text-muted small">Balance GHS {{ group_balance }}</div>
+    </article>
+  </section>
 
-<div class="card shadow-sm mt-3">
-  <div class="card-body">
-    <h2 class="h6 mb-3">Booking status timeline</h2>
-    <div class="timeline-list">
-      {% for entry in status_history %}
-        <div class="timeline-item">
-          <div class="timeline-marker"></div>
+  <div class="row g-4">
+    <div class="col-xl-7">
+      <section class="module-card h-100">
+        <div class="module-card-header">
           <div>
-            <div class="fw-semibold">{{ entry.object_repr }}</div>
-            <div class="text-muted small">{{ entry.previous_status|default:"Start" }} → {{ entry.new_status }}</div>
-            <div class="text-muted small">By {{ entry.changed_by|default:"System" }} · {{ entry.changed_at|date:"d/m/Y H:i" }}</div>
+            <h2 class="module-card-title">Booked rooms</h2>
+            <div class="module-card-copy">Every room grouped under this guest’s stay with amount paid and remaining balance.</div>
           </div>
         </div>
-      {% empty %}
-        <div class="text-muted">No status changes recorded yet.</div>
-      {% endfor %}
+        <div class="module-card-body">
+          <div class="module-table-wrap table-responsive">
+            <table class="table align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Room</th>
+                  <th>Dates booked</th>
+                  <th>Status</th>
+                  <th>Booked at</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in related_bookings %}
+                  <tr>
+                    <td>{{ item.room.room_number }} ({{ item.room.get_room_type_display }})</td>
+                    <td>{{ item.check_in|date:"d M Y" }} {{ item.check_in_time|time:"H:i" }} to {{ item.check_out|date:"d M Y" }} {{ item.check_out_time|time:"H:i" }}</td>
+                    <td>
+                      <span class="status-pill {% if item.status == 'checked_in' or item.status == 'checked_out' %}success{% elif item.status == 'pending' %}warning{% elif item.status == 'cancelled' %}danger{% else %}neutral{% endif %}">
+                        {{ item.get_status_display }}
+                      </span>
+                    </td>
+                    <td>{{ item.created_at|date:"d M Y, H:i" }}</td>
+                    <td>GHS {{ item.total_amount }}</td>
+                    <td>GHS {{ item.amount_paid }}</td>
+                    <td>GHS {{ item.balance_due }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-5">
+      <section class="module-card h-100">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Payment history</h2>
+            <div class="module-card-copy">All room payments posted to this grouped reservation account.</div>
+          </div>
+        </div>
+        <div class="module-card-body">
+          <div class="module-table-wrap table-responsive">
+            <table class="table align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Paid at</th>
+                  <th>Room</th>
+                  <th>Method</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for payment in payments %}
+                  <tr>
+                    <td>{{ payment.paid_at|date:"d M Y, H:i" }}</td>
+                    <td>{{ payment.booking.room.room_number }}</td>
+                    <td>{{ payment.get_method_display }}</td>
+                    <td>GHS {{ payment.amount }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4" class="module-empty">No payments have been recorded for this booking group yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
+
+  <section class="module-card">
+    <div class="module-card-header">
+      <div>
+        <h2 class="module-card-title">Booking status timeline</h2>
+        <div class="module-card-copy">Operational changes captured as the stay moved through the system.</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <div class="timeline-list">
+        {% for entry in status_history %}
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div>
+              <div class="fw-semibold">{{ entry.object_repr }}</div>
+              <div class="text-muted small">{{ entry.previous_status|default:"Start" }} → {{ entry.new_status }}</div>
+              <div class="text-muted small">By {{ entry.changed_by|default:"System" }} · {{ entry.changed_at|date:"d/m/Y H:i" }}</div>
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-muted">No status changes recorded yet.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
 </div>
 {% endblock %}

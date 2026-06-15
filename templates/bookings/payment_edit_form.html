@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Payments</div>
+        <h1 class="module-title">{{ title }}</h1>
+        <div class="module-subcopy">Correct payment details for {{ payment_scope_label }} without changing front desk access to normal payment processing.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{{ back_url }}">Back to payments</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post" class="module-stack">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="module-summary-grid">
+            <article class="module-summary-block">
+              <div class="module-inline-label">Recorded by</div>
+              <strong>{{ payment_record.received_by|default:"-" }}</strong>
+            </article>
+            <article class="module-summary-block">
+              <div class="module-inline-label">Current amount</div>
+              <strong>GHS {{ payment_record.amount }}</strong>
+            </article>
+            <article class="module-summary-block">
+              <div class="module-inline-label">Current method</div>
+              <strong>{{ payment_record.get_method_display }}</strong>
+            </article>
+          </div>
+          <div class="module-form-grid">
+            {% for field in form %}
+              <div class="{% if field.name == 'notes' %}module-form-field module-form-field--full{% else %}module-form-field module-form-field--half{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="module-form-actions">
+            <div class="module-card-copy">Update the payment amount, method, reference, notes, or recorded date and time for this payment entry.</div>
+            <div class="module-form-actions-end">
+              <a class="btn btn-outline-secondary" href="{{ back_url }}">Cancel</a>
+              <button class="btn btn-primary" type="submit">Save payment</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

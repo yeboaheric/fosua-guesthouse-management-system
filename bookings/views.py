@@ -8,13 +8,17 @@ from django.db import transaction
 from django.db.models import DecimalField, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from accounts.decorators import group_required
+from accounts.permissions import user_is_admin_role
 from bookings.forms import BookingForm
 from bookings.forms import EventBookingForm
+from bookings.forms import EventPaymentAdminEditForm
 from bookings.forms import EventPaymentForm
+from bookings.forms import PaymentAdminEditForm
 from bookings.forms import PaymentForm
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from rooms.models import Room
@@ -53,6 +57,10 @@ def _build_operations_url(view_mode, selected_date=None, selected_week=None, ran
         params["range_end"] = range_end
     query = urlencode({key: value for key, value in params.items() if value})
     return f"?{query}" if query else ""
+
+
+def _user_can_manage_payment_records(user):
+    return user_is_admin_role(user)
 
 
 def _room_status_at(room, target_moment):
@@ -358,6 +366,7 @@ def booking_payments(request, pk):
             "form": form,
             "payments": booking.payments.select_related("received_by"),
             "related_bookings": _grouped_guest_bookings(booking),
+            "can_manage_payment_records": _user_can_manage_payment_records(request.user),
         },
     )
 
@@ -510,8 +519,87 @@ def event_booking_payments(request, pk):
             "event_booking": event_booking,
             "form": form,
             "payments": event_booking.payments.select_related("received_by"),
+            "can_manage_payment_records": _user_can_manage_payment_records(request.user),
         },
     )
+
+
+@group_required("Admin", "Receptionist", module="payments")
+def booking_payment_update(request, pk):
+    payment = get_object_or_404(Payment.objects.select_related("booking__guest", "booking__room", "received_by"), pk=pk)
+    if not _user_can_manage_payment_records(request.user):
+        messages.error(request, "Access Denied: You are not authorized to manage payments.")
+        return redirect("booking-payments", pk=payment.booking.pk)
+
+    form = PaymentAdminEditForm(request.POST or None, instance=payment)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Payment updated successfully.")
+        return redirect("booking-payments", pk=payment.booking.pk)
+
+    return render(
+        request,
+        "bookings/payment_edit_form.html",
+        {
+            "form": form,
+            "title": "Edit Payment",
+            "back_url": reverse("booking-payments", args=[payment.booking.pk]),
+            "payment_record": payment,
+            "payment_scope_label": f"room booking for {payment.booking.guest}",
+        },
+    )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="payments")
+def booking_payment_delete(request, pk):
+    payment = get_object_or_404(Payment.objects.select_related("booking"), pk=pk)
+    if not _user_can_manage_payment_records(request.user):
+        messages.error(request, "Access Denied: You are not authorized to manage payments.")
+        return redirect("booking-payments", pk=payment.booking.pk)
+    booking_pk = payment.booking.pk
+    payment.delete()
+    messages.success(request, "Payment deleted successfully.")
+    return redirect("booking-payments", pk=booking_pk)
+
+
+@group_required("Admin", "Receptionist", module="payments")
+def event_payment_update(request, pk):
+    payment = get_object_or_404(EventPayment.objects.select_related("event_booking__guest", "received_by"), pk=pk)
+    if not _user_can_manage_payment_records(request.user):
+        messages.error(request, "Access Denied: You are not authorized to manage payments.")
+        return redirect("event-booking-payments", pk=payment.event_booking.pk)
+
+    form = EventPaymentAdminEditForm(request.POST or None, instance=payment)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Event payment updated successfully.")
+        return redirect("event-booking-payments", pk=payment.event_booking.pk)
+
+    return render(
+        request,
+        "bookings/payment_edit_form.html",
+        {
+            "form": form,
+            "title": "Edit Payment",
+            "back_url": reverse("event-booking-payments", args=[payment.event_booking.pk]),
+            "payment_record": payment,
+            "payment_scope_label": f"event booking for {payment.event_booking.event_title}",
+        },
+    )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="payments")
+def event_payment_delete(request, pk):
+    payment = get_object_or_404(EventPayment.objects.select_related("event_booking"), pk=pk)
+    if not _user_can_manage_payment_records(request.user):
+        messages.error(request, "Access Denied: You are not authorized to manage payments.")
+        return redirect("event-booking-payments", pk=payment.event_booking.pk)
+    event_booking_pk = payment.event_booking.pk
+    payment.delete()
+    messages.success(request, "Event payment deleted successfully.")
+    return redirect("event-booking-payments", pk=event_booking_pk)
 
 
 @group_required("Admin", "Receptionist", module="dashboard")

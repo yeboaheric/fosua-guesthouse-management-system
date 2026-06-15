@@ -3,143 +3,164 @@
 
 {% block content %}
 <div class="dashboard-background p-3 p-lg-4">
-  <div class="surface-panel p-4 mb-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-center">
-      <div>
-        <div class="section-eyebrow mb-2">Inventory items</div>
-        <h1 class="page-title mb-2">Stock master list</h1>
-        <div class="page-subtitle">Search, filter, adjust, and manage every item used by the hotel.</div>
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Inventory items</div>
+        <h1 class="module-title">Inventory Items</h1>
+        <div class="module-subcopy">Manage stock items, quantities, pricing, and item details used across hotel operations.</div>
       </div>
-      <div class="d-flex gap-2 flex-wrap">
+      <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-item-create' %}"><i data-lucide="plus"></i> New item</a>
         <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-4"><div class="mini-metric h-100"><div class="metric-label">Low stock</div><div class="metric-value">{{ low_stock_count }}</div></div></div>
-    <div class="col-md-4"><div class="mini-metric h-100"><div class="metric-label">Out of stock</div><div class="metric-value">{{ out_of_stock_count }}</div></div></div>
-    <div class="col-md-4"><div class="mini-metric h-100"><div class="metric-label">Visible items</div><div class="metric-value">{{ items|length }}</div></div></div>
-  </div>
+    <section class="module-metric-grid">
+      <article class="module-metric-card">
+        <span class="module-metric-label">Low stock</span>
+        <span class="module-metric-value">{{ low_stock_count }}</span>
+      </article>
+      <article class="module-metric-card">
+        <span class="module-metric-label">Out of stock</span>
+        <span class="module-metric-value">{{ out_of_stock_count }}</span>
+      </article>
+      <article class="module-metric-card">
+        <span class="module-metric-label">Visible items</span>
+        <span class="module-metric-value">{{ items|length }}</span>
+      </article>
+    </section>
 
-  <div class="surface-panel p-4 mb-3">
-    <form method="get" class="row g-3 align-items-end">
-      <div class="col-lg-4">
-        <label class="form-label" for="q">Search items</label>
-        <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, supplier, category">
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="module-filter-grid">
+          <div class="module-filter-field module-form-field--half">
+            <label class="form-label" for="q">Search items</label>
+            <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, supplier, category">
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="category">Category</label>
+            <select class="form-select" name="category" id="category">
+              <option value="">All categories</option>
+              {% for category in categories %}
+                <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="subcategory">Subcategory</label>
+            <select class="form-select" name="subcategory" id="subcategory">
+              <option value="">All subcategories</option>
+              {% for subcategory in subcategories %}
+                <option value="{{ subcategory.pk }}" {% if selected_subcategory == subcategory.pk|stringformat:"s" %}selected{% endif %}>{{ subcategory.category.name }} / {{ subcategory.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="supplier">Supplier</label>
+            <select class="form-select" name="supplier" id="supplier">
+              <option value="">All suppliers</option>
+              {% for supplier in suppliers %}
+                <option value="{{ supplier.pk }}" {% if selected_supplier == supplier.pk|stringformat:"s" %}selected{% endif %}>{{ supplier.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="stock">Stock level</label>
+            <select class="form-select" name="stock" id="stock">
+              <option value="">Any level</option>
+              <option value="in" {% if selected_stock == "in" %}selected{% endif %}>In stock</option>
+              <option value="low" {% if selected_stock == "low" %}selected{% endif %}>Low stock</option>
+              <option value="out" {% if selected_stock == "out" %}selected{% endif %}>Out of stock</option>
+            </select>
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-items' %}">Reset</a>
+          </div>
+        </form>
       </div>
-      <div class="col-lg-2">
-        <label class="form-label" for="category">Category</label>
-        <select class="form-select" name="category" id="category">
-          <option value="">All categories</option>
-          {% for category in categories %}
-            <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-2">
-        <label class="form-label" for="subcategory">Subcategory</label>
-        <select class="form-select" name="subcategory" id="subcategory">
-          <option value="">All subcategories</option>
-          {% for subcategory in subcategories %}
-            <option value="{{ subcategory.pk }}" {% if selected_subcategory == subcategory.pk|stringformat:"s" %}selected{% endif %}>{{ subcategory.category.name }} / {{ subcategory.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-2">
-        <label class="form-label" for="supplier">Supplier</label>
-        <select class="form-select" name="supplier" id="supplier">
-          <option value="">All suppliers</option>
-          {% for supplier in suppliers %}
-            <option value="{{ supplier.pk }}" {% if selected_supplier == supplier.pk|stringformat:"s" %}selected{% endif %}>{{ supplier.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-2">
-        <label class="form-label" for="stock">Stock level</label>
-        <select class="form-select" name="stock" id="stock">
-          <option value="">Any level</option>
-          <option value="in" {% if selected_stock == "in" %}selected{% endif %}>In stock</option>
-          <option value="low" {% if selected_stock == "low" %}selected{% endif %}>Low stock</option>
-          <option value="out" {% if selected_stock == "out" %}selected{% endif %}>Out of stock</option>
-        </select>
-      </div>
-      <div class="col-lg-1">
-        <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
-      </div>
-      <div class="col-lg-1">
-        <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-items' %}">Reset</a>
-      </div>
-    </form>
-  </div>
+    </section>
 
-  <div class="surface-panel p-4">
-    <div class="table-responsive soft-table">
-      <table class="table table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Item</th>
-            <th>Category</th>
-            <th>Supplier</th>
-            <th>Stock</th>
-            <th>Price</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in items %}
-            <tr>
-              <td>
-                <div class="d-flex align-items-center gap-3">
-                  {% if item.image %}
-                    <img src="{{ item.image.url }}" alt="{{ item.name }}" class="employee-avatar">
-                  {% else %}
-                    <div class="employee-avatar-placeholder">{{ item.name|slice:":1"|upper }}</div>
-                  {% endif %}
-                  <div>
-                    <div class="fw-semibold">{{ item.name }}</div>
-                    <div class="text-muted small">{{ item.category.name }} · {{ item.get_unit_of_measure_display }}</div>
-                  </div>
-                </div>
-              </td>
-              <td>{{ item.category.name }}{% if item.subcategory %}<div class="text-muted small">{{ item.subcategory.name }}</div>{% endif %}</td>
-              <td>{{ item.supplier.name|default:"-" }}</td>
-              <td>
-                <div class="fw-semibold">{{ item.quantity_in_stock|quantity }}</div>
-                <div class="text-muted small">Min {{ item.minimum_stock_threshold|quantity }}</div>
-              </td>
-              <td>
-                <div>Buy GHS {{ item.purchase_price }}</div>
-                <div class="text-muted small">Sell GHS {{ item.selling_price }}</div>
-              </td>
-              <td>
-                {% if item.quantity_in_stock <= 0 %}
-                  <span class="status-pill danger">Out of stock</span>
-                {% elif item.is_low_stock %}
-                  <span class="status-pill warning">Low stock</span>
-                {% else %}
-                  <span class="status-pill success">Healthy</span>
-                {% endif %}
-              </td>
-              <td>
-                <div class="d-flex gap-2 flex-wrap">
-                  <a class="status-pill neutral" href="{% url 'inventory-item-update' item.pk %}">Edit</a>
-                  <a class="status-pill warning" href="{% url 'inventory-item-adjust' item.pk %}">Adjust</a>
-                  <form method="post" action="{% url 'inventory-item-delete' item.pk %}" onsubmit="return confirm('Delete this item?');">
-                    {% csrf_token %}
-                    <button class="status-pill danger border-0" type="submit">Delete</button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="7" class="text-muted">No items matched this filter.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Inventory items</h2>
+          <div class="module-card-copy">Category, supplier, stock, and price data in a single inventory command view.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Item</th>
+                  <th>Category</th>
+                  <th>Supplier</th>
+                  <th>Stock</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-center gap-3">
+                        {% if item.image %}
+                          <img src="{{ item.image.url }}" alt="{{ item.name }}" class="employee-avatar">
+                        {% else %}
+                          <div class="employee-avatar-placeholder">{{ item.name|slice:":1"|upper }}</div>
+                        {% endif %}
+                        <div>
+                          <div class="fw-semibold">{{ item.name }}</div>
+                          <div class="text-muted small">{{ item.category.name }} · {{ item.get_unit_of_measure_display }}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{{ item.category.name }}{% if item.subcategory %}<div class="text-muted small">{{ item.subcategory.name }}</div>{% endif %}</td>
+                    <td>{{ item.supplier.name|default:"-" }}</td>
+                    <td>
+                      <div class="fw-semibold">{{ item.quantity_in_stock|quantity }}</div>
+                      <div class="text-muted small">Min {{ item.minimum_stock_threshold|quantity }}</div>
+                    </td>
+                    <td>
+                      <div>Buy GHS {{ item.purchase_price }}</div>
+                      <div class="text-muted small">Sell GHS {{ item.selling_price }}</div>
+                    </td>
+                    <td>
+                      {% if item.quantity_in_stock <= 0 %}
+                        <span class="status-pill danger">Out of stock</span>
+                      {% elif item.is_low_stock %}
+                        <span class="status-pill warning">Low stock</span>
+                      {% else %}
+                        <span class="status-pill success">Healthy</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <div class="module-table-actions">
+                        <a class="status-pill neutral" href="{% url 'inventory-item-update' item.pk %}">Edit</a>
+                        <a class="status-pill warning" href="{% url 'inventory-item-adjust' item.pk %}">Adjust</a>
+                        <form method="post" action="{% url 'inventory-item-delete' item.pk %}" onsubmit="return confirm('Delete this item?');">
+                          {% csrf_token %}
+                          <button class="status-pill danger border-0" type="submit">Delete</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="7" class="text-muted">No items matched this filter.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 {% endblock %}

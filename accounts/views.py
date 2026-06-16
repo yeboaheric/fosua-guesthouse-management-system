@@ -4,8 +4,6 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from io import BytesIO
-from calendar import monthrange
-from itertools import chain
 from urllib.parse import quote_plus, unquote_plus
 
 from django.contrib import messages
@@ -71,6 +69,19 @@ from accounts.permissions import (
     seed_default_role_names,
     user_has_permission,
     user_is_admin_role,
+)
+from accounts.reporting import (
+    booking_payment_queryset,
+    booking_revenue_queryset,
+    completed_pos_sales_queryset,
+    daily_booking_revenue_map,
+    daily_total_revenue_map,
+    event_payment_queryset,
+    event_revenue_queryset,
+    money_total as shared_money_total,
+    normalize_date_range,
+    report_window_for_period as shared_report_window_for_period,
+    revenue_components,
 )
 from bookings.models import Booking, EventBooking, Payment
 from bookings.models import EventPayment
@@ -166,14 +177,10 @@ def _dashboard_chart_series(today):
     revenue_daily = defaultdict(Decimal)
     revenue_weekly = defaultdict(Decimal)
     revenue_monthly = defaultdict(Decimal)
-    payment_rows = chain(
-        Payment.objects.filter(paid_at__date__gte=earliest_required_day).values_list("paid_at__date", "amount"),
-        EventPayment.objects.filter(paid_at__date__gte=earliest_required_day).values_list("paid_at__date", "amount"),
-    )
-    for paid_at, amount in payment_rows:
-        revenue_daily[paid_at] += amount or Decimal("0")
-        revenue_weekly[_week_start(paid_at)] += amount or Decimal("0")
-        revenue_monthly[_month_start(paid_at)] += amount or Decimal("0")
+    for revenue_day, amount in daily_total_revenue_map(earliest_required_day, today).items():
+        revenue_daily[revenue_day] += amount or Decimal("0")
+        revenue_weekly[_week_start(revenue_day)] += amount or Decimal("0")
+        revenue_monthly[_month_start(revenue_day)] += amount or Decimal("0")
 
     return {
         "daily": {
@@ -197,7 +204,7 @@ def _dashboard_chart_series(today):
 def _dashboard_snapshot(user=None):
     today = timezone.localdate()
     now = timezone.localtime()
-    month_start = today.replace(day=1)
+    month_start, month_end = shared_report_window_for_period("monthly", today)
 
     total_rooms = Room.objects.count()
     available_rooms = Room.objects.filter(status=Room.RoomStatus.AVAILABLE).count()
@@ -220,31 +227,8 @@ def _dashboard_snapshot(user=None):
         employee__employment_status="active",
     ).count()
 
-    room_revenue_today = Payment.objects.filter(paid_at__date=today).aggregate(
-        total=Coalesce(
-            Sum("amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        )
-    )["total"]
-    event_revenue_today = EventPayment.objects.filter(paid_at__date=today).aggregate(
-        total=Coalesce(
-            Sum("amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        )
-    )["total"]
-
-    room_revenue_month = Payment.objects.filter(paid_at__date__gte=month_start).aggregate(
-        total=Coalesce(
-            Sum("amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        )
-    )["total"]
-    event_revenue_month = EventPayment.objects.filter(paid_at__date__gte=month_start).aggregate(
-        total=Coalesce(
-            Sum("amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        )
-    )["total"]
+    daily_revenue_components = revenue_components(today, today)
+    monthly_revenue_components = revenue_components(month_start, month_end)
 
     bookings_with_balance = Booking.objects.annotate(
         paid_total=Coalesce(
@@ -272,6 +256,7 @@ def _dashboard_snapshot(user=None):
 
     occupancy_rate = round((occupied_rooms / total_rooms) * 100, 1) if total_rooms else 0
     last_7_rows = _daily_report_rows(today - timedelta(days=6), today, total_rooms or 1)
+    last_7_revenue_map = daily_total_revenue_map(today - timedelta(days=6), today)
 
     upcoming_window = now + timedelta(hours=1)
     today_check_ins = Booking.objects.filter(
@@ -323,6 +308,7 @@ def _dashboard_snapshot(user=None):
     snapshot = {
         "today": today,
         "month_start": month_start,
+        "month_end": month_end,
         "total_rooms": total_rooms,
         "available_rooms": available_rooms,
         "occupied_rooms": occupied_rooms,
@@ -333,12 +319,14 @@ def _dashboard_snapshot(user=None):
         "total_guests": total_guests,
         "total_staff": total_staff,
         "staff_on_duty": staff_on_duty,
-        "room_revenue_today": room_revenue_today,
-        "event_revenue_today": event_revenue_today,
-        "daily_revenue": room_revenue_today + event_revenue_today,
-        "room_revenue_month": room_revenue_month,
-        "event_revenue_month": event_revenue_month,
-        "monthly_revenue": room_revenue_month + event_revenue_month,
+        "booking_revenue_today": daily_revenue_components["booking_revenue"],
+        "event_revenue_today": daily_revenue_components["event_revenue"],
+        "pos_sales_today": daily_revenue_components["pos_sales"],
+        "daily_revenue": daily_revenue_components["total_revenue"],
+        "booking_revenue_month": monthly_revenue_components["booking_revenue"],
+        "event_revenue_month": monthly_revenue_components["event_revenue"],
+        "pos_sales_month": monthly_revenue_components["pos_sales"],
+        "monthly_revenue": monthly_revenue_components["total_revenue"],
         "pending_room_balances": pending_room_balances,
         "pending_event_balances": pending_event_balances,
         "pending_payments": pending_room_balances + pending_event_balances,
@@ -357,7 +345,7 @@ def _dashboard_snapshot(user=None):
         "dashboard_chart_series_json": json.dumps(chart_series),
         "dashboard_occupancy_json": json.dumps(occupancy_chart_breakdown),
         "chart_labels_json": json.dumps([row["date"] for row in last_7_rows]),
-        "revenue_data_json": json.dumps([float(row["revenue_collected"]) for row in last_7_rows]),
+        "revenue_data_json": json.dumps([float(last_7_revenue_map.get(date.fromisoformat(row["date"]), Decimal("0"))) for row in last_7_rows]),
         "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in last_7_rows]),
     }
 
@@ -397,14 +385,14 @@ def _dashboard_snapshot(user=None):
         },
         {
             "label": "Daily revenue",
-            "value": _display_money(room_revenue_today + event_revenue_today),
-            "meta": "Room and event collections",
+            "value": _display_money(daily_revenue_components["total_revenue"]),
+            "meta": "Reservations, events, and POS sales today",
             "href": reverse("analytics-center"),
         },
         {
             "label": "Monthly revenue",
-            "value": _display_money(room_revenue_month + event_revenue_month),
-            "meta": "Month-to-date performance",
+            "value": _display_money(monthly_revenue_components["total_revenue"]),
+            "meta": "Current month bookings, events, and POS sales",
             "href": reverse("analytics-center"),
         },
         {
@@ -1870,10 +1858,14 @@ def admin_reports(request):
         report_window["start_date"],
         report_window["end_date"],
     )
-    chart_rows = _daily_report_rows(
+    occupancy_rows = _daily_report_rows(
         report_window["start_date"],
         report_window["end_date"],
         Room.objects.count(),
+    )
+    revenue_rows = _daily_total_revenue_rows(
+        report_window["start_date"],
+        report_window["end_date"],
     )
 
     context = {
@@ -1886,9 +1878,9 @@ def admin_reports(request):
         "end_date": report_window["end_date"].isoformat(),
         "sections": sections,
         "summary_metrics": _build_admin_report_summary_metrics(sections),
-        "chart_labels_json": json.dumps([row["date"] for row in chart_rows]),
-        "revenue_data_json": json.dumps([float(row["revenue_collected"]) for row in chart_rows]),
-        "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in chart_rows]),
+        "chart_labels_json": json.dumps([row["date"] for row in occupancy_rows]),
+        "revenue_data_json": json.dumps([float(row["revenue_total"]) for row in revenue_rows]),
+        "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in occupancy_rows]),
     }
     return render(request, "accounts/admin_reports.html", context)
 
@@ -1898,6 +1890,10 @@ def admin_reports_export_daily_csv(request):
     start_date, end_date = _parse_report_range(request)
     total_rooms = Room.objects.count()
     daily_rows = _daily_report_rows(start_date, end_date, total_rooms)
+    revenue_lookup = {
+        date.fromisoformat(row["date"]): row["revenue_total"]
+        for row in _daily_total_revenue_rows(start_date, end_date)
+    }
 
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = (
@@ -1911,7 +1907,7 @@ def admin_reports_export_daily_csv(request):
                 row["date"],
                 row["occupied_rooms"],
                 row["occupancy_percent"],
-                row["revenue_collected"],
+                revenue_lookup.get(date.fromisoformat(row["date"]), Decimal("0")),
             ]
         )
     return response
@@ -2047,8 +2043,7 @@ def _report_window_from_request(request):
     else:
         start_date, end_date = _report_window_for_period(period, today)
 
-    if start_date > end_date:
-        start_date, end_date = end_date, start_date
+    start_date, end_date = normalize_date_range(start_date, end_date)
 
     display_range = f"{start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     label = f"{REPORT_PRESET_LABELS.get(period, 'Custom')} report for {display_range}"
@@ -2064,18 +2059,7 @@ def _report_window_from_request(request):
 
 
 def _report_window_for_period(period, today):
-    if period == "daily":
-        return today, today
-    if period == "monthly":
-        month_start = today.replace(day=1)
-        month_end = today.replace(day=monthrange(today.year, today.month)[1])
-        return month_start, month_end
-    if period == "yearly":
-        return today.replace(month=1, day=1), today.replace(month=12, day=31)
-
-    week_start = today - timedelta(days=today.weekday())
-    week_end = week_start + timedelta(days=6)
-    return week_start, week_end
+    return shared_report_window_for_period(period, today)
 
 
 def _report_days(start_date, end_date):
@@ -2115,12 +2099,7 @@ def _relative_time(value):
 
 
 def _money_total(queryset, field_name):
-    return queryset.aggregate(
-        total=Coalesce(
-            Sum(field_name),
-            Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
-        )
-    )["total"]
+    return shared_money_total(queryset, field_name)
 
 
 def _quantity_total(queryset, field_name):
@@ -2376,16 +2355,7 @@ def _analytics_daily_occupancy_rows(start_date, end_date, room_type=""):
             occupied_sets[current_day].add(booking["room_id"])
             current_day += timedelta(days=1)
 
-    revenue_by_day = {
-        row["day"]: Decimal(str(row["total"] or 0))
-        for row in Payment.objects.filter(
-            paid_at__date__range=[start_date, end_date],
-            booking__room_id__in=room_ids,
-        )
-        .annotate(day=TruncDate("paid_at"))
-        .values("day")
-        .annotate(total=Coalesce(Sum("amount"), Value(0, output_field=DecimalField(max_digits=12, decimal_places=2))))
-    } if room_ids else {}
+    revenue_by_day = daily_booking_revenue_map(start_date, end_date, room_type) if room_ids else {}
 
     rows = []
     for current_day in _report_days(start_date, end_date):
@@ -2670,19 +2640,13 @@ def _build_revenue_analytics_section(filters):
     room_type = filters["room_type"]
     money_field = DecimalField(max_digits=12, decimal_places=2)
 
-    booking_payments = Payment.objects.filter(paid_at__date__range=[start_date, end_date])
-    booking_stays = Booking.objects.filter(check_in__lte=end_date, check_out__gt=start_date)
-    if room_type:
-        booking_payments = booking_payments.filter(booking__room__room_type=room_type)
-        booking_stays = booking_stays.filter(room__room_type=room_type)
+    revenue_breakdown = revenue_components(start_date, end_date, room_type)
+    booking_stays = booking_revenue_queryset(start_date, end_date, room_type)
 
-    event_payments = EventPayment.objects.filter(paid_at__date__range=[start_date, end_date])
-    pos_sales = Sale.objects.filter(created_at__date__range=[start_date, end_date], status=Sale.SaleStatus.COMPLETED)
-
-    booking_total = _money_total(booking_payments, "amount")
-    event_total = _money_total(event_payments, "amount")
-    pos_total = _money_total(pos_sales, "grand_total")
-    total_revenue = booking_total + event_total + pos_total
+    booking_total = revenue_breakdown["booking_revenue"]
+    event_total = revenue_breakdown["event_revenue"]
+    pos_total = revenue_breakdown["pos_sales"]
+    total_revenue = revenue_breakdown["total_revenue"]
 
     fully_paid_bookings = booking_stays.annotate(
         paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
@@ -2695,29 +2659,21 @@ def _build_revenue_analytics_section(filters):
 
     revenue_points = []
     room_type_rollup = defaultdict(Decimal)
+    revenue_by_day = daily_total_revenue_map(start_date, end_date, room_type)
     for current_day in _report_days(start_date, end_date):
-        booking_value = booking_payments.filter(paid_at__date=current_day).aggregate(
-            total=Coalesce(Sum("amount"), Value(0, output_field=money_field))
-        )["total"]
-        event_value = event_payments.filter(paid_at__date=current_day).aggregate(
-            total=Coalesce(Sum("amount"), Value(0, output_field=money_field))
-        )["total"]
-        pos_value = pos_sales.filter(created_at__date=current_day).aggregate(
-            total=Coalesce(Sum("grand_total"), Value(0, output_field=money_field))
-        )["total"]
         revenue_points.append(
             {
                 "date": current_day,
-                "revenue": Decimal(str(booking_value or 0)) + Decimal(str(event_value or 0)) + Decimal(str(pos_value or 0)),
+                "revenue": revenue_by_day.get(current_day, Decimal("0")),
             }
         )
 
     for row in (
-        booking_payments.values("booking__room__room_type")
-        .annotate(total=Coalesce(Sum("amount"), Value(0, output_field=money_field)))
-        .order_by("booking__room__room_type")
+        booking_stays.values("room__room_type")
+        .annotate(total=Coalesce(Sum("total_amount"), Value(0, output_field=money_field)))
+        .order_by("room__room_type")
     ):
-        label = dict(Room.RoomType.choices).get(row["booking__room__room_type"], row["booking__room__room_type"] or "Unknown")
+        label = dict(Room.RoomType.choices).get(row["room__room_type"], row["room__room_type"] or "Unknown")
         room_type_rollup[label] += Decimal(str(row["total"] or 0))
 
     revenue_series = _analytics_aggregate_points(
@@ -2750,7 +2706,7 @@ def _build_revenue_analytics_section(filters):
         "title": "Revenue Analytics",
         "sheet_title": "Revenue Analytics",
         "filename_prefix": "revenue-analytics",
-        "subtitle": "Revenue performance, room-type breakdowns, booking yield, and payment completion based on live payments and sales.",
+        "subtitle": "Revenue performance, room-type breakdowns, booking yield, POS sales, and payment completion for the selected period.",
         "summary": {
             "total_revenue": total_revenue,
             "outstanding_total": outstanding_total,
@@ -2799,16 +2755,18 @@ def _build_revenue_analytics_section(filters):
                 "title": "Revenue overview",
                 "headers": ["Metric", "Value"],
                 "rows": [
-                    ["Reservation payments", _display_money(booking_total)],
-                    ["Event payments", _display_money(event_total)],
+                    ["Booking revenue", _display_money(booking_total)],
+                    ["Event revenue", _display_money(event_total)],
                     ["POS sales", _display_money(pos_total)],
+                    ["Payments received", _display_money(revenue_breakdown["payments_received"])],
                     ["Outstanding balances", _display_money(outstanding_total)],
                     ["Revenue vs expenses", expense_note],
                 ],
                 "export_rows": [
-                    ["Reservation payments", float(booking_total)],
-                    ["Event payments", float(event_total)],
+                    ["Booking revenue", float(booking_total)],
+                    ["Event revenue", float(event_total)],
                     ["POS sales", float(pos_total)],
+                    ["Payments received", float(revenue_breakdown["payments_received"])],
                     ["Outstanding balances", float(outstanding_total)],
                     ["Revenue vs expenses", expense_note],
                 ],
@@ -3479,9 +3437,10 @@ def _build_bookings_report_section(start_date, end_date, total_rooms):
         updated_at__date__range=[start_date, end_date],
     ).count()
     event_bookings_total = EventBooking.objects.filter(event_start__date__range=[start_date, end_date]).count()
-    booking_revenue = Payment.objects.filter(paid_at__date__range=[start_date, end_date]).aggregate(
-        total=Coalesce(Sum("amount"), Value(0, output_field=money_field))
-    )["total"]
+    booking_revenue = _money_total(
+        booking_revenue_queryset(start_date, end_date),
+        "total_amount",
+    )
 
     return {
         "key": "bookings",
@@ -3549,24 +3508,24 @@ def _build_bookings_report_section(start_date, end_date, total_rooms):
 
 def _build_revenue_report_section(start_date, end_date):
     money_field = DecimalField(max_digits=12, decimal_places=2)
-    booking_payments = Payment.objects.filter(paid_at__date__range=[start_date, end_date])
-    event_payments = EventPayment.objects.filter(paid_at__date__range=[start_date, end_date])
-    pos_sales = Sale.objects.filter(
-        created_at__date__range=[start_date, end_date],
-        status=Sale.SaleStatus.COMPLETED,
-    )
+    revenue_breakdown = revenue_components(start_date, end_date)
+    booking_payments = booking_payment_queryset(start_date, end_date)
+    event_payments = event_payment_queryset(start_date, end_date)
+    pos_sales = completed_pos_sales_queryset(start_date, end_date)
 
     booking_payments_total = _money_total(booking_payments, "amount")
     event_payments_total = _money_total(event_payments, "amount")
-    pos_sales_total = _money_total(pos_sales, "grand_total")
-    total_revenue = booking_payments_total + event_payments_total + pos_sales_total
-    payments_received = booking_payments_total + event_payments_total
+    booking_revenue_total = revenue_breakdown["booking_revenue"]
+    event_revenue_total = revenue_breakdown["event_revenue"]
+    pos_sales_total = revenue_breakdown["pos_sales"]
+    total_revenue = revenue_breakdown["total_revenue"]
+    payments_received = revenue_breakdown["payments_received"]
 
-    bookings_with_balance = Booking.objects.filter(check_in__lte=end_date, check_out__gt=start_date).annotate(
+    bookings_with_balance = booking_revenue_queryset(start_date, end_date).annotate(
         paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
         balance=ExpressionWrapper(F("total_amount") - F("paid_total"), output_field=money_field),
     )
-    event_bookings_with_balance = EventBooking.objects.filter(event_start__date__range=[start_date, end_date]).annotate(
+    event_bookings_with_balance = event_revenue_queryset(start_date, end_date).annotate(
         paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
         balance=ExpressionWrapper(F("total_amount") - F("paid_total"), output_field=money_field),
     )
@@ -3668,7 +3627,7 @@ def _build_revenue_report_section(start_date, end_date):
         "title": "Revenue & Payments",
         "sheet_title": "Revenue Payments",
         "filename_prefix": "revenue-payments",
-        "subtitle": "Revenue collected, payment channels, and balances still outstanding across reservations, events, and POS sales.",
+        "subtitle": "Booking revenue, event revenue, POS sales, payment collections, and balances still outstanding across the selected period.",
         "summary": {
             "total_revenue": total_revenue,
             "payments_received": payments_received,
@@ -3683,7 +3642,7 @@ def _build_revenue_report_section(start_date, end_date):
         ],
         "tables": [
             {
-                "title": "Payment method breakdown",
+                "title": "Collections by payment method",
                 "headers": ["Method", "Reservation Payments", "Event Payments", "POS Sales", "Total"],
                 "rows": payment_rows,
                 "export_rows": payment_export_rows,
@@ -3695,6 +3654,26 @@ def _build_revenue_report_section(start_date, end_date):
                     _display_money(total_revenue),
                 ],
                 "export_summary_row": ["TOTALS", float(booking_payments_total), float(event_payments_total), float(pos_sales_total), float(total_revenue)],
+            },
+            {
+                "title": "Revenue overview",
+                "headers": ["Metric", "Value"],
+                "rows": [
+                    ["Booking revenue", _display_money(booking_revenue_total)],
+                    ["Event revenue", _display_money(event_revenue_total)],
+                    ["POS sales", _display_money(pos_sales_total)],
+                    ["Payments received", _display_money(payments_received)],
+                    ["Outstanding balances", _display_money(outstanding_total)],
+                ],
+                "export_rows": [
+                    ["Booking revenue", float(booking_revenue_total)],
+                    ["Event revenue", float(event_revenue_total)],
+                    ["POS sales", float(pos_sales_total)],
+                    ["Payments received", float(payments_received)],
+                    ["Outstanding balances", float(outstanding_total)],
+                ],
+                "summary_row": ["TOTALS", _display_money(total_revenue)],
+                "export_summary_row": ["TOTALS", float(total_revenue)],
             },
             {
                 "title": "Outstanding balances",
@@ -3767,7 +3746,7 @@ def _build_housekeeping_report_section(start_date, end_date):
         low_stock_rows.append([item.name, _display_quantity(item.initial_quantity), _display_quantity(item.quantity_in_stock), item.unit, _display_quantity(item.effective_low_stock_threshold)])
         low_stock_export_rows.append([item.name, float(item.initial_quantity or 0), float(item.quantity_in_stock or 0), item.unit, float(item.effective_low_stock_threshold or 0)])
 
-    pos_sales = Sale.objects.filter(created_at__date__range=[start_date, end_date], status=Sale.SaleStatus.COMPLETED)
+    pos_sales = completed_pos_sales_queryset(start_date, end_date)
     pos_rows = []
     pos_export_rows = []
     for row in (
@@ -4344,19 +4323,7 @@ def _daily_report_rows(start_date, end_date, total_rooms):
         check_out__gt=start_date,
     ).values("room_id", "check_in", "check_out")
 
-    payments_by_day = {
-        row["day"]: row["total"]
-        for row in Payment.objects.filter(paid_at__date__range=[start_date, end_date])
-        .annotate(day=TruncDate("paid_at"))
-        .values("day")
-        .annotate(
-            total=Coalesce(
-                Sum("amount"),
-                Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-            )
-        )
-        .order_by("day")
-    }
+    revenue_by_day = daily_booking_revenue_map(start_date, end_date)
 
     daily_rows = []
     for current_day in days:
@@ -4371,11 +4338,22 @@ def _daily_report_rows(start_date, end_date, total_rooms):
                 "date": current_day.isoformat(),
                 "occupied_rooms": occupied_count,
                 "occupancy_percent": occupancy_percent,
-                "revenue_collected": payments_by_day.get(current_day, 0),
+                "revenue_collected": revenue_by_day.get(current_day, 0),
             }
         )
 
     return daily_rows
+
+
+def _daily_total_revenue_rows(start_date, end_date):
+    revenue_by_day = daily_total_revenue_map(start_date, end_date)
+    return [
+        {
+            "date": current_day.isoformat(),
+            "revenue_total": revenue_by_day.get(current_day, Decimal("0")),
+        }
+        for current_day in _report_days(start_date, end_date)
+    ]
 
 
 def _serialize_activity_feed(feed):

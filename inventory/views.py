@@ -28,6 +28,12 @@ from reportlab.lib.utils import ImageReader
 
 from accounts.decorators import group_required
 from accounts.permissions import user_is_admin_role
+from accounts.reporting import (
+    completed_pos_sales_queryset,
+    normalize_date_range,
+    pos_sales_total,
+    report_window_for_period as shared_report_window_for_period,
+)
 from inventory.forms import (
     InventoryCategoryForm,
     InventoryItemForm,
@@ -60,7 +66,7 @@ def _user_can_edit_sale(user):
 @group_required("Admin", "Receptionist", module="inventory")
 def inventory_dashboard(request):
     today = timezone.localdate()
-    month_start = today.replace(day=1)
+    month_start, month_end = shared_report_window_for_period("monthly", today)
     items = InventoryItem.objects.select_related("category", "subcategory", "supplier")
     sales = Sale.objects.filter(status=Sale.SaleStatus.COMPLETED)
     transactions = InventoryTransaction.objects.select_related("item", "created_by").order_by("-created_at")
@@ -74,18 +80,8 @@ def inventory_dashboard(request):
         )
     )["total"]
 
-    sales_today_total = sales.filter(created_at__date=today).aggregate(
-        total=Coalesce(
-            Sum("grand_total"),
-            ZERO_MONEY,
-        )
-    )["total"]
-    sales_month_total = sales.filter(created_at__date__gte=month_start).aggregate(
-        total=Coalesce(
-            Sum("grand_total"),
-            ZERO_MONEY,
-        )
-    )["total"]
+    sales_today_total = pos_sales_total(today, today)
+    sales_month_total = pos_sales_total(month_start, month_end)
 
     recent_sales = sales.select_related("cashier").prefetch_related("items__item")[:8]
     recent_transactions = transactions[:10]
@@ -754,10 +750,10 @@ def reports_center(request):
     end_date = request.GET.get("end_date")
     range_start, range_end = _resolve_period(period, start_date, end_date)
 
-    sales = Sale.objects.filter(created_at__date__range=[range_start, range_end], status=Sale.SaleStatus.COMPLETED)
+    sales = completed_pos_sales_queryset(range_start, range_end)
     transactions = InventoryTransaction.objects.filter(created_at__date__range=[range_start, range_end])
     top_items = (
-        SaleItem.objects.filter(sale__created_at__date__range=[range_start, range_end])
+        SaleItem.objects.filter(sale__in=sales)
         .values("item__name")
         .annotate(total_units=Sum("quantity"), total_revenue=Sum("line_total"))
         .order_by("-total_units")[:10]
@@ -775,7 +771,7 @@ def reports_center(request):
             "period": period,
             "start_date": range_start,
             "end_date": range_end,
-            "sales_total": sales.aggregate(total=Coalesce(Sum("grand_total"), ZERO_MONEY))["total"],
+            "sales_total": pos_sales_total(range_start, range_end),
             "sales_count": sales.count(),
             "transaction_count": transactions.count(),
             "inventory_value": InventoryItem.objects.annotate(
@@ -835,21 +831,23 @@ def _log_transaction(
 def _resolve_period(period, start_date, end_date):
     today = timezone.localdate()
     if start_date and end_date:
-        return date.fromisoformat(start_date), date.fromisoformat(end_date)
+        return normalize_date_range(date.fromisoformat(start_date), date.fromisoformat(end_date))
     if period == "day":
         return today, today
     if period == "week":
-        return today - timedelta(days=6), today
+        return shared_report_window_for_period("weekly", today)
     if period == "year":
-        return today.replace(month=1, day=1), today
+        year_start, _ = shared_report_window_for_period("yearly", today)
+        return year_start, today
     if period == "custom":
         return today - timedelta(days=29), today
-    return today.replace(day=1), today
+    month_start, _ = shared_report_window_for_period("monthly", today)
+    return month_start, today
 
 
 def _daily_sales_rows(start_date, end_date):
     rows = (
-        Sale.objects.filter(created_at__date__range=[start_date, end_date], status=Sale.SaleStatus.COMPLETED)
+        completed_pos_sales_queryset(start_date, end_date)
         .annotate(day=TruncDate("created_at"))
         .values("day")
         .annotate(total=Coalesce(Sum("grand_total"), ZERO_MONEY))

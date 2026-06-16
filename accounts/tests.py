@@ -645,6 +645,7 @@ class AnalyticsCenterTests(TestCase):
             event_start=timezone.now() - timedelta(days=1),
             event_end=timezone.now() - timedelta(days=1) + timedelta(hours=4),
             total_amount=400,
+            status=EventBooking.EventBookingStatus.CONFIRMED,
             created_by=self.admin_user,
         )
         EventPayment.objects.create(
@@ -652,6 +653,13 @@ class AnalyticsCenterTests(TestCase):
             amount=150,
             method=EventPayment.PaymentMethod.MOBILE_MONEY,
             received_by=self.admin_user,
+        )
+        self.pos_sale = Sale.objects.create(
+            cashier=self.admin_user,
+            payment_method=Sale.PaymentMethod.CARD,
+            grand_total=80,
+            amount_paid=80,
+            status=Sale.SaleStatus.COMPLETED,
         )
         self.reception_employee = Employee.objects.create(
             title="mr",
@@ -757,6 +765,42 @@ class AnalyticsCenterTests(TestCase):
         self.assertEqual(section_map["rooms-analytics"]["metrics"][0]["value"], 1)
         self.assertEqual(section_map["staff-analytics"]["metrics"][0]["value"], 1)
         self.assertEqual(section_map["bookings-analytics"]["metrics"][0]["value"], 1)
+
+    def test_revenue_totals_stay_consistent_across_dashboard_analytics_and_reports(self):
+        dashboard_response = self.client.get(reverse("admin-dashboard"))
+        self.assertEqual(dashboard_response.status_code, 200)
+
+        reports_response = self.client.get(reverse("admin-reports"), {"period": "monthly"})
+        self.assertEqual(reports_response.status_code, 200)
+        report_section_map = {section["key"]: section for section in reports_response.context["sections"]}
+
+        analytics_response = self.client.get(reverse("analytics-center"), {"period": "monthly"})
+        self.assertEqual(analytics_response.status_code, 200)
+        analytics_section_map = {section["key"]: section for section in analytics_response.context["sections"]}
+
+        expected_booking_revenue = self.deluxe_booking.total_amount
+        expected_event_revenue = self.event_booking.total_amount
+        expected_pos_sales = self.pos_sale.grand_total
+        expected_total_revenue = expected_booking_revenue + expected_event_revenue + expected_pos_sales
+
+        self.assertEqual(dashboard_response.context["monthly_revenue"], expected_total_revenue)
+        self.assertEqual(report_section_map["revenue-payments"]["summary"]["total_revenue"], expected_total_revenue)
+        self.assertEqual(analytics_section_map["revenue-analytics"]["summary"]["total_revenue"], expected_total_revenue)
+        self.assertEqual(report_section_map["revenue-payments"]["summary"]["pos_sales_total"], expected_pos_sales)
+
+        analytics_revenue_rows = {
+            row[0]: row[1]
+            for row in analytics_section_map["revenue-analytics"]["tables"][1]["export_rows"]
+        }
+        report_revenue_rows = {
+            row[0]: row[1]
+            for row in report_section_map["revenue-payments"]["tables"][1]["export_rows"]
+        }
+
+        self.assertEqual(analytics_revenue_rows["Booking revenue"], float(expected_booking_revenue))
+        self.assertEqual(analytics_revenue_rows["POS sales"], float(expected_pos_sales))
+        self.assertEqual(report_revenue_rows["Booking revenue"], float(expected_booking_revenue))
+        self.assertEqual(report_revenue_rows["POS sales"], float(expected_pos_sales))
 
     def test_analytics_export_xlsx_contains_all_section_sheets(self):
         response = self.client.get(

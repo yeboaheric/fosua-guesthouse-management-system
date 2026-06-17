@@ -10,6 +10,32 @@
       document.documentElement.setAttribute("data-loading-started-at", String(Date.now()));
       document.documentElement.setAttribute("data-theme", localStorage.getItem("fg-theme") || "light");
       document.documentElement.setAttribute("data-sidebar-state", localStorage.getItem("fg-sidebar-state") || "expanded");
+      window.FGChartQueue = window.FGChartQueue || [];
+      window.FGCharts = window.FGCharts || {
+        upsert: function (canvas, config) {
+          window.FGChartQueue.push({ method: "upsert", canvas: canvas, config: config });
+          return null;
+        },
+        renderMany: function (configs) {
+          window.FGChartQueue.push({ method: "renderMany", configs: configs });
+          return null;
+        }
+      };
+      window.FGParseJsonScript = function (id, fallback) {
+        var element = document.getElementById(id);
+        if (!element) {
+          return fallback;
+        }
+        try {
+          var parsed = JSON.parse(element.textContent || "null");
+          if (typeof parsed === "string") {
+            parsed = JSON.parse(parsed);
+          }
+          return parsed == null ? fallback : parsed;
+        } catch (error) {
+          return fallback;
+        }
+      };
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -244,8 +270,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-    <script src="{% static 'js/app-loading.js' %}"></script>
-    <script src="{% static 'js/fg-charts.js' %}"></script>
-    <script src="{% static 'js/app-shell.js' %}"></script>
+    <script src="{% static 'js/app-loading.js' %}?v=20260617"></script>
+    <script src="{% static 'js/fg-charts.js' %}?v=20260617"></script>
+    <script src="{% static 'js/app-shell.js' %}?v=20260617"></script>
   </body>
 </html>

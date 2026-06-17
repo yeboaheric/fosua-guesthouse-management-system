@@ -188,9 +188,9 @@
     if (!window.FGCharts) {
       return;
     }
-    const labels = JSON.parse(document.getElementById("report-labels").textContent);
-    const revenue = JSON.parse(document.getElementById("report-revenue").textContent);
-    const occupancy = JSON.parse(document.getElementById("report-occupancy").textContent);
+    const labels = window.FGParseJsonScript("report-labels", []);
+    const revenue = window.FGParseJsonScript("report-revenue", []);
+    const occupancy = window.FGParseJsonScript("report-occupancy", []);
 
     window.FGCharts.upsert(document.getElementById("revenueChart"), {
       type: "line",

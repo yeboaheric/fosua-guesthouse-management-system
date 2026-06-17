@@ -178,8 +178,8 @@
     if (!window.FGCharts) {
       return;
     }
-    const labels = JSON.parse(document.getElementById("inventory-report-labels").textContent);
-    const values = JSON.parse(document.getElementById("inventory-report-values").textContent);
+    const labels = window.FGParseJsonScript("inventory-report-labels", []);
+    const values = window.FGParseJsonScript("inventory-report-values", []);
 
     window.FGCharts.upsert(document.getElementById("inventoryReportChart"), {
       type: "line",

@@ -1821,35 +1821,64 @@ body {
 .chart-shell {
   position: relative;
   width: 100%;
-  min-height: 220px;
+  height: 260px;
+  max-height: 300px;
+  overflow: hidden;
+  border-radius: 8px;
 }
 
 .chart-shell canvas {
   width: 100% !important;
   height: 100% !important;
+  display: block;
 }
 
 .chart-shell--hero {
-  min-height: 320px;
+  height: 300px;
+  max-height: 300px;
 }
 
 .chart-shell--panel,
 .chart-shell--reports,
 .chart-shell--inventory {
-  min-height: 260px;
+  height: 270px;
+  max-height: 300px;
 }
 
 .chart-shell--analytics {
-  min-height: 240px;
+  height: 260px;
+  max-height: 300px;
 }
 
 .chart-shell--donut {
-  min-height: 180px;
-  max-width: 180px;
+  height: 240px;
+  max-height: 260px;
+  max-width: 240px;
 }
 
 .fg-chart-card {
   overflow: hidden;
+}
+
+.chart-empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  text-align: center;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  background:
+    linear-gradient(135deg, rgba(47, 138, 87, 0.06), rgba(207, 174, 132, 0.08)),
+    rgba(255, 255, 255, 0.72);
+  border: 1px dashed rgba(47, 138, 87, 0.22);
+  border-radius: 8px;
+}
+
+.chart-empty-state[hidden] {
+  display: none;
 }
 
 .dashboard-live-feed {

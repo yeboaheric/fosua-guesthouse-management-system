@@ -166,7 +166,7 @@
     if (!window.FGCharts) {
       return;
     }
-    const analyticsCharts = JSON.parse(document.getElementById("analytics-charts-data").textContent);
+    const analyticsCharts = window.FGParseJsonScript("analytics-charts-data", []);
     window.FGCharts.renderMany(analyticsCharts);
   });
 </script>

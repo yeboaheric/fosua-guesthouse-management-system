@@ -171,10 +171,10 @@
     if (!window.FGCharts) {
       return;
     }
-    const inventoryLabels = JSON.parse(document.getElementById("inventory-daily-labels").textContent);
-    const inventorySales = JSON.parse(document.getElementById("inventory-daily-sales").textContent);
-    const inventoryCategoryLabels = JSON.parse(document.getElementById("inventory-category-labels").textContent);
-    const inventoryCategoryUnits = JSON.parse(document.getElementById("inventory-category-units").textContent);
+    const inventoryLabels = window.FGParseJsonScript("inventory-daily-labels", []);
+    const inventorySales = window.FGParseJsonScript("inventory-daily-sales", []);
+    const inventoryCategoryLabels = window.FGParseJsonScript("inventory-category-labels", []);
+    const inventoryCategoryUnits = window.FGParseJsonScript("inventory-category-units", []);
 
     window.FGCharts.upsert(document.getElementById("inventoryDailyChart"), {
       type: "line",

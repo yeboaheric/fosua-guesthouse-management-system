@@ -223,8 +223,8 @@
       }
 
       initialized = true;
-      const chartSeries = JSON.parse(chartSeriesElement.textContent);
-      const occupancyRows = JSON.parse(occupancyElement.textContent);
+      const chartSeries = window.FGParseJsonScript("dashboard-chart-series", {});
+      const occupancyRows = window.FGParseJsonScript("dashboard-occupancy-breakdown", []);
       let selectedPeriod = "daily";
 
       function escapeHtml(value) {

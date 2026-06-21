@@ -37,6 +37,7 @@ from accounts.forms import (
     EmployeeQualificationForm,
     EmploymentHistoryForm,
     LeaveRequestForm,
+    OwnerWithdrawalForm,
     PayrollRecordForm,
     PerformanceReviewForm,
     RoleCreateForm,
@@ -62,6 +63,7 @@ from accounts.models import (
     LEAVE_TYPE_TO_EMPLOYMENT_STATUS,
     TrainingRecord,
     Notification,
+    OwnerWithdrawal,
     StatusHistory,
 )
 from accounts.permissions import (
@@ -77,11 +79,14 @@ from accounts.reporting import (
     booking_revenue_queryset,
     completed_pos_sales_queryset,
     daily_booking_revenue_map,
+    daily_net_revenue_map,
+    daily_owner_withdrawals_map,
     daily_total_revenue_map,
     event_payment_queryset,
     event_revenue_queryset,
     money_total as shared_money_total,
     normalize_date_range,
+    owner_withdrawals_queryset,
     report_window_for_period as shared_report_window_for_period,
     revenue_components,
 )
@@ -679,6 +684,259 @@ def payments_center(request):
         "can_manage_payment_records": user_is_admin_role(request.user),
     }
     return render(request, "accounts/payments_center.html", context)
+
+
+def _sales_deposit_date_value(raw_value):
+    raw_value = (raw_value or "").strip()
+    if not raw_value:
+        return None
+    try:
+        return date.fromisoformat(raw_value)
+    except ValueError:
+        return None
+
+
+def _sales_deposit_summary_cards():
+    today = timezone.localdate()
+    week_start, week_end = shared_report_window_for_period("weekly", today)
+    month_start, month_end = shared_report_window_for_period("monthly", today)
+    year_start, year_end = shared_report_window_for_period("yearly", today)
+    return [
+        {"label": "Withdrawn today", "value": _display_money(_money_total(owner_withdrawals_queryset(today, today), "amount"))},
+        {"label": "This week", "value": _display_money(_money_total(owner_withdrawals_queryset(week_start, week_end), "amount"))},
+        {"label": "This month", "value": _display_money(_money_total(owner_withdrawals_queryset(month_start, month_end), "amount"))},
+        {"label": "This year", "value": _display_money(_money_total(owner_withdrawals_queryset(year_start, year_end), "amount"))},
+    ]
+
+
+def _sales_deposit_filtered_queryset(request):
+    query = request.GET.get("q", "").strip()
+    start_date = _sales_deposit_date_value(request.GET.get("start_date"))
+    end_date = _sales_deposit_date_value(request.GET.get("end_date"))
+    withdrawals = OwnerWithdrawal.objects.select_related("recorded_by").order_by("-created_at", "-pk")
+
+    if query:
+        withdrawals = withdrawals.filter(
+            Q(reason__icontains=query)
+            | Q(collected_by__icontains=query)
+            | Q(recorded_by__username__icontains=query)
+            | Q(recorded_by__first_name__icontains=query)
+            | Q(recorded_by__last_name__icontains=query)
+        )
+
+    if start_date and end_date:
+        start_date, end_date = normalize_date_range(start_date, end_date)
+        withdrawals = withdrawals.filter(created_at__date__range=[start_date, end_date])
+    elif start_date:
+        withdrawals = withdrawals.filter(created_at__date__gte=start_date)
+    elif end_date:
+        withdrawals = withdrawals.filter(created_at__date__lte=end_date)
+
+    return {
+        "withdrawals": withdrawals,
+        "query": query,
+        "start_date": start_date.isoformat() if start_date else "",
+        "end_date": end_date.isoformat() if end_date else "",
+    }
+
+
+def _sales_deposit_export_range(request):
+    start_date = _sales_deposit_date_value(request.GET.get("start_date"))
+    end_date = _sales_deposit_date_value(request.GET.get("end_date"))
+    if start_date and end_date:
+        return normalize_date_range(start_date, end_date)
+    if start_date:
+        return start_date, start_date
+    if end_date:
+        return end_date, end_date
+
+    today = timezone.localdate()
+    earliest = OwnerWithdrawal.objects.order_by("created_at").values_list("created_at", flat=True).first()
+    latest = OwnerWithdrawal.objects.order_by("-created_at").values_list("created_at", flat=True).first()
+    if earliest and latest:
+        return timezone.localtime(earliest).date(), timezone.localtime(latest).date()
+    return today, today
+
+
+def _sales_deposit_export_querystring(start_date, end_date):
+    query = QueryDict("", mutable=True)
+    query["start_date"] = start_date.isoformat()
+    query["end_date"] = end_date.isoformat()
+    return query.urlencode()
+
+
+def _sales_deposit_admin_redirect(request):
+    messages.error(request, "Access Denied: only admin accounts can edit or delete sales deposits.")
+    return redirect("sales-deposits-center")
+
+
+@group_required("Admin", "Receptionist", module="payments", action={"GET": "view", "POST": "create"})
+def sales_deposits_center(request):
+    form = OwnerWithdrawalForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        withdrawal = form.save(commit=False)
+        withdrawal.recorded_by = request.user
+        withdrawal.save()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.CREATE,
+            module="payments",
+            object_repr=f"Sales deposit {withdrawal.pk}",
+            object_id=withdrawal.pk,
+            details={
+                "event": "sales_deposit_created",
+                "amount": str(withdrawal.amount),
+                "collected_by": withdrawal.collected_by,
+            },
+        )
+        messages.success(request, "Sales deposit logged successfully.")
+        return redirect("sales-deposits-center")
+
+    filtered = _sales_deposit_filtered_queryset(request)
+    export_start_date, export_end_date = _sales_deposit_export_range(request)
+    return render(
+        request,
+        "accounts/sales_deposits_center.html",
+        {
+            "form": form,
+            "form_title": "Log withdrawal",
+            "summary_cards": _sales_deposit_summary_cards(),
+            "withdrawals": filtered["withdrawals"],
+            "query": filtered["query"],
+            "start_date": filtered["start_date"],
+            "end_date": filtered["end_date"],
+            "can_manage_sales_deposits": user_is_admin_role(request.user),
+            "can_export_sales_deposits": user_has_permission(request.user, "payments", "export"),
+            "export_url": (
+                f"{reverse('sales-deposits-export-xlsx')}?"
+                f"{_sales_deposit_export_querystring(export_start_date, export_end_date)}"
+            ),
+            "export_start_date": export_start_date.isoformat(),
+            "export_end_date": export_end_date.isoformat(),
+            "is_editing": False,
+        },
+    )
+
+
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_update(request, pk):
+    if not user_is_admin_role(request.user):
+        return _sales_deposit_admin_redirect(request)
+
+    withdrawal = get_object_or_404(OwnerWithdrawal.objects.select_related("recorded_by"), pk=pk)
+    form = OwnerWithdrawalForm(request.POST or None, instance=withdrawal)
+    if request.method == "POST" and form.is_valid():
+        updated_withdrawal = form.save(commit=False)
+        if not updated_withdrawal.recorded_by_id:
+            updated_withdrawal.recorded_by = request.user
+        updated_withdrawal.save()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.UPDATE,
+            module="payments",
+            object_repr=f"Sales deposit {updated_withdrawal.pk}",
+            object_id=updated_withdrawal.pk,
+            details={
+                "event": "sales_deposit_updated",
+                "amount": str(updated_withdrawal.amount),
+                "collected_by": updated_withdrawal.collected_by,
+            },
+        )
+        messages.success(request, "Sales deposit updated successfully.")
+        return redirect("sales-deposits-center")
+
+    filtered = _sales_deposit_filtered_queryset(request)
+    export_start_date, export_end_date = _sales_deposit_export_range(request)
+    return render(
+        request,
+        "accounts/sales_deposits_center.html",
+        {
+            "form": form,
+            "form_title": "Edit withdrawal",
+            "editing_withdrawal": withdrawal,
+            "summary_cards": _sales_deposit_summary_cards(),
+            "withdrawals": filtered["withdrawals"],
+            "query": filtered["query"],
+            "start_date": filtered["start_date"],
+            "end_date": filtered["end_date"],
+            "can_manage_sales_deposits": True,
+            "can_export_sales_deposits": user_has_permission(request.user, "payments", "export"),
+            "export_url": (
+                f"{reverse('sales-deposits-export-xlsx')}?"
+                f"{_sales_deposit_export_querystring(export_start_date, export_end_date)}"
+            ),
+            "export_start_date": export_start_date.isoformat(),
+            "export_end_date": export_end_date.isoformat(),
+            "is_editing": True,
+        },
+    )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_delete(request, pk):
+    if not user_is_admin_role(request.user):
+        return _sales_deposit_admin_redirect(request)
+
+    withdrawal = get_object_or_404(OwnerWithdrawal, pk=pk)
+    withdrawal_id = withdrawal.pk
+    withdrawal_amount = withdrawal.amount
+    withdrawal.delete()
+    log_audit_event(
+        request=request,
+        user=request.user,
+        action=AuditLog.ActionType.DELETE,
+        module="payments",
+        object_repr=f"Sales deposit {withdrawal_id}",
+        object_id=withdrawal_id,
+        details={
+            "event": "sales_deposit_deleted",
+            "amount": str(withdrawal_amount),
+        },
+    )
+    messages.success(request, "Sales deposit deleted successfully.")
+    return redirect("sales-deposits-center")
+
+
+@group_required("Admin", "Receptionist", module="payments", action="export")
+def sales_deposits_export_xlsx(request):
+    workbook = _create_reports_workbook_or_none(request)
+    if workbook is None:
+        return redirect("sales-deposits-center")
+
+    start_date, end_date = _sales_deposit_export_range(request)
+    withdrawals = list(
+        owner_withdrawals_queryset(start_date, end_date)
+        .select_related("recorded_by")
+        .order_by("-created_at", "-pk")
+    )
+
+    sheet = workbook.active
+    sheet.title = "Withdrawals Log"
+    _write_owner_withdrawals_log_sheet(sheet, withdrawals, start_date, end_date)
+
+    summary_sheet = workbook.create_sheet(title="Financial Summary")
+    _write_owner_withdrawals_summary_sheet(summary_sheet, start_date, end_date)
+
+    log_audit_event(
+        request=request,
+        user=request.user,
+        action=AuditLog.ActionType.EXPORT,
+        module="payments",
+        object_repr="Sales deposits export",
+        details={
+            "event": "sales_deposit_exported",
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    )
+
+    return _xlsx_response(
+        workbook,
+        f"owner-withdrawals-report-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
+    )
 
 
 @group_required("Admin", "Receptionist", module="services")
@@ -2666,7 +2924,9 @@ def _build_revenue_analytics_section(filters):
     booking_total = revenue_breakdown["booking_revenue"]
     event_total = revenue_breakdown["event_revenue"]
     pos_total = revenue_breakdown["pos_sales"]
-    total_revenue = revenue_breakdown["total_revenue"]
+    total_revenue = revenue_breakdown["gross_revenue"]
+    owner_withdrawals_total = revenue_breakdown["owner_withdrawals"]
+    net_revenue_total = revenue_breakdown["net_revenue"]
 
     fully_paid_bookings = booking_stays.annotate(
         paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
@@ -2680,11 +2940,15 @@ def _build_revenue_analytics_section(filters):
     revenue_points = []
     room_type_rollup = defaultdict(Decimal)
     revenue_by_day = daily_total_revenue_map(start_date, end_date, room_type)
+    withdrawals_by_day = daily_owner_withdrawals_map(start_date, end_date)
+    net_revenue_by_day = daily_net_revenue_map(start_date, end_date, room_type)
     for current_day in _report_days(start_date, end_date):
         revenue_points.append(
             {
                 "date": current_day,
-                "revenue": revenue_by_day.get(current_day, Decimal("0")),
+                "gross_revenue": revenue_by_day.get(current_day, Decimal("0")),
+                "owner_withdrawals": withdrawals_by_day.get(current_day, Decimal("0")),
+                "net_revenue": net_revenue_by_day.get(current_day, Decimal("0")),
             }
         )
 
@@ -2701,7 +2965,7 @@ def _build_revenue_analytics_section(filters):
         filters["period"],
         start_date,
         end_date,
-        sum_fields=("revenue",),
+        sum_fields=("gross_revenue", "owner_withdrawals", "net_revenue"),
     )
 
     average_revenue_per_booking = round(
@@ -2726,14 +2990,18 @@ def _build_revenue_analytics_section(filters):
         "title": "Revenue Analytics",
         "sheet_title": "Revenue Analytics",
         "filename_prefix": "revenue-analytics",
-        "subtitle": "Revenue performance, room-type breakdowns, booking yield, POS sales, and payment completion for the selected period.",
+        "subtitle": "Gross revenue, owner withdrawals, net revenue, room-type performance, POS sales, and payment completion for the selected period.",
         "summary": {
             "total_revenue": total_revenue,
+            "net_revenue": net_revenue_total,
+            "owner_withdrawals": owner_withdrawals_total,
             "outstanding_total": outstanding_total,
             "fully_paid_count": fully_paid_count,
         },
         "metrics": [
-            {"label": "Total revenue", "value": _display_money(total_revenue), "export_value": float(total_revenue)},
+            {"label": "Gross revenue", "value": _display_money(total_revenue), "export_value": float(total_revenue)},
+            {"label": "Net revenue", "value": _display_money(net_revenue_total), "export_value": float(net_revenue_total)},
+            {"label": "Owner withdrawals", "value": _display_money(owner_withdrawals_total), "export_value": float(owner_withdrawals_total)},
             {"label": "Average revenue per booking", "value": _display_money(average_revenue_per_booking), "export_value": float(average_revenue_per_booking)},
             {"label": "Outstanding payments", "value": _display_money(outstanding_total), "export_value": float(outstanding_total)},
             {"label": "Fully paid bookings", "value": fully_paid_count, "export_value": fully_paid_count},
@@ -2742,10 +3010,13 @@ def _build_revenue_analytics_section(filters):
         "charts": [
             _analytics_chart(
                 "revenue-trend-chart",
-                "Revenue over time",
+                "Gross vs net revenue",
                 "line",
                 revenue_series["labels"],
-                [{"label": "Revenue", "data": revenue_series["values"]["revenue"], "borderColor": "#3D7DFF", "backgroundColor": "rgba(61,125,255,0.14)", "fill": True, "tension": 0.35}],
+                [
+                    {"label": "Gross Revenue", "data": revenue_series["values"]["gross_revenue"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.14)", "fill": True, "tension": 0.35},
+                    {"label": "Net Revenue", "data": revenue_series["values"]["net_revenue"], "borderColor": "#CFAE84", "backgroundColor": "rgba(207,174,132,0.08)", "fill": False, "tension": 0.35},
+                ],
             ),
             _analytics_chart(
                 "revenue-room-type-chart",
@@ -2775,6 +3046,9 @@ def _build_revenue_analytics_section(filters):
                 "title": "Revenue overview",
                 "headers": ["Metric", "Value"],
                 "rows": [
+                    ["Gross revenue", _display_money(total_revenue)],
+                    ["Owner withdrawals", _display_money(owner_withdrawals_total)],
+                    ["Net revenue", _display_money(net_revenue_total)],
                     ["Booking revenue", _display_money(booking_total)],
                     ["Event revenue", _display_money(event_total)],
                     ["POS sales", _display_money(pos_total)],
@@ -2783,6 +3057,9 @@ def _build_revenue_analytics_section(filters):
                     ["Revenue vs expenses", expense_note],
                 ],
                 "export_rows": [
+                    ["Gross revenue", float(total_revenue)],
+                    ["Owner withdrawals", float(owner_withdrawals_total)],
+                    ["Net revenue", float(net_revenue_total)],
                     ["Booking revenue", float(booking_total)],
                     ["Event revenue", float(event_total)],
                     ["POS sales", float(pos_total)],
@@ -2790,8 +3067,8 @@ def _build_revenue_analytics_section(filters):
                     ["Outstanding balances", float(outstanding_total)],
                     ["Revenue vs expenses", expense_note],
                 ],
-                "summary_row": ["TOTALS", _display_money(total_revenue)],
-                "export_summary_row": ["TOTALS", float(total_revenue)],
+                "summary_row": ["TOTALS", _display_money(net_revenue_total)],
+                "export_summary_row": ["TOTALS", float(net_revenue_total)],
             },
         ],
     }
@@ -4222,6 +4499,108 @@ def _write_report_overview_sheet(worksheet, sections, display_range):
     for column in worksheet.columns:
         for cell in column:
             cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+
+def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_date):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet["A1"] = "Sales Deposits Withdrawal Log"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+    worksheet.append([])
+    worksheet.append(["Date", "Amount", "Reason", "Recorded By", "Collected By"])
+
+    for cell in worksheet[4]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    total_amount = Decimal("0.00")
+    for withdrawal in withdrawals:
+        total_amount += Decimal(str(withdrawal.amount or 0))
+        worksheet.append(
+            [
+                timezone.localtime(withdrawal.created_at).strftime("%d/%m/%Y %H:%M"),
+                float(withdrawal.amount or 0),
+                withdrawal.reason or "-",
+                withdrawal.recorded_by_name,
+                withdrawal.collected_by,
+            ]
+        )
+
+    worksheet.append(["TOTALS", float(total_amount), f"{len(withdrawals)} entries", "", ""])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 30)
+
+
+def _write_owner_withdrawals_summary_sheet(worksheet, start_date, end_date):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet["A1"] = "Financial Summary"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+    worksheet.append([])
+    worksheet.append(["Period", "Gross Revenue", "Total Withdrawals", "Net Revenue"])
+
+    for cell in worksheet[4]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    gross_map = daily_total_revenue_map(start_date, end_date)
+    withdrawals_map = daily_owner_withdrawals_map(start_date, end_date)
+    net_map = daily_net_revenue_map(start_date, end_date)
+    gross_total = Decimal("0.00")
+    withdrawals_total = Decimal("0.00")
+    net_total = Decimal("0.00")
+
+    for current_day in _report_days(start_date, end_date):
+        gross_value = Decimal(str(gross_map.get(current_day, Decimal("0")) or 0))
+        withdrawal_value = Decimal(str(withdrawals_map.get(current_day, Decimal("0")) or 0))
+        net_value = Decimal(str(net_map.get(current_day, Decimal("0")) or 0))
+        gross_total += gross_value
+        withdrawals_total += withdrawal_value
+        net_total += net_value
+        worksheet.append(
+            [
+                current_day.strftime("%d/%m/%Y"),
+                float(gross_value),
+                float(withdrawal_value),
+                float(net_value),
+            ]
+        )
+
+    worksheet.append(["TOTALS", float(gross_total), float(withdrawals_total), float(net_total)])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 28)
 
 
 def _xlsx_response(workbook, filename):

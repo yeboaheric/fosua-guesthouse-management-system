@@ -3,10 +3,11 @@ import json
 import shutil
 import tempfile
 from datetime import timedelta
+from unittest.mock import patch
 
 from axes.helpers import get_cool_off
 from accounts.forms import LeaveRequestForm, StaffUserForm
-from accounts.models import AuditLog, AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
+from accounts.models import AuditLog, AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, OwnerWithdrawal, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
@@ -272,7 +273,7 @@ class DashboardRoutingTests(TestCase):
             last_name="Yeboah",
             phone_number="0245555555",
         )
-        now = timezone.localtime()
+        now = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
         check_in_time = (now + timedelta(minutes=30)).time().replace(second=0, microsecond=0)
         Booking.objects.create(
             guest=guest,
@@ -284,7 +285,8 @@ class DashboardRoutingTests(TestCase):
             created_by=user,
         )
         self.client.force_login(user)
-        response = self.client.get(reverse("notifications-center"))
+        with patch("accounts.views.timezone.localtime", return_value=now):
+            response = self.client.get(reverse("notifications-center"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Upcoming check-in")
         self.assertEqual(Notification.objects.filter(user=user).count(), 1)
@@ -308,6 +310,149 @@ class DashboardRoutingTests(TestCase):
 
         operations_response = self.client.get(reverse("operations-overview"))
         self.assertEqual(operations_response.status_code, 200)
+
+
+class SalesDepositsModuleTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.reception_group = Group.objects.create(name="Receptionist")
+        self.admin_user = User.objects.create_user(
+            username="finance-admin",
+            password="pass123456",
+            first_name="Ama",
+            last_name="Owusu",
+        )
+        self.admin_user.groups.add(self.admin_group)
+
+        self.reception_user = User.objects.create_user(
+            username="frontdesk",
+            password="pass123456",
+            first_name="Kojo",
+            last_name="Mensah",
+        )
+        self.reception_user.groups.add(self.reception_group)
+
+        self.room = Room.objects.create(
+            room_number="201",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=150,
+        )
+        self.guest = Guest.objects.create(
+            first_name="Yaa",
+            last_name="Boateng",
+            phone_number="0245551111",
+        )
+        Booking.objects.create(
+            guest=self.guest,
+            room=self.room,
+            check_in=timezone.localdate(),
+            check_out=timezone.localdate() + timedelta(days=1),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.admin_user,
+        )
+        Sale.objects.create(
+            cashier=self.admin_user,
+            customer_name="Walk in",
+            payment_method=Sale.PaymentMethod.CASH,
+            subtotal="30.00",
+            grand_total="30.00",
+            amount_paid="30.00",
+        )
+
+    def test_payments_access_user_can_open_page_and_log_sales_deposit(self):
+        self.client.force_login(self.reception_user)
+        response = self.client.post(
+            reverse("sales-deposits-center"),
+            {
+                "created_at": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
+                "amount": "45.00",
+                "reason": "Bank deposit",
+                "collected_by": "Owner",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sales deposit logged successfully.")
+        withdrawal = OwnerWithdrawal.objects.get()
+        self.assertEqual(str(withdrawal.amount), "45.00")
+        self.assertEqual(withdrawal.recorded_by, self.reception_user)
+        self.assertEqual(withdrawal.collected_by, "Owner")
+
+    def test_non_admin_cannot_edit_or_delete_sales_deposits(self):
+        withdrawal = OwnerWithdrawal.objects.create(
+            amount="60.00",
+            reason="Supplier payment",
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+        )
+        self.client.force_login(self.reception_user)
+
+        response = self.client.get(reverse("sales-deposit-update", args=[withdrawal.pk]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Access Denied")
+
+        delete_response = self.client.post(reverse("sales-deposit-delete", args=[withdrawal.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertContains(delete_response, "Access Denied")
+        self.assertTrue(OwnerWithdrawal.objects.filter(pk=withdrawal.pk).exists())
+
+    def test_admin_can_export_sales_deposits_with_financial_summary(self):
+        now = timezone.localtime(timezone.now()).replace(hour=10, minute=0, second=0, microsecond=0)
+        OwnerWithdrawal.objects.create(
+            amount="40.00",
+            reason="Bank deposit",
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+            created_at=now,
+        )
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(
+            reverse("sales-deposits-export-xlsx"),
+            {
+                "start_date": timezone.localdate().isoformat(),
+                "end_date": timezone.localdate().isoformat(),
+            },
+        )
+
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertEqual(workbook.sheetnames, ["Withdrawals Log", "Financial Summary"])
+        log_sheet = workbook["Withdrawals Log"]
+        summary_sheet = workbook["Financial Summary"]
+        self.assertEqual(log_sheet["A4"].value, "Date")
+        self.assertEqual(summary_sheet["A4"].value, "Period")
+        self.assertEqual(summary_sheet["B5"].value, 180)
+        self.assertEqual(summary_sheet["C5"].value, 40)
+        self.assertEqual(summary_sheet["D5"].value, 140)
+
+    def test_revenue_analytics_shows_gross_and_net_revenue(self):
+        OwnerWithdrawal.objects.create(
+            amount="50.00",
+            reason="Personal",
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+        )
+        self.client.force_login(self.admin_user)
+
+        response = self.client.get(
+            reverse("analytics-center"),
+            {
+                "period": "daily",
+                "start_date": timezone.localdate().isoformat(),
+                "end_date": timezone.localdate().isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Gross revenue")
+        self.assertContains(response, "Net revenue")
+        self.assertContains(response, "Owner withdrawals")
 
 
 class UsersRolesPermissionPropagationTests(TestCase):

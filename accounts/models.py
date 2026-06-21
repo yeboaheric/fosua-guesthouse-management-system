@@ -733,6 +733,37 @@ class UserAccessProfile(models.Model):
         return user_has_permission(self.user, module_name, action)
 
 
+class OwnerWithdrawal(models.Model):
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    reason = models.CharField(max_length=255, blank=True)
+    collected_by = models.CharField(max_length=160)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owner_withdrawals_recorded",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Owner withdrawal {self.amount} on {timezone.localtime(self.created_at):%d/%m/%Y %H:%M}"
+
+    @property
+    def recorded_by_name(self):
+        if not self.recorded_by:
+            return "-"
+        full_name = self.recorded_by.get_full_name().strip()
+        return full_name or self.recorded_by.username
+
+
 class StaffProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

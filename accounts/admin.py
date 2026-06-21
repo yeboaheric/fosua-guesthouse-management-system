@@ -9,6 +9,7 @@ from accounts.models import (
     EmploymentHistoryEntry,
     LeaveRequest,
     Notification,
+    OwnerWithdrawal,
     PayrollRecord,
     PerformanceReview,
     Rota,
@@ -118,6 +119,13 @@ class NotificationAdmin(admin.ModelAdmin):
     list_display = ["title", "user", "level", "read_at", "created_at"]
     search_fields = ["title", "message"]
     list_filter = ["level", "read_at", "created_at"]
+
+
+@admin.register(OwnerWithdrawal)
+class OwnerWithdrawalAdmin(admin.ModelAdmin):
+    list_display = ["created_at", "amount", "collected_by", "recorded_by"]
+    search_fields = ["reason", "collected_by", "recorded_by__username", "recorded_by__first_name", "recorded_by__last_name"]
+    list_filter = ["created_at"]
 
 
 @admin.register(MaintenanceRequest)

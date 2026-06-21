@@ -5,6 +5,7 @@ from django.contrib.auth.models import Group, User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from django.utils import timezone
 
 from accounts.models import (
     AttendanceRecord,
@@ -14,6 +15,7 @@ from accounts.models import (
     EmployeeQualification,
     EmploymentHistoryEntry,
     LeaveRequest,
+    OwnerWithdrawal,
     PayrollRecord,
     PerformanceReview,
     Rota,
@@ -268,6 +270,58 @@ class EmployeeDocumentForm(forms.ModelForm):
             "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"rows": 3, "class": "form-control"}),
         }
+
+
+class OwnerWithdrawalForm(forms.ModelForm):
+    class Meta:
+        model = OwnerWithdrawal
+        fields = [
+            "created_at",
+            "amount",
+            "reason",
+            "collected_by",
+        ]
+        widgets = {
+            "created_at": forms.DateTimeInput(
+                attrs={"type": "datetime-local", "class": "form-control"}
+            ),
+            "amount": forms.NumberInput(
+                attrs={"class": "form-control", "step": "0.01", "min": "0.01"}
+            ),
+            "reason": forms.TextInput(attrs={"class": "form-control"}),
+            "collected_by": forms.TextInput(attrs={"class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        created_at_value = None
+        if self.instance and self.instance.pk and self.instance.created_at:
+            created_at_value = timezone.localtime(self.instance.created_at)
+        elif not self.is_bound:
+            created_at_value = timezone.localtime(timezone.now())
+        if created_at_value is not None:
+            self.initial["created_at"] = created_at_value.strftime("%Y-%m-%dT%H:%M")
+
+    def clean_created_at(self):
+        value = self.cleaned_data["created_at"]
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone.get_current_timezone())
+        return value
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        if amount <= 0:
+            raise ValidationError("Amount withdrawn must be greater than zero.")
+        return amount
+
+    def clean_collected_by(self):
+        value = self.cleaned_data.get("collected_by", "").strip()
+        if not value:
+            raise ValidationError("Collected by is required.")
+        return value
+
+    def clean_reason(self):
+        return self.cleaned_data.get("reason", "").strip()
 
 
 class LeaveRequestForm(forms.ModelForm):

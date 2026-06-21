@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Finance control</div>
+        <h1 class="module-title">Sales Deposits</h1>
+        <div class="module-subcopy">Track owner cash collections separately from guest payments and keep a clean gross-versus-net trail.</div>
+      </div>
+      <div class="module-action-row">
+        {% if can_export_sales_deposits %}
+          <a class="topbar-pill" href="{{ export_url }}">
+            <i data-lucide="download"></i>
+            Export
+          </a>
+        {% endif %}
+        {% if is_editing %}
+          <a class="topbar-pill" href="{% url 'sales-deposits-center' %}">
+            <i data-lucide="arrow-left"></i>
+            Back to log
+          </a>
+        {% endif %}
+      </div>
+    </section>
+
+    <div class="row g-3 mb-3">
+      {% for card in summary_cards %}
+        <div class="col-sm-6 col-xl-3">
+          <div class="module-card h-100">
+            <div class="module-card-body">
+              <div class="text-muted small">{{ card.label }}</div>
+              <div class="metric-value mt-2">{{ card.value }}</div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-4">
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">{{ form_title }}</h2>
+              <div class="module-card-copy">Record each owner collection as its own financial entry.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <form method="post" novalidate>
+              {% csrf_token %}
+              <div class="mb-3">
+                <label class="form-label" for="{{ form.created_at.id_for_label }}">Date & time</label>
+                {{ form.created_at }}
+                {% for error in form.created_at.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="{{ form.amount.id_for_label }}">Amount withdrawn</label>
+                {{ form.amount }}
+                {% for error in form.amount.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="{{ form.reason.id_for_label }}">Reason / purpose</label>
+                {{ form.reason }}
+                {% for error in form.reason.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="{{ form.collected_by.id_for_label }}">Collected by</label>
+                {{ form.collected_by }}
+                {% for error in form.collected_by.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Recorded by</label>
+                <input class="form-control" type="text" value="{{ user.get_full_name|default:user.username }}" readonly>
+              </div>
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger py-2">
+                  {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+              <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary" type="submit">{% if is_editing %}Update withdrawal{% else %}Save withdrawal{% endif %}</button>
+                {% if is_editing %}
+                  <a class="btn btn-outline-secondary" href="{% url 'sales-deposits-center' %}">Cancel</a>
+                {% endif %}
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-8">
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Withdrawal log</h2>
+              <div class="module-card-copy">Most recent collections appear first. Use search and dates to narrow the list before exporting.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <form method="get" class="row g-3 align-items-end mb-3">
+              <div class="col-lg-4">
+                <label class="form-label" for="q">Search</label>
+                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Reason, collector, recorder">
+              </div>
+              <div class="col-lg-3">
+                <label class="form-label" for="start_date">Start date</label>
+                <input class="form-control" type="date" name="start_date" id="start_date" value="{{ start_date }}">
+              </div>
+              <div class="col-lg-3">
+                <label class="form-label" for="end_date">End date</label>
+                <input class="form-control" type="date" name="end_date" id="end_date" value="{{ end_date }}">
+              </div>
+              <div class="col-lg-2 d-grid">
+                <button class="btn btn-outline-primary" type="submit">Filter</button>
+              </div>
+              <div class="col-lg-2 d-grid">
+                <a class="btn btn-outline-secondary" href="{% url 'sales-deposits-center' %}">Reset</a>
+              </div>
+              {% if can_export_sales_deposits %}
+                <div class="col-lg-4 d-grid">
+                  <a class="btn btn-outline-success" href="{{ export_url }}">Export selected range</a>
+                </div>
+              {% endif %}
+            </form>
+          </div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Amount</th>
+                      <th>Reason</th>
+                      <th>Recorded By</th>
+                      <th>Collected By</th>
+                      {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for withdrawal in withdrawals %}
+                      <tr>
+                        <td>{{ withdrawal.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>GHS {{ withdrawal.amount }}</td>
+                        <td>{{ withdrawal.reason|default:"-" }}</td>
+                        <td>{{ withdrawal.recorded_by_name }}</td>
+                        <td>{{ withdrawal.collected_by }}</td>
+                        {% if can_manage_sales_deposits %}
+                          <td>
+                            <div class="module-table-actions">
+                              <a class="status-pill warning" href="{% url 'sales-deposit-update' withdrawal.pk %}?q={{ query|urlencode }}&start_date={{ start_date }}&end_date={{ end_date }}">Edit</a>
+                              <form method="post" action="{% url 'sales-deposit-delete' withdrawal.pk %}" data-confirm="Are you sure you want to delete this sales deposit? This action cannot be undone.">
+                                {% csrf_token %}
+                                <button class="status-pill danger" type="submit">Delete</button>
+                              </form>
+                            </div>
+                          </td>
+                        {% endif %}
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="{% if can_manage_sales_deposits %}6{% else %}5{% endif %}" class="text-muted">No sales deposits logged for the selected filter.</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

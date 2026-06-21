@@ -74,6 +74,7 @@
             {% if user|can_access_module:'rooms' %}<a class="sidebar-link {{ request|nav_active:'room-list room-create room-update room-availability' }}" href="{% url 'room-list' %}"><i data-lucide="bed-double"></i><span>Rooms</span></a>{% endif %}
             {% if user|can_access_module:'guests' %}<a class="sidebar-link {{ request|nav_active:'guest-list guest-create guest-update' }}" href="{% url 'guest-list' %}"><i data-lucide="users"></i><span>Guests</span></a>{% endif %}
             {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
+            {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'sales-deposits-center sales-deposit-update' }}" href="{% url 'sales-deposits-center' %}"><i data-lucide="wallet"></i><span>Sales Deposits</span></a>{% endif %}
             {% if user|can_access_module:'services' %}<a class="sidebar-link {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}" href="{% url 'services-center' %}"><i data-lucide="concierge-bell"></i><span>Services</span></a>{% endif %}
             {% if user|can_access_module:'housekeeping' %}<a class="sidebar-link {{ request|nav_active:'housekeeping-dashboard housekeeping-center housekeeping-log-edit housekeeping-report-export' }}" href="{% url 'housekeeping-dashboard' %}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>{% endif %}
             {% if user|can_access_module:'dashboard' %}<a class="sidebar-link {{ request|nav_active:'operations-overview' }}" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i><span>Operations Overview</span></a>{% endif %}
@@ -123,6 +124,7 @@
               {% if user|can_access_module:'rooms' %}<a class="sidebar-link {{ request|nav_active:'room-list room-create room-update room-availability' }}" href="{% url 'room-list' %}"><i data-lucide="bed-double"></i><span>Rooms</span></a>{% endif %}
               {% if user|can_access_module:'guests' %}<a class="sidebar-link {{ request|nav_active:'guest-list guest-create guest-update' }}" href="{% url 'guest-list' %}"><i data-lucide="users"></i><span>Guests</span></a>{% endif %}
               {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
+              {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'sales-deposits-center sales-deposit-update' }}" href="{% url 'sales-deposits-center' %}"><i data-lucide="wallet"></i><span>Sales Deposits</span></a>{% endif %}
               {% if user|can_access_module:'services' %}<a class="sidebar-link {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}" href="{% url 'services-center' %}"><i data-lucide="concierge-bell"></i><span>Services</span></a>{% endif %}
               {% if user|can_access_module:'housekeeping' %}<a class="sidebar-link {{ request|nav_active:'housekeeping-dashboard housekeeping-center housekeeping-log-edit housekeeping-report-export' }}" href="{% url 'housekeeping-dashboard' %}"><i data-lucide="sparkles"></i><span>Housekeeping</span></a>{% endif %}
               {% if user|can_access_module:'dashboard' %}<a class="sidebar-link {{ request|nav_active:'operations-overview' }}" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i><span>Operations Overview</span></a>{% endif %}
@@ -225,6 +227,9 @@
             {% endif %}
             {% if user|can_access_module:'payments' %}
               <a href="{% url 'payments-center' %}" class="mobile-bottom-item {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}"><i data-lucide="credit-card"></i><span>Payments</span></a>
+            {% endif %}
+            {% if user|can_access_module:'payments' %}
+              <a href="{% url 'sales-deposits-center' %}" class="mobile-bottom-item {{ request|nav_active:'sales-deposits-center sales-deposit-update' }}"><i data-lucide="wallet"></i><span>Deposits</span></a>
             {% endif %}
             {% if user|can_access_module:'services' %}
               <a href="{% url 'services-center' %}" class="mobile-bottom-item {{ request|nav_active:'services-center event-booking-list event-booking-create event-booking-update event-booking-payments' }}"><i data-lucide="concierge-bell"></i><span>Services</span></a>

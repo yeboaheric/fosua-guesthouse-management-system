@@ -59,6 +59,18 @@ ZERO_UNITS = Value(Decimal("0.000"), output_field=DecimalField(max_digits=12, de
 logger = logging.getLogger(__name__)
 
 
+def _inventory_xlsx_response(workbook, filename):
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 def _user_can_edit_sale(user):
     return user_is_admin_role(user)
 
@@ -260,6 +272,37 @@ def item_list(request):
     elif stock_status == "in":
         items = items.filter(quantity_in_stock__gt=F("minimum_stock_threshold"))
 
+    if request.GET.get("export") == "stock_xlsx":
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Stock List"
+        worksheet.append(["Item Name", "Quantity in Stock"])
+        for cell in worksheet[1]:
+            cell.font = Font(bold=True)
+        for item in items:
+            quantity = Decimal(item.quantity_in_stock or 0)
+            worksheet.append(
+                [
+                    item.name,
+                    int(quantity) if quantity == quantity.to_integral_value() else float(quantity),
+                ]
+            )
+        worksheet.column_dimensions["A"].width = 36
+        worksheet.column_dimensions["B"].width = 18
+        for row in worksheet.iter_rows(min_row=2, min_col=2, max_col=2):
+            for cell in row:
+                cell.number_format = "0.###"
+        return _inventory_xlsx_response(
+            workbook,
+            f"inventory-stock-list-{timezone.localdate().strftime('%d-%m-%Y')}.xlsx",
+        )
+
+    export_params = request.GET.copy()
+    export_params["export"] = "stock_xlsx"
+
     context = {
         "items": items,
         "query": query,
@@ -272,6 +315,7 @@ def item_list(request):
         "selected_stock": stock_status,
         "low_stock_count": items.filter(quantity_in_stock__lte=F("minimum_stock_threshold")).count(),
         "out_of_stock_count": items.filter(quantity_in_stock__lte=0).count(),
+        "stock_export_query": export_params.urlencode(),
     }
     return render(request, "inventory/item_list.html", context)
 

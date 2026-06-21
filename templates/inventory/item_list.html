@@ -12,6 +12,7 @@
       </div>
       <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-item-create' %}"><i data-lucide="plus"></i> New item</a>
+        <a class="topbar-pill" href="?{{ stock_export_query }}"><i data-lucide="download"></i> Export Stock List</a>
         <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS</a>
       </div>
     </section>

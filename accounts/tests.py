@@ -575,6 +575,34 @@ class AdminReportExportTests(TestCase):
         self.assertEqual(workbook["Overview"]["A1"].value, "Full System Report")
         self.assertEqual(workbook["Housekeeping"]["A1"].value, "Housekeeping")
 
+    def test_same_day_booking_is_counted_in_rooms_report_occupancy(self):
+        same_day_room = Room.objects.create(
+            room_number="302",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=150,
+        )
+        Booking.objects.create(
+            guest=self.guest,
+            room=same_day_room,
+            check_in=self.today,
+            check_in_time=time(8, 0),
+            check_out=self.today,
+            check_out_time=time(17, 0),
+            status=Booking.BookingStatus.CHECKED_OUT,
+            created_by=self.admin_user,
+        )
+
+        response = self.client.get(
+            reverse("admin-reports"),
+            {"start_date": self.start_date.isoformat(), "end_date": self.end_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        rooms_section = next(section for section in response.context["sections"] if section["key"] == "rooms")
+        daily_occupancy_table = next(table for table in rooms_section["tables"] if table["title"] == "Daily occupancy")
+        today_row = next(row for row in daily_occupancy_table["export_rows"] if row[0] == self.today)
+        self.assertEqual(today_row[1], 2)
+
 
 class AnalyticsCenterTests(TestCase):
     def setUp(self):

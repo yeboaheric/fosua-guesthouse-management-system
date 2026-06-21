@@ -32,12 +32,30 @@ class BookingValidationTests(TestCase):
             room=self.room,
             check_in=date(2026, 6, 15),
             check_out=date(2026, 6, 15),
+            check_in_time=time(14, 0),
+            check_out_time=time(11, 0),
             status=Booking.BookingStatus.CONFIRMED,
             created_by=self.user,
         )
 
         with self.assertRaises(ValidationError):
             booking.save()
+
+    def test_same_day_booking_is_allowed_when_checkout_time_is_after_checkin_time(self):
+        booking = Booking.objects.create(
+            guest=self.guest,
+            room=self.room,
+            check_in=date(2026, 6, 15),
+            check_in_time=time(10, 0),
+            check_out=date(2026, 6, 15),
+            check_out_time=time(18, 0),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.user,
+        )
+
+        self.assertIsNotNone(booking.pk)
+        self.assertEqual(booking.nights, 1)
+        self.assertEqual(booking.total_amount, self.room.base_rate)
 
     def test_overlapping_booking_for_same_room_is_blocked(self):
         Booking.objects.create(
@@ -170,6 +188,36 @@ class BookingWorkflowTests(TestCase):
         self.assertEqual(self.room.status, Room.RoomStatus.AVAILABLE)
         self.assertGreater(self.room.status_started_at, original_started)
         self.assertGreater(self.room.last_status_changed_at, original_changed)
+
+    def test_same_day_booking_can_check_in_and_check_out_on_same_date(self):
+        same_day_room = Room.objects.create(
+            room_number="203",
+            room_type=Room.RoomType.DELUXE,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=210,
+        )
+        same_day_booking = Booking.objects.create(
+            guest=self.other_guest,
+            room=same_day_room,
+            check_in=date(2026, 7, 2),
+            check_in_time=time(9, 0),
+            check_out=date(2026, 7, 2),
+            check_out_time=time(17, 0),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.user,
+        )
+        self.client.force_login(self.user)
+
+        check_in_response = self.client.post(reverse("booking-check-in", args=[same_day_booking.pk]))
+        self.assertRedirects(check_in_response, reverse("booking-list"))
+
+        check_out_response = self.client.post(reverse("booking-check-out", args=[same_day_booking.pk]))
+        self.assertRedirects(check_out_response, reverse("booking-list"))
+
+        same_day_booking.refresh_from_db()
+        same_day_room.refresh_from_db()
+        self.assertEqual(same_day_booking.status, Booking.BookingStatus.CHECKED_OUT)
+        self.assertEqual(same_day_room.status, Room.RoomStatus.AVAILABLE)
 
     def test_record_payment_updates_booking_balance(self):
         self.client.force_login(self.user)

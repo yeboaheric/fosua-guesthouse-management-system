@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from accounts.decorators import group_required
 from accounts.permissions import user_has_permission
-from bookings.models import Booking
+from bookings.models import Booking, booking_occupies_day
 from rooms.forms import HousekeepingItemForm, HousekeepingItemLogForm, RoomForm
 from rooms.models import HousekeepingItem, HousekeepingItemLog, Room
 
@@ -117,8 +117,8 @@ def room_availability(request):
         try:
             check_in_date = datetime.fromisoformat(check_in).date()
             check_out_date = datetime.fromisoformat(check_out).date()
-            if check_out_date <= check_in_date:
-                messages.error(request, "Check-out must be after check-in.")
+            if check_out_date < check_in_date:
+                messages.error(request, "Check-out must be on or after check-in.")
                 return render(
                     request,
                     "rooms/availability.html",
@@ -145,11 +145,23 @@ def room_availability(request):
             Booking.BookingStatus.CONFIRMED,
             Booking.BookingStatus.CHECKED_IN,
         ]
-        unavailable_room_ids = Booking.objects.filter(
+        candidate_bookings = Booking.objects.filter(
             status__in=active_statuses,
-            check_in__lt=check_out_date,
-            check_out__gt=check_in_date,
-        ).values_list("room_id", flat=True)
+            check_in__lte=check_out_date,
+            check_out__gte=check_in_date,
+        ).values("room_id", "check_in", "check_out")
+        requested_days = [
+            check_in_date + timedelta(days=offset)
+            for offset in range((check_out_date - check_in_date).days + 1)
+        ]
+        unavailable_room_ids = {
+            booking["room_id"]
+            for booking in candidate_bookings
+            if any(
+                booking_occupies_day(booking["check_in"], booking["check_out"], current_day)
+                for current_day in requested_days
+            )
+        }
 
         available_rooms = Room.objects.filter(status=Room.RoomStatus.AVAILABLE).exclude(
             id__in=unavailable_room_ids

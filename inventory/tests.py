@@ -1,9 +1,11 @@
 import json
 from datetime import date
+from io import BytesIO
 
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
+from openpyxl import load_workbook
 
 from accounts.models import UserAccessProfile
 from inventory.models import (
@@ -206,6 +208,23 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
         self.assertIn(sale.receipt_number, response["Content-Disposition"])
+
+    def test_item_list_stock_export_returns_item_name_and_stock_xlsx(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("inventory-items"), {"export": "stock_xlsx"})
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("inventory-stock-list-", response["Content-Disposition"])
+
+        workbook = load_workbook(BytesIO(response.content))
+        worksheet = workbook.active
+        self.assertEqual(worksheet.title, "Stock List")
+        self.assertEqual(worksheet["A1"].value, "Item Name")
+        self.assertEqual(worksheet["B1"].value, "Quantity in Stock")
+        self.assertEqual(worksheet["A2"].value, "Mango Juice")
+        self.assertEqual(worksheet["B2"].value, 10)
 
     def test_admin_can_open_and_save_pos_sale_edit(self):
         sale = Sale.objects.create(

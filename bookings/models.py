@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -67,11 +67,11 @@ class Booking(StatusTrackingMixin, models.Model):
 
     @property
     def nights(self):
-        return (self.check_out - self.check_in).days
+        return max((self.check_out - self.check_in).days, 1)
 
     def clean(self):
-        if self.check_out <= self.check_in:
-            raise ValidationError("Check-out date must be after check-in date.")
+        if self.check_out_at <= self.check_in_at:
+            raise ValidationError("Check-out must be after check-in time.")
 
         if not self.room_id:
             return
@@ -84,10 +84,20 @@ class Booking(StatusTrackingMixin, models.Model):
         overlapping_bookings = (
             Booking.objects.filter(room=self.room, status__in=active_statuses)
             .exclude(pk=self.pk)
-            .filter(check_in__lt=self.check_out, check_out__gt=self.check_in)
+            .filter(check_in__lte=self.check_out, check_out__gte=self.check_in)
         )
-        if overlapping_bookings.exists():
-            raise ValidationError("This room is already booked for the selected dates.")
+        for existing_booking in overlapping_bookings:
+            if booking_ranges_overlap(
+                self.check_in,
+                self.check_in_time,
+                self.check_out,
+                self.check_out_time,
+                existing_booking.check_in,
+                existing_booking.check_in_time,
+                existing_booking.check_out,
+                existing_booking.check_out_time,
+            ):
+                raise ValidationError("This room is already booked for the selected dates.")
 
     def save(self, *args, **kwargs):
         if self.room_id and self.check_in and self.check_out:
@@ -104,6 +114,39 @@ class Booking(StatusTrackingMixin, models.Model):
     @property
     def balance_due(self):
         return max(self.total_amount - self.amount_paid, 0)
+
+
+def booking_ranges_overlap(
+    first_check_in,
+    first_check_in_time,
+    first_check_out,
+    first_check_out_time,
+    second_check_in,
+    second_check_in_time,
+    second_check_out,
+    second_check_out_time,
+):
+    first_start = datetime.combine(first_check_in, first_check_in_time)
+    first_end = datetime.combine(first_check_out, first_check_out_time)
+    second_start = datetime.combine(second_check_in, second_check_in_time)
+    second_end = datetime.combine(second_check_out, second_check_out_time)
+    return first_start < second_end and first_end > second_start
+
+
+def booking_occupied_end_date(check_in, check_out):
+    return check_out if check_in == check_out else check_out - timedelta(days=1)
+
+
+def booking_occupies_day(check_in, check_out, current_day):
+    return check_in <= current_day <= booking_occupied_end_date(check_in, check_out)
+
+
+def booking_occupied_days_in_range(check_in, check_out, start_date, end_date):
+    overlap_start = max(check_in, start_date)
+    overlap_end = min(booking_occupied_end_date(check_in, check_out), end_date)
+    if overlap_end < overlap_start:
+        return 0
+    return (overlap_end - overlap_start).days + 1
 
 
 class Payment(models.Model):

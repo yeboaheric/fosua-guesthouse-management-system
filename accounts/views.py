@@ -83,8 +83,14 @@ from accounts.reporting import (
     report_window_for_period as shared_report_window_for_period,
     revenue_components,
 )
-from bookings.models import Booking, EventBooking, Payment
-from bookings.models import EventPayment
+from bookings.models import (
+    Booking,
+    EventBooking,
+    EventPayment,
+    Payment,
+    booking_occupied_days_in_range,
+    booking_occupies_day,
+)
 from guests.models import Guest
 from inventory.models import InventoryItem, Sale
 from rooms.models import HousekeepingItem, HousekeepingItemLog, MaintenanceRequest, Room
@@ -2272,7 +2278,7 @@ def _analytics_booking_creation_queryset(start_date, end_date, room_type=""):
 def _analytics_booking_stay_queryset(start_date, end_date, room_type=""):
     queryset = Booking.objects.select_related("guest", "room").filter(
         check_in__lte=end_date,
-        check_out__gt=start_date,
+        check_out__gte=start_date,
     )
     if room_type:
         queryset = queryset.filter(room__room_type=room_type)
@@ -2343,13 +2349,16 @@ def _analytics_daily_occupancy_rows(start_date, end_date, room_type=""):
             room_id__in=room_ids,
             status__in=active_statuses,
             check_in__lte=end_date,
-            check_out__gt=start_date,
+            check_out__gte=start_date,
         ).values("room_id", "check_in", "check_out")
     ) if room_ids else []
     occupied_sets = {current_day: set() for current_day in _report_days(start_date, end_date)}
     for booking in bookings:
         overlap_start = max(booking["check_in"], start_date)
-        overlap_end = min(booking["check_out"] - timedelta(days=1), end_date)
+        overlap_end = min(
+            end_date,
+            booking["check_out"] if booking["check_in"] == booking["check_out"] else booking["check_out"] - timedelta(days=1),
+        )
         current_day = overlap_start
         while current_day <= overlap_end:
             occupied_sets[current_day].add(booking["room_id"])
@@ -2401,9 +2410,12 @@ def _build_rooms_analytics_section(filters):
     room_type_booking_rollup = defaultdict(int)
     total_nights = 0
     for booking in bookings:
-        overlap_start = max(booking.check_in, start_date)
-        overlap_end = min(booking.check_out, end_date + timedelta(days=1))
-        stay_nights = max((overlap_end - overlap_start).days, 0)
+        stay_nights = booking_occupied_days_in_range(
+            booking.check_in,
+            booking.check_out,
+            start_date,
+            end_date,
+        )
         total_nights += stay_nights
         room_type_booking_rollup[booking.room.get_room_type_display()] += 1
 
@@ -3932,7 +3944,7 @@ def _build_roster_report_section(start_date, end_date):
 def _build_rooms_report_section(start_date, end_date, total_rooms):
     bookings = list(
         Booking.objects.select_related("room")
-        .filter(check_in__lte=end_date, check_out__gt=start_date)
+        .filter(check_in__lte=end_date, check_out__gte=start_date)
         .order_by("room__room_number", "check_in")
     )
     daily_rows = _daily_report_rows(start_date, end_date, total_rooms)
@@ -3943,9 +3955,12 @@ def _build_rooms_report_section(start_date, end_date, total_rooms):
 
     room_booking_rollup = {}
     for booking in bookings:
-        overlap_start = max(booking.check_in, start_date)
-        overlap_end_exclusive = min(booking.check_out, end_date + timedelta(days=1))
-        booked_nights = max((overlap_end_exclusive - overlap_start).days, 0)
+        booked_nights = booking_occupied_days_in_range(
+            booking.check_in,
+            booking.check_out,
+            start_date,
+            end_date,
+        )
         room_key = booking.room_id
         if room_key not in room_booking_rollup:
             room_booking_rollup[room_key] = {
@@ -4320,7 +4335,7 @@ def _daily_report_rows(start_date, end_date, total_rooms):
             Booking.BookingStatus.CHECKED_OUT,
         ],
         check_in__lte=end_date,
-        check_out__gt=start_date,
+        check_out__gte=start_date,
     ).values("room_id", "check_in", "check_out")
 
     revenue_by_day = daily_booking_revenue_map(start_date, end_date)
@@ -4329,7 +4344,7 @@ def _daily_report_rows(start_date, end_date, total_rooms):
     for current_day in days:
         occupied_count = 0
         for booking in bookings:
-            if booking["check_in"] <= current_day < booking["check_out"]:
+            if booking_occupies_day(booking["check_in"], booking["check_out"], current_day):
                 occupied_count += 1
 
         occupancy_percent = round((occupied_count / total_rooms) * 100, 2) if total_rooms else 0

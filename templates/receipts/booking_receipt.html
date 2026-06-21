@@ -13,8 +13,11 @@
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'booking-list' %}">Back</a>
         <a class="btn btn-outline-primary" href="{% url 'receipt-pdf' booking.id %}">Download PDF</a>
-        <a class="btn btn-outline-dark" href="{% url 'receipt-email' booking.id %}">Send to Email</a>
-        <button class="btn btn-primary" onclick="window.print()">Print</button>
+        <form method="post" action="{% url 'receipt-email' booking.id %}" class="d-inline">
+          {% csrf_token %}
+          <button class="btn btn-outline-dark" type="submit">Send to Email</button>
+        </form>
+        <button class="btn btn-primary" type="button" data-print>Print</button>
       </div>
     </section>
 

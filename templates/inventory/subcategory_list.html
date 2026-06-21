@@ -56,7 +56,7 @@
               <td>
                 <div class="d-flex gap-2 flex-wrap">
                   <a class="status-pill neutral" href="{% url 'inventory-subcategory-update' subcategory.pk %}">Edit</a>
-                  <form method="post" action="{% url 'inventory-subcategory-delete' subcategory.pk %}" onsubmit="return confirm('Delete this subcategory?');">
+                  <form method="post" action="{% url 'inventory-subcategory-delete' subcategory.pk %}" data-confirm="Delete this subcategory?">
                     {% csrf_token %}
                     <button class="status-pill danger border-0" type="submit">Delete</button>
                   </form>

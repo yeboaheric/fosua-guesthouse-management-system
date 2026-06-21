@@ -5,6 +5,7 @@ from pathlib import Path
 
 import dj_database_url
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -14,7 +15,7 @@ env = environ.Env(
     DJANGO_ALLOWED_HOSTS=(list, ["127.0.0.1", "localhost"]),
     DJANGO_CSRF_TRUSTED_ORIGINS=(list, []),
     DJANGO_SECURE_SSL_REDIRECT=(bool, False),
-    DJANGO_SECURE_HSTS_SECONDS=(int, 3600),
+    DJANGO_SECURE_HSTS_SECONDS=(int, 31536000),
     DJANGO_USE_X_FORWARDED_HOST=(bool, True),
     DJANGO_USE_X_FORWARDED_PORT=(bool, True),
     DJANGO_ENV=(str, "local"),
@@ -31,21 +32,19 @@ env = environ.Env(
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
+LOCAL_DEVELOPMENT_SECRET = "django-insecure-local-dev-key-change-before-production"
 SECRET_KEY = env(
     "DJANGO_SECRET_KEY",
-    default="django-insecure-local-dev-key-change-before-production",
+    default=LOCAL_DEVELOPMENT_SECRET,
 )
 DEBUG = env("DJANGO_DEBUG")
-ALLOWED_HOSTS = [
-    "fosua-guesthousemanage-web.onrender.com",
-    "localhost",
-    "127.0.0.1",
-]
-CSRF_TRUSTED_ORIGINS = [
-    "https://fosua-guesthousemanage-web.onrender.com",
-]
+ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS")
 APP_ENV = env("DJANGO_ENV").lower()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
+
+if (not DEBUG or APP_ENV in {"prod", "production", "cloud"}) and SECRET_KEY == LOCAL_DEVELOPMENT_SECRET:
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set to a long random value in production.")
 
 if RENDER_EXTERNAL_HOSTNAME:
     if RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
@@ -77,6 +76,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "accounts.middleware.SecurityHeadersMiddleware",
+    "accounts.middleware.SensitiveEndpointRateLimitMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -154,6 +155,15 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'accounts.validators.StrongPasswordValidator',
+    },
+]
+
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
 ]
 
 
@@ -195,6 +205,14 @@ STORAGES = {
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
+
+# Sessions remain server-side; the browser only receives an opaque, HTTP-only ID.
+SESSION_COOKIE_AGE = 60 * 60 * 24
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_SAVE_EVERY_REQUEST = True
+CSRF_COOKIE_HTTPONLY = False  # AJAX requests read Django's CSRF token from this cookie.
+CSRF_COOKIE_SAMESITE = "Lax"
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")

@@ -2,6 +2,8 @@ from django import forms
 from datetime import timedelta
 
 from django.contrib.auth.models import Group, User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
 from accounts.models import (
@@ -485,8 +487,14 @@ class StaffUserForm(forms.Form):
     employee_id = forms.CharField(max_length=80, required=False)
     department = forms.CharField(max_length=120, required=False)
     profile_image = forms.ImageField(required=False)
-    password1 = forms.CharField(widget=forms.PasswordInput)
-    password2 = forms.CharField(widget=forms.PasswordInput, label="Confirm password")
+    password1 = forms.CharField(
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        help_text="Use 8+ characters with an uppercase letter, number, and special character.",
+    )
+    password2 = forms.CharField(
+        widget=forms.PasswordInput(attrs={"autocomplete": "new-password"}),
+        label="Confirm password",
+    )
     roles = forms.MultipleChoiceField(
         choices=[],
         widget=forms.CheckboxSelectMultiple,
@@ -511,6 +519,17 @@ class StaffUserForm(forms.Form):
         password2 = cleaned_data.get("password2")
         if password1 and password2 and password1 != password2:
             raise forms.ValidationError("Passwords do not match.")
+        if password1:
+            candidate = User(
+                username=cleaned_data.get("username", ""),
+                email=cleaned_data.get("email", ""),
+                first_name=cleaned_data.get("first_name", ""),
+                last_name=cleaned_data.get("last_name", ""),
+            )
+            try:
+                validate_password(password1, user=candidate)
+            except ValidationError as error:
+                self.add_error("password1", error)
         return cleaned_data
 
     def save(self):

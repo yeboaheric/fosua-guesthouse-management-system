@@ -104,7 +104,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
   (function () {
     const checkIn = document.getElementById("id_check_in");
     const checkOut = document.getElementById("id_check_out");

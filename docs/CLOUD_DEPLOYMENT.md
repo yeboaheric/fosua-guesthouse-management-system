@@ -90,6 +90,9 @@ python manage.py createsuperuser
 ## 6) Security Notes
 
 - Keep `DJANGO_DEBUG=False` in production.
-- Use HTTPS in front of the app.
+- Use HTTPS in front of the app; production redirects HTTP and enables one-year HSTS.
 - Rotate `DJANGO_SECRET_KEY` if exposed.
+- Keep the generated `DJANGO_SECRET_KEY` stable between deploys so existing sessions and reset links remain valid.
+- New passwords use Argon2; existing PBKDF2 passwords upgrade automatically after successful login.
+- Sessions expire after 24 hours and authentication endpoints are rate limited.
 - Use managed PostgreSQL backups.

@@ -351,7 +351,7 @@
                   {% csrf_token %}
                   <input type="hidden" name="action" value="delete_user">
                   <input type="hidden" name="user_id" value="{{ user_item.pk }}">
-                  <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete {{ user_item.username }}? This cannot be undone.')">Delete user</button>
+                  <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete {{ user_item.username }}? This cannot be undone.">Delete user</button>
                 </form>
               </div>
             {% endwith %}

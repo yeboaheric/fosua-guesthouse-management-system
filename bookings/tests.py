@@ -399,9 +399,8 @@ class BookingWorkflowTests(TestCase):
         self.assertNotContains(payments_response, reverse("booking-payment-update", args=[payment.pk]))
         self.assertNotContains(payments_response, reverse("booking-payment-delete", args=[payment.pk]))
 
-        edit_response = self.client.get(reverse("booking-payment-update", args=[payment.pk]), follow=True)
-        self.assertRedirects(edit_response, reverse("booking-payments", args=[self.booking.pk]))
-        self.assertContains(edit_response, "Access Denied: You are not authorized to manage payments.")
+        edit_response = self.client.get(reverse("booking-payment-update", args=[payment.pk]))
+        self.assertEqual(edit_response.status_code, 403)
 
     def test_admin_can_edit_and_delete_room_payments(self):
         admin_group = Group.objects.create(name="Admin")
@@ -539,9 +538,8 @@ class EventBookingWorkflowTests(TestCase):
         self.assertNotContains(payments_response, reverse("event-payment-update", args=[payment.pk]))
         self.assertNotContains(payments_response, reverse("event-payment-delete", args=[payment.pk]))
 
-        edit_response = self.client.get(reverse("event-payment-update", args=[payment.pk]), follow=True)
-        self.assertRedirects(edit_response, reverse("event-booking-payments", args=[self.event_booking.pk]))
-        self.assertContains(edit_response, "Access Denied: You are not authorized to manage payments.")
+        edit_response = self.client.get(reverse("event-payment-update", args=[payment.pk]))
+        self.assertEqual(edit_response.status_code, 403)
 
     def test_admin_can_edit_and_delete_event_payments(self):
         admin_group = Group.objects.create(name="Admin")

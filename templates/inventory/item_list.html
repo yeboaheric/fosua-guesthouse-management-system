@@ -146,7 +146,7 @@
                       <div class="module-table-actions">
                         <a class="status-pill neutral" href="{% url 'inventory-item-update' item.pk %}">Edit</a>
                         <a class="status-pill warning" href="{% url 'inventory-item-adjust' item.pk %}">Adjust</a>
-                        <form method="post" action="{% url 'inventory-item-delete' item.pk %}" onsubmit="return confirm('Delete this item?');">
+                        <form method="post" action="{% url 'inventory-item-delete' item.pk %}" data-confirm="Delete this item?">
                           {% csrf_token %}
                           <button class="status-pill danger border-0" type="submit">Delete</button>
                         </form>

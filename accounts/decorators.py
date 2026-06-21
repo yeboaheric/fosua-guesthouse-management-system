@@ -8,11 +8,19 @@ from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect
 
 from accounts.models import UserAccessProfile
-from accounts.permissions import access_defaults_for_roles, user_has_permission
+from accounts.permissions import ADMIN_ROLE_NAMES, access_defaults_for_roles, user_has_permission
 
 
 def _default_access_for_user(user):
     return access_defaults_for_roles(user.groups.values_list("name", flat=True))
+
+
+def _resolve_action(action, request):
+    if callable(action):
+        return action(request)
+    if isinstance(action, dict):
+        return action.get(request.method, action.get("default", "view"))
+    return action
 
 
 def group_required(*group_names, module=None, action="view", denied_redirect=None, denied_message=""):
@@ -31,9 +39,12 @@ def group_required(*group_names, module=None, action="view", denied_redirect=Non
                     user=user,
                     defaults=_default_access_for_user(user),
                 )
-                is_authorized = user_has_permission(user, module, action)
+                is_authorized = user_has_permission(user, module, _resolve_action(action, request))
             elif group_names:
-                is_authorized = user.groups.filter(name__in=group_names).exists()
+                accepted_groups = set(group_names)
+                if "Admin" in accepted_groups:
+                    accepted_groups.update(ADMIN_ROLE_NAMES)
+                is_authorized = user.groups.filter(name__in=accepted_groups).exists()
             if not is_authorized:
                 if denied_redirect:
                     if denied_message:

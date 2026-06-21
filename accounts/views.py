@@ -1,5 +1,6 @@
 import csv
 import json
+from calendar import monthrange
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -23,6 +24,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.timesince import timesince
+from django.views.decorators.http import require_POST
 
 from accounts.audit import log_audit_event
 from accounts.decorators import group_required
@@ -735,6 +737,7 @@ def notifications_center(request):
     )
 
 
+@require_POST
 @group_required("Admin", "Receptionist", module="notifications")
 def notification_mark_read(request, pk):
     notification = get_object_or_404(Notification, pk=pk, user=request.user)
@@ -760,7 +763,7 @@ def settings_center(request):
     )
 
 
-@group_required("Admin", "Super Administrator", module="users_roles")
+@group_required("Admin", "Super Administrator", module="users_roles", action={"GET": "view", "POST": "manage"})
 def users_roles_center(request):
     _seed_default_roles()
 
@@ -921,7 +924,7 @@ def analytics_center(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="analytics")
+@group_required("Admin", "Receptionist", module="analytics", action="export")
 def analytics_export(request, fmt):
     filters = _analytics_filters_from_request(request)
     sections = _build_analytics_sections(filters)
@@ -1589,7 +1592,12 @@ def _staff_management_queryset(request):
     }
 
 
-@group_required("Admin", "Super Administrator", module="staff_management")
+@group_required(
+    "Admin",
+    "Super Administrator",
+    module="staff_management",
+    action={"GET": "view", "POST": "edit"},
+)
 def hr_employee_section(request, pk, section):
     employee = get_object_or_404(Employee, pk=pk)
     form_class = _employee_section_form_class(section)
@@ -1694,7 +1702,7 @@ def hr_employee_list(request):
     return render(request, "accounts/hr_employee_list.html", context)
 
 
-@group_required("Admin", "Super Administrator", module="staff_management")
+@group_required("Admin", "Super Administrator", module="staff_management", action="create")
 def hr_employee_create(request):
     form = EmployeeForm(request.POST or None, request.FILES or None, for_create=True)
     if form.is_valid():
@@ -1708,7 +1716,7 @@ def hr_employee_create(request):
     )
 
 
-@group_required("Admin", "Super Administrator", module="staff_management")
+@group_required("Admin", "Super Administrator", module="staff_management", action="edit")
 def hr_employee_update(request, pk):
     employee = get_object_or_404(Employee, pk=pk)
     form = EmployeeForm(request.POST or None, request.FILES or None, instance=employee)
@@ -1756,7 +1764,7 @@ def hr_employee_detail(request, pk):
     )
 
 
-@group_required("Admin", "Super Administrator", module="staff_management")
+@group_required("Admin", "Super Administrator", module="staff_management", action="delete")
 def hr_employee_delete(request, pk):
     employee = get_object_or_404(Employee, pk=pk)
     if request.method == "POST":
@@ -1809,7 +1817,7 @@ def hr_rota_list(request):
     )
 
 
-@group_required("Admin", "Super Administrator", module="staff_management")
+@group_required("Admin", "Super Administrator", module="staff_management", action="create")
 def hr_rota_create(request):
     form = RotaForm(request.POST or None)
     if form.is_valid():
@@ -1827,7 +1835,7 @@ def hr_rota_create(request):
     )
 
 
-@group_required("Admin", "Super Administrator", module="staff_management")
+@group_required("Admin", "Super Administrator", module="staff_management", action="edit")
 def hr_rota_update(request, pk):
     rota = get_object_or_404(Rota, pk=pk)
     form = RotaForm(request.POST or None, instance=rota)

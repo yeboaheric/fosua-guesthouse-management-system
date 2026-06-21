@@ -23,7 +23,7 @@ def guest_list(request):
     return render(request, "guests/guest_list.html", {"guests": guests, "query": query})
 
 
-@group_required("Admin", "Receptionist", module="guests")
+@group_required("Admin", "Receptionist", module="guests", action="create")
 def guest_create(request):
     if request.method == "POST":
         form = GuestForm(request.POST)
@@ -36,7 +36,7 @@ def guest_create(request):
     return render(request, "guests/guest_form.html", {"form": form, "title": "Add Guest"})
 
 
-@group_required("Admin", "Receptionist", module="guests")
+@group_required("Admin", "Receptionist", module="guests", action="edit")
 def guest_update(request, pk):
     guest = get_object_or_404(Guest, pk=pk)
     if request.method == "POST":

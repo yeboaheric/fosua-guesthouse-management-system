@@ -203,7 +203,7 @@
 
 {{ dashboard_chart_series_json|json_script:"dashboard-chart-series" }}
 {{ dashboard_occupancy_json|json_script:"dashboard-occupancy-breakdown" }}
-<script>
+<script nonce="{{ request.csp_nonce }}">
   (function () {
     let initialized = false;
 

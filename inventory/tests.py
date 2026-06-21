@@ -68,10 +68,8 @@ class InventoryPermissionTests(TestCase):
 
     def test_receptionist_cannot_access_pos_sale_edit_route(self):
         self.client.force_login(self.reception)
-        response = self.client.get(reverse("inventory-sale-update", args=[self.sale.pk]), follow=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertRedirects(response, reverse("inventory-sale-detail", args=[self.sale.pk]))
-        self.assertContains(response, "Access Denied: You are not authorized to manage POS sales.")
+        response = self.client.get(reverse("inventory-sale-update", args=[self.sale.pk]))
+        self.assertEqual(response.status_code, 403)
 
     def test_receptionist_cannot_see_edit_on_pos_sale_pages(self):
         self.client.force_login(self.reception)

@@ -20,7 +20,7 @@ def handover_list(request):
     return render(request, "shifts/handover_list.html", {"handovers": handovers})
 
 
-@group_required("Admin", "Receptionist", module="handovers")
+@group_required("Admin", "Receptionist", module="handovers", action="create")
 def handover_create(request):
     if request.method == "POST":
         form = ShiftHandoverForm(request.POST)
@@ -49,7 +49,7 @@ def handover_create(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="handovers")
+@group_required("Admin", "Receptionist", module="handovers", action={"GET": "view", "POST": "create"})
 def handover_detail(request, pk):
     handover = get_object_or_404(
         ShiftHandover.objects.select_related("prepared_by").prefetch_related("updates__author"),
@@ -141,7 +141,7 @@ def roster_detail(request, pk):
     return render(request, "shifts/roster_detail.html", context)
 
 
-@group_required("Admin", "Manager", module="handovers")
+@group_required("Admin", "Manager", module="handovers", action="export")
 def roster_export_excel(request):
     """Export roster data to Excel."""
     try:

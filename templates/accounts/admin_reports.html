@@ -183,7 +183,7 @@
 {{ chart_labels_json|json_script:"report-labels" }}
 {{ revenue_data_json|json_script:"report-revenue" }}
 {{ occupancy_data_json|json_script:"report-occupancy" }}
-<script>
+<script nonce="{{ request.csp_nonce }}">
   window.addEventListener("load", function () {
     if (!window.FGCharts) {
       return;

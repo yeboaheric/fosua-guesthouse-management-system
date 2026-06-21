@@ -286,6 +286,7 @@ def _dashboard_context(item_form, log_form, report_range, form_mode="log", editi
     "Receptionist",
     "Housekeeping",
     module="housekeeping",
+    action={"GET": "view", "POST": "create"},
     denied_redirect="dashboard",
     denied_message="You are not authorized to access Housekeeping.",
 )
@@ -327,6 +328,7 @@ def housekeeping_dashboard(request):
     "Receptionist",
     "Housekeeping",
     module="housekeeping",
+    action="edit",
     denied_redirect="dashboard",
     denied_message="You are not authorized to access Housekeeping.",
 )
@@ -352,6 +354,7 @@ def housekeeping_log_edit(request, pk):
     "Receptionist",
     "Housekeeping",
     module="housekeeping",
+    action="delete",
     denied_redirect="dashboard",
     denied_message="You are not authorized to access Housekeeping.",
 )
@@ -368,6 +371,7 @@ def housekeeping_log_delete(request, pk):
     "Receptionist",
     "Housekeeping",
     module="housekeeping",
+    action="export",
     denied_redirect="dashboard",
     denied_message="You are not authorized to access Housekeeping.",
 )

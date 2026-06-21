@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import DecimalField, Q, Sum, Value
 from django.db.models.functions import Coalesce
@@ -197,7 +197,7 @@ def booking_list(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="reservations")
+@group_required("Admin", "Receptionist", module="reservations", action="create")
 def booking_create(request):
     if request.method == "POST":
         form = BookingForm(request.POST)
@@ -247,7 +247,7 @@ def booking_create(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="reservations")
+@group_required("Admin", "Receptionist", module="reservations", action="edit")
 def booking_update(request, pk):
     booking = get_object_or_404(Booking, pk=pk)
     if request.method == "POST":
@@ -290,7 +290,7 @@ def booking_detail(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="reservations")
+@group_required("Admin", "Receptionist", module="reservations", action="edit")
 def booking_confirm(request, pk):
     booking = get_object_or_404(Booking, pk=pk)
     if booking.status == Booking.BookingStatus.PENDING:
@@ -301,7 +301,7 @@ def booking_confirm(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="reservations")
+@group_required("Admin", "Receptionist", module="reservations", action="edit")
 def booking_check_in(request, pk):
     booking = get_object_or_404(Booking, pk=pk)
     if booking.status in [Booking.BookingStatus.CONFIRMED, Booking.BookingStatus.PENDING]:
@@ -315,7 +315,7 @@ def booking_check_in(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="reservations")
+@group_required("Admin", "Receptionist", module="reservations", action="edit")
 def booking_check_out(request, pk):
     booking = get_object_or_404(Booking, pk=pk)
     if booking.status == Booking.BookingStatus.CHECKED_IN:
@@ -329,7 +329,7 @@ def booking_check_out(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="reservations")
+@group_required("Admin", "Receptionist", module="reservations", action="edit")
 def booking_cancel(request, pk):
     booking = get_object_or_404(Booking, pk=pk)
     if booking.status in [Booking.BookingStatus.PENDING, Booking.BookingStatus.CONFIRMED]:
@@ -339,7 +339,7 @@ def booking_cancel(request, pk):
     return redirect("booking-list")
 
 
-@group_required("Admin", "Receptionist", module="payments")
+@group_required("Admin", "Receptionist", module="payments", action={"GET": "view", "POST": "create"})
 def booking_payments(request, pk):
     booking = get_object_or_404(
         Booking.objects.select_related("guest", "room").prefetch_related("payments"),
@@ -392,7 +392,7 @@ def event_booking_list(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="services")
+@group_required("Admin", "Receptionist", module="services", action="create")
 def event_booking_create(request):
     if request.method == "POST":
         form = EventBookingForm(request.POST)
@@ -421,7 +421,7 @@ def event_booking_create(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="services")
+@group_required("Admin", "Receptionist", module="services", action="edit")
 def event_booking_update(request, pk):
     event_booking = get_object_or_404(EventBooking, pk=pk)
     if request.method == "POST":
@@ -444,7 +444,7 @@ def event_booking_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="services")
+@group_required("Admin", "Receptionist", module="services", action="edit")
 def event_booking_confirm(request, pk):
     event_booking = get_object_or_404(EventBooking, pk=pk)
     if event_booking.status == EventBooking.EventBookingStatus.PENDING:
@@ -455,7 +455,7 @@ def event_booking_confirm(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="services")
+@group_required("Admin", "Receptionist", module="services", action="edit")
 def event_booking_start(request, pk):
     event_booking = get_object_or_404(EventBooking, pk=pk)
     if event_booking.status in [
@@ -469,7 +469,7 @@ def event_booking_start(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="services")
+@group_required("Admin", "Receptionist", module="services", action="edit")
 def event_booking_complete(request, pk):
     event_booking = get_object_or_404(EventBooking, pk=pk)
     if event_booking.status == EventBooking.EventBookingStatus.IN_PROGRESS:
@@ -480,7 +480,7 @@ def event_booking_complete(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="services")
+@group_required("Admin", "Receptionist", module="services", action="edit")
 def event_booking_cancel(request, pk):
     event_booking = get_object_or_404(EventBooking, pk=pk)
     if event_booking.status in [
@@ -493,7 +493,7 @@ def event_booking_cancel(request, pk):
     return redirect("event-booking-list")
 
 
-@group_required("Admin", "Receptionist", module="payments")
+@group_required("Admin", "Receptionist", module="payments", action={"GET": "view", "POST": "create"})
 def event_booking_payments(request, pk):
     event_booking = get_object_or_404(
         EventBooking.objects.select_related("guest").prefetch_related("payments"),
@@ -524,12 +524,11 @@ def event_booking_payments(request, pk):
     )
 
 
-@group_required("Admin", "Receptionist", module="payments")
+@group_required("Admin", "Receptionist", module="payments", action="edit")
 def booking_payment_update(request, pk):
     payment = get_object_or_404(Payment.objects.select_related("booking__guest", "booking__room", "received_by"), pk=pk)
     if not _user_can_manage_payment_records(request.user):
-        messages.error(request, "Access Denied: You are not authorized to manage payments.")
-        return redirect("booking-payments", pk=payment.booking.pk)
+        raise PermissionDenied("You are not authorized to manage payments.")
 
     form = PaymentAdminEditForm(request.POST or None, instance=payment)
     if request.method == "POST" and form.is_valid():
@@ -551,24 +550,22 @@ def booking_payment_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="payments")
+@group_required("Admin", "Receptionist", module="payments", action="delete")
 def booking_payment_delete(request, pk):
     payment = get_object_or_404(Payment.objects.select_related("booking"), pk=pk)
     if not _user_can_manage_payment_records(request.user):
-        messages.error(request, "Access Denied: You are not authorized to manage payments.")
-        return redirect("booking-payments", pk=payment.booking.pk)
+        raise PermissionDenied("You are not authorized to manage payments.")
     booking_pk = payment.booking.pk
     payment.delete()
     messages.success(request, "Payment deleted successfully.")
     return redirect("booking-payments", pk=booking_pk)
 
 
-@group_required("Admin", "Receptionist", module="payments")
+@group_required("Admin", "Receptionist", module="payments", action="edit")
 def event_payment_update(request, pk):
     payment = get_object_or_404(EventPayment.objects.select_related("event_booking__guest", "received_by"), pk=pk)
     if not _user_can_manage_payment_records(request.user):
-        messages.error(request, "Access Denied: You are not authorized to manage payments.")
-        return redirect("event-booking-payments", pk=payment.event_booking.pk)
+        raise PermissionDenied("You are not authorized to manage payments.")
 
     form = EventPaymentAdminEditForm(request.POST or None, instance=payment)
     if request.method == "POST" and form.is_valid():
@@ -590,12 +587,11 @@ def event_payment_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="payments")
+@group_required("Admin", "Receptionist", module="payments", action="delete")
 def event_payment_delete(request, pk):
     payment = get_object_or_404(EventPayment.objects.select_related("event_booking"), pk=pk)
     if not _user_can_manage_payment_records(request.user):
-        messages.error(request, "Access Denied: You are not authorized to manage payments.")
-        return redirect("event-booking-payments", pk=payment.event_booking.pk)
+        raise PermissionDenied("You are not authorized to manage payments.")
     event_booking_pk = payment.event_booking.pk
     payment.delete()
     messages.success(request, "Event payment deleted successfully.")

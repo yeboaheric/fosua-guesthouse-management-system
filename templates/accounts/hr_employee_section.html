@@ -141,7 +141,7 @@
   </div>
 </div>
 {% if section == "leave" %}
-<script>
+<script nonce="{{ request.csp_nonce }}">
   (function () {
     const startInput = document.getElementById("id_start_date");
     const endInput = document.getElementById("id_end_date");

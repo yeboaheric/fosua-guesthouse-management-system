@@ -409,7 +409,7 @@
               <td class="text-end">
                 <div class="d-flex justify-content-end gap-2">
                   <a class="status-pill neutral" href="{% url 'housekeeping-log-edit' entry.pk %}?report={{ report_range }}">Edit</a>
-                  <form method="post" action="{% url 'housekeeping-log-delete' entry.pk %}?report={{ report_range }}" onsubmit="return confirm('Delete this usage entry?');">
+                  <form method="post" action="{% url 'housekeeping-log-delete' entry.pk %}?report={{ report_range }}" data-confirm="Delete this usage entry?">
                     {% csrf_token %}
                     <button class="status-pill danger border-0" type="submit">Delete</button>
                   </form>
@@ -428,7 +428,7 @@
 </div>
 </div>
 
-<script>
+<script nonce="{{ request.csp_nonce }}">
   (function () {
     const summaryPanel = document.getElementById("housekeeping-summary");
     const itemForm = document.getElementById("housekeeping-item-form");

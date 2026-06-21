@@ -2756,3 +2756,41 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
     align-items: flex-start;
   }
 }
+/* Accessible password reveal control shared by login, reset, change and user forms. */
+.password-input-wrap {
+  display: block;
+  position: relative;
+  width: 100%;
+}
+
+.password-input-wrap > input {
+  padding-right: 2.75rem !important;
+  width: 100%;
+}
+
+.password-visibility-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #52676b;
+  display: inline-flex;
+  height: 2.25rem;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.25rem;
+  z-index: 2;
+}
+
+.password-visibility-toggle:hover,
+.password-visibility-toggle:focus-visible {
+  color: var(--color-primary, #183f46);
+}
+
+.password-visibility-toggle svg {
+  height: 1.1rem;
+  width: 1.1rem;
+}

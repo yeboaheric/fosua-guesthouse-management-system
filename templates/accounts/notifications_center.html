@@ -34,7 +34,10 @@
                 <div class="text-muted small">{{ notification.created_at|date:"d/m/Y H:i" }}</div>
                 {% if not notification.read_at %}
                   <div class="mt-2">
-                    <a class="topbar-pill" href="{% url 'notification-mark-read' notification.pk %}">Mark as read</a>
+                    <form method="post" action="{% url 'notification-mark-read' notification.pk %}" class="d-inline">
+                      {% csrf_token %}
+                      <button class="topbar-pill" type="submit">Mark as read</button>
+                    </form>
                   </div>
                 {% else %}
                   <div class="text-success small mt-2">Read at {{ notification.read_at|date:"d/m/Y H:i" }}</div>

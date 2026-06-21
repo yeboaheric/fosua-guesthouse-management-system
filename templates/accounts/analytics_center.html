@@ -161,7 +161,7 @@
 </div>
 
 {{ charts_json|json_script:"analytics-charts-data" }}
-<script>
+<script nonce="{{ request.csp_nonce }}">
   window.addEventListener("load", function () {
     if (!window.FGCharts) {
       return;

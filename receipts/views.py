@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, render
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.views.decorators.http import require_POST
 
 from accounts.decorators import group_required
 from bookings.models import Booking
@@ -15,7 +16,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="reservations", action="print")
 def booking_receipt_preview(request, booking_id):
     booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id)
     related_bookings = _grouped_bookings(booking)
@@ -37,7 +38,7 @@ def booking_receipt_preview(request, booking_id):
     )
 
 
-@group_required("Admin", "Receptionist")
+@group_required("Admin", "Receptionist", module="reservations", action="print")
 def booking_receipt_pdf(request, booking_id):
     booking = get_object_or_404(
         Booking.objects.select_related("guest", "room").prefetch_related("payments"),
@@ -50,7 +51,8 @@ def booking_receipt_pdf(request, booking_id):
     return response
 
 
-@group_required("Admin", "Receptionist")
+@require_POST
+@group_required("Admin", "Receptionist", module="reservations", action="print")
 def booking_receipt_email(request, booking_id):
     booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=booking_id)
     if not booking.guest.email:

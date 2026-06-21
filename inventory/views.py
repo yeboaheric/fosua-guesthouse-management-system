@@ -9,7 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib import messages
 from django.db import IntegrityError
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.mail import EmailMessage
 from django.db import transaction
 from django.db.models import Count, DecimalField, F, Q, Sum, Value
@@ -57,6 +57,10 @@ from inventory.models import (
 ZERO_MONEY = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
 ZERO_UNITS = Value(Decimal("0.000"), output_field=DecimalField(max_digits=12, decimal_places=3))
 logger = logging.getLogger(__name__)
+
+
+def _view_or_export(request):
+    return "export" if request.GET.get("export") else "view"
 
 
 def _inventory_xlsx_response(workbook, filename):
@@ -132,7 +136,7 @@ def inventory_dashboard(request):
     )
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action={"GET": "view", "POST": "create"})
 def category_list(request):
     form = InventoryCategoryForm()
     if request.method == "POST":
@@ -145,7 +149,7 @@ def category_list(request):
     return render(request, "inventory/category_list.html", {"form": form, "categories": categories})
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="edit")
 def category_update(request, pk):
     category = get_object_or_404(InventoryCategory, pk=pk)
     form = InventoryCategoryForm(request.POST or None, instance=category)
@@ -157,7 +161,7 @@ def category_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="delete")
 def category_delete(request, pk):
     category = get_object_or_404(InventoryCategory, pk=pk)
     try:
@@ -168,7 +172,7 @@ def category_delete(request, pk):
     return redirect("inventory-categories")
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action={"GET": "view", "POST": "create"})
 def subcategory_list(request):
     form = InventorySubcategoryForm()
     if request.method == "POST":
@@ -183,7 +187,7 @@ def subcategory_list(request):
     return render(request, "inventory/subcategory_list.html", {"form": form, "subcategories": subcategories})
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="edit")
 def subcategory_update(request, pk):
     subcategory = get_object_or_404(InventorySubcategory, pk=pk)
     form = InventorySubcategoryForm(request.POST or None, instance=subcategory)
@@ -195,7 +199,7 @@ def subcategory_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="delete")
 def subcategory_delete(request, pk):
     subcategory = get_object_or_404(InventorySubcategory, pk=pk)
     try:
@@ -206,7 +210,7 @@ def subcategory_delete(request, pk):
     return redirect("inventory-subcategories")
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action={"GET": "view", "POST": "create"})
 def supplier_list(request):
     form = SupplierForm()
     if request.method == "POST":
@@ -219,7 +223,7 @@ def supplier_list(request):
     return render(request, "inventory/supplier_list.html", {"form": form, "suppliers": suppliers})
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="edit")
 def supplier_update(request, pk):
     supplier = get_object_or_404(Supplier, pk=pk)
     form = SupplierForm(request.POST or None, instance=supplier)
@@ -231,7 +235,7 @@ def supplier_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="delete")
 def supplier_delete(request, pk):
     supplier = get_object_or_404(Supplier, pk=pk)
     try:
@@ -242,7 +246,7 @@ def supplier_delete(request, pk):
     return redirect("inventory-suppliers")
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action=_view_or_export)
 def item_list(request):
     query = request.GET.get("q", "").strip()
     category_id = request.GET.get("category", "")
@@ -320,7 +324,7 @@ def item_list(request):
     return render(request, "inventory/item_list.html", context)
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="create")
 def item_create(request):
     form = InventoryItemForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -331,7 +335,7 @@ def item_create(request):
     return render(request, "inventory/item_form.html", {"form": form, "title": "New Inventory Item"})
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="edit")
 def item_update(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     previous_quantity = item.quantity_in_stock
@@ -355,7 +359,7 @@ def item_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="delete")
 def item_delete(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     try:
@@ -371,7 +375,7 @@ def item_delete(request, pk):
     return redirect("inventory-items")
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action="edit")
 def item_adjust_stock(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
     form = StockAdjustmentForm(request.POST or None)
@@ -404,7 +408,7 @@ def item_adjust_stock(request, pk):
     return render(request, "inventory/adjustment_form.html", {"form": form, "item": item, "title": "Adjust Stock"})
 
 
-@group_required("Admin", "Receptionist", module="inventory")
+@group_required("Admin", "Receptionist", module="inventory", action=_view_or_export)
 def transaction_list(request):
     query = request.GET.get("q", "").strip()
     tx_type = request.GET.get("type", "")
@@ -513,7 +517,7 @@ def pos_terminal(request):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="pos")
+@group_required("Admin", "Receptionist", module="pos", action="create")
 def pos_checkout(request):
     form = POSCheckoutForm(request.POST)
     if not form.is_valid():
@@ -629,7 +633,7 @@ def pos_checkout(request):
     return redirect(f"{reverse('inventory-pos')}?sale_success=1&sale_id={sale.pk}")
 
 
-@group_required("Admin", "Receptionist", module="pos")
+@group_required("Admin", "Receptionist", module="pos", action=_view_or_export)
 def sale_list(request):
     query = request.GET.get("q", "").strip()
     payment_method = request.GET.get("method", "")
@@ -708,12 +712,11 @@ def sale_detail(request, pk):
     )
 
 
-@group_required("Admin", "Receptionist", module="pos")
+@group_required("Admin", "Receptionist", module="pos", action="edit")
 def sale_update(request, pk):
     sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
     if not _user_can_edit_sale(request.user):
-        messages.error(request, "Access Denied: You are not authorized to manage POS sales.")
-        return redirect("inventory-sale-detail", pk=sale.pk)
+        raise PermissionDenied("You are not authorized to manage POS sales.")
 
     form = SaleEditForm(request.POST or None, instance=sale)
     if request.method == "POST" and form.is_valid():
@@ -738,12 +741,11 @@ def sale_update(request, pk):
 
 
 @require_POST
-@group_required("Admin", "Receptionist", module="pos")
+@group_required("Admin", "Receptionist", module="pos", action="delete")
 def sale_delete(request, pk):
     sale = get_object_or_404(Sale.objects.prefetch_related("items__item", "transactions"), pk=pk)
     if not _user_can_edit_sale(request.user):
-        messages.error(request, "Access Denied: You are not authorized to manage POS sales.")
-        return redirect("inventory-sale-detail", pk=sale.pk)
+        raise PermissionDenied("You are not authorized to manage POS sales.")
 
     with transaction.atomic():
         for line in sale.items.select_related("item"):
@@ -757,7 +759,7 @@ def sale_delete(request, pk):
     return redirect("inventory-sales")
 
 
-@group_required("Admin", "Receptionist", module="pos")
+@group_required("Admin", "Receptionist", module="pos", action="print")
 def sale_pdf(request, pk):
     sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
     pdf_data = _render_sale_pdf(sale)
@@ -766,7 +768,8 @@ def sale_pdf(request, pk):
     return response
 
 
-@group_required("Admin", "Receptionist", module="pos")
+@require_POST
+@group_required("Admin", "Receptionist", module="pos", action="print")
 def sale_email(request, pk):
     sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
     if not sale.customer_email:

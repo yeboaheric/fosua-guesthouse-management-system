@@ -5,12 +5,14 @@ import tempfile
 from datetime import timedelta
 
 from axes.helpers import get_cool_off
-from accounts.forms import LeaveRequestForm
-from accounts.models import AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
+from accounts.forms import LeaveRequestForm, StaffUserForm
+from accounts.models import AuditLog, AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
 from django.contrib.auth.models import Group, User
+from django.contrib.auth.hashers import PBKDF2PasswordHasher
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.test import override_settings
@@ -1837,3 +1839,88 @@ class PasswordResetViewsTests(TestCase):
         response = self.client.get(reverse("password_reset"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Reset your password")
+
+
+class SecurityHardeningTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_security_headers_are_present(self):
+        response = self.client.get(reverse("login"))
+
+        self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
+        self.assertIn("script-src 'self' 'nonce-", response.headers["Content-Security-Policy"])
+        self.assertNotIn("script-src 'self' 'unsafe-inline'", response.headers["Content-Security-Policy"])
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response.headers["X-Frame-Options"], "DENY")
+        self.assertEqual(response.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+
+    def test_staff_user_form_enforces_strong_password_policy(self):
+        role = Group.objects.create(name="Security Test Role")
+        form = StaffUserForm(
+            data={
+                "username": "weak-password-user",
+                "password1": "password1",
+                "password2": "password1",
+                "roles": [role.name],
+                "is_active": True,
+                "is_staff": True,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("uppercase letter", " ".join(form.errors["password1"]))
+
+    def test_new_passwords_use_argon2(self):
+        user = User.objects.create_user(username="argon-user", password="Strong!Pass1")
+        self.assertTrue(user.password.startswith("argon2$"))
+
+    def test_legacy_pbkdf2_password_is_upgraded_after_login(self):
+        encoded = PBKDF2PasswordHasher().encode("Strong!Pass1", PBKDF2PasswordHasher().salt())
+        user = User.objects.create(username="legacy-user", password=encoded)
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": user.username, "password": "Strong!Pass1"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        self.assertTrue(user.password.startswith("argon2$"))
+
+    def test_password_reset_is_rate_limited(self):
+        responses = [
+            self.client.post(reverse("password_reset"), {"email": "nobody@example.com"})
+            for _ in range(6)
+        ]
+        self.assertEqual(responses[-1].status_code, 429)
+        self.assertIn("Retry-After", responses[-1].headers)
+
+    def test_failed_login_is_audited_without_password(self):
+        self.client.post(
+            reverse("login"),
+            {"username": "audit-user", "password": "NeverLogThis!1"},
+        )
+
+        event = AuditLog.objects.filter(details__event="login_failed").latest("created_at")
+        self.assertEqual(event.object_repr, "audit-user")
+        self.assertNotIn("password", event.details)
+        self.assertNotIn("NeverLogThis", str(event.details))
+
+    def test_denied_backend_access_is_audited(self):
+        role = Group.objects.create(name="No Reports Access")
+        user = User.objects.create_user(username="denied-user", password="Strong!Pass1")
+        user.groups.add(role)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("admin-reports"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                user=user,
+                status_code=403,
+                details__event="authorization_denied",
+            ).exists(),
+            list(AuditLog.objects.values("user_id", "status_code", "details", "path")),
+        )

@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Fosua Guest House - Aduman</title>
-    <script>
+    <script nonce="{{ request.csp_nonce }}">
       document.documentElement.setAttribute("data-app-loading", "true");
       document.documentElement.setAttribute("data-loading-started-at", String(Date.now()));
       document.documentElement.setAttribute("data-theme", localStorage.getItem("fg-theme") || "light");
@@ -272,6 +272,7 @@
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <script src="{% static 'js/app-loading.js' %}?v=20260617"></script>
     <script src="{% static 'js/fg-charts.js' %}?v=20260617"></script>
+    <script src="{% static 'js/password-toggle.js' %}?v=20260621"></script>
     <script src="{% static 'js/app-shell.js' %}?v=20260617"></script>
   </body>
 </html>

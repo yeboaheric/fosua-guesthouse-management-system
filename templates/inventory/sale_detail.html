@@ -13,14 +13,17 @@
       <div class="module-action-row">
         {% if can_edit_sale %}
           <a class="topbar-pill" href="{% url 'inventory-sale-update' sale.pk %}"><i data-lucide="pencil"></i> Edit</a>
-          <form method="post" action="{% url 'inventory-sale-delete' sale.pk %}" onsubmit="return confirm('Are you sure you want to delete this sale? This action cannot be undone.');">
+          <form method="post" action="{% url 'inventory-sale-delete' sale.pk %}" data-confirm="Are you sure you want to delete this sale? This action cannot be undone.">
             {% csrf_token %}
             <button class="topbar-pill topbar-pill-danger" type="submit"><i data-lucide="trash-2"></i> Delete</button>
           </form>
         {% endif %}
         <a class="topbar-pill" href="{% url 'inventory-sale-pdf' sale.pk %}"><i data-lucide="download"></i> PDF</a>
-        <a class="topbar-pill" href="{% url 'inventory-sale-email' sale.pk %}"><i data-lucide="mail"></i> Email</a>
-        <button class="topbar-pill" type="button" onclick="window.print()"><i data-lucide="printer"></i> Print</button>
+        <form method="post" action="{% url 'inventory-sale-email' sale.pk %}" class="d-inline">
+          {% csrf_token %}
+          <button class="topbar-pill" type="submit"><i data-lucide="mail"></i> Email</button>
+        </form>
+        <button class="topbar-pill" type="button" data-print><i data-lucide="printer"></i> Print</button>
       </div>
     </section>
 

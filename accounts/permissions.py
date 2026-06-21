@@ -144,7 +144,7 @@ def build_permission_snapshot(user) -> dict:
             "module_actions": {module: {} for module in module_actions},
         }
 
-    if user.is_superuser or user.groups.filter(name__in=["Admin", "Super Administrator"]).exists():
+    if user.is_superuser or user.groups.filter(name__in=ADMIN_ROLE_NAMES).exists():
         for module_name in module_actions:
             module_actions[module_name] = _all_actions()
             module_access[f"{module_name}_access"] = True
@@ -226,7 +226,7 @@ def get_permission_snapshot(user):
 def access_defaults_for_roles(role_names) -> dict[str, bool]:
     permissions = {module_name: False for module_name, _ in ACCESS_MODULE_CHOICES}
     role_name_set = {str(name) for name in role_names}
-    if "Super Administrator" in role_name_set or "Admin" in role_name_set:
+    if role_name_set.intersection(ADMIN_ROLE_NAMES):
         for module_name in permissions:
             permissions[module_name] = True
         return {f"{module}_access": enabled for module, enabled in permissions.items()}
@@ -252,7 +252,7 @@ def user_has_permission(user, module_name: str, action: str = "view") -> bool:
         return False
     if user.is_superuser:
         return True
-    if user.groups.filter(name__in=["Admin", "Super Administrator"]).exists():
+    if user.groups.filter(name__in=ADMIN_ROLE_NAMES).exists():
         return True
 
     snapshot = get_permission_snapshot(user)

@@ -39,7 +39,22 @@ SECRET_KEY = env(
 )
 DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
-CSRF_TRUSTED_ORIGINS = env("DJANGO_CSRF_TRUSTED_ORIGINS")
+
+
+def _normalize_csrf_origins(origins):
+    normalized = []
+    for raw_origin in origins:
+        origin = raw_origin.strip().rstrip("/")
+        if not origin:
+            continue
+        if "://" not in origin:
+            origin = f"https://{origin}"
+        if origin not in normalized:
+            normalized.append(origin)
+    return normalized
+
+
+CSRF_TRUSTED_ORIGINS = _normalize_csrf_origins(env("DJANGO_CSRF_TRUSTED_ORIGINS"))
 APP_ENV = env("DJANGO_ENV").lower()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
 

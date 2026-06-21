@@ -20,7 +20,7 @@ This repository now includes [`render.yaml`](/Users/work/Documents/Fosua%20Guest
    - Postgres DB: `fosua-guesthouse-db`
 5. During setup, provide:
    - `DJANGO_ALLOWED_HOSTS` = your Render hostname (for example `fosua-guesthouse-web.onrender.com`)
-   - `DJANGO_CSRF_TRUSTED_ORIGINS` = `https://your-render-hostname`
+   - `DJANGO_CSRF_TRUSTED_ORIGINS` = the complete Render URL, including the scheme (for example `https://fosua-guesthouse-web.onrender.com`)
 6. Deploy.
 
 After first successful deploy, open Render Shell and run:

@@ -61,6 +61,11 @@
                 {% for error in form.amount.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
+                <label class="form-label" for="{{ form.collection_method.id_for_label }}">Method of collection</label>
+                {{ form.collection_method }}
+                {% for error in form.collection_method.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <div class="mb-3">
                 <label class="form-label" for="{{ form.collected_by.id_for_label }}">Collected by</label>
                 {{ form.collected_by }}
                 {% for error in form.collected_by.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
@@ -97,7 +102,7 @@
             <form method="get" class="row g-3 align-items-end mb-3">
               <div class="col-lg-4">
                 <label class="form-label" for="q">Search</label>
-                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Collector or recorder">
+                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Method, collector, or recorder">
               </div>
               <div class="col-lg-3">
                 <label class="form-label" for="start_date">Start date</label>
@@ -128,6 +133,7 @@
                     <tr>
                       <th>Date</th>
                       <th>Amount Collected</th>
+                      <th>Method</th>
                       <th>Recorded By</th>
                       <th>Collected By</th>
                       {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
@@ -138,6 +144,7 @@
                       <tr>
                         <td>{{ withdrawal.created_at|date:"d/m/Y H:i" }}</td>
                         <td>GHS {{ withdrawal.amount }}</td>
+                        <td>{{ withdrawal.get_collection_method_display }}</td>
                         <td>{{ withdrawal.recorded_by_name }}</td>
                         <td>{{ withdrawal.collected_by }}</td>
                         {% if can_manage_sales_deposits %}
@@ -154,7 +161,7 @@
                       </tr>
                     {% empty %}
                       <tr>
-                        <td colspan="{% if can_manage_sales_deposits %}5{% else %}4{% endif %}" class="text-muted">No sales deposits logged for the selected filter.</td>
+                        <td colspan="{% if can_manage_sales_deposits %}6{% else %}5{% endif %}" class="text-muted">No sales deposits logged for the selected filter.</td>
                       </tr>
                     {% endfor %}
                   </tbody>

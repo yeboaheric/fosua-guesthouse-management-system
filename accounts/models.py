@@ -734,8 +734,17 @@ class UserAccessProfile(models.Model):
 
 
 class OwnerWithdrawal(models.Model):
+    class CollectionMethod(models.TextChoices):
+        CASH = "cash", "Cash"
+        MOBILE_MONEY = "mobile_money", "Mobile Money"
+
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     reason = models.CharField(max_length=255, blank=True)
+    collection_method = models.CharField(
+        max_length=20,
+        choices=CollectionMethod.choices,
+        default=CollectionMethod.CASH,
+    )
     collected_by = models.CharField(max_length=160)
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

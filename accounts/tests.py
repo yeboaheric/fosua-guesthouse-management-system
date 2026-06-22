@@ -367,6 +367,7 @@ class SalesDepositsModuleTests(TestCase):
             {
                 "created_at": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
                 "amount": "45.00",
+                "collection_method": OwnerWithdrawal.CollectionMethod.CASH,
                 "collected_by": "Owner",
             },
             follow=True,
@@ -376,6 +377,7 @@ class SalesDepositsModuleTests(TestCase):
         self.assertContains(response, "Sales deposit logged successfully.")
         withdrawal = OwnerWithdrawal.objects.get()
         self.assertEqual(str(withdrawal.amount), "45.00")
+        self.assertEqual(withdrawal.collection_method, OwnerWithdrawal.CollectionMethod.CASH)
         self.assertEqual(withdrawal.recorded_by, self.reception_user)
         self.assertEqual(withdrawal.collected_by, "Owner")
 
@@ -402,6 +404,7 @@ class SalesDepositsModuleTests(TestCase):
         OwnerWithdrawal.objects.create(
             amount="40.00",
             reason="Bank deposit",
+            collection_method=OwnerWithdrawal.CollectionMethod.MOBILE_MONEY,
             collected_by="Owner",
             recorded_by=self.admin_user,
             created_at=now,
@@ -426,6 +429,8 @@ class SalesDepositsModuleTests(TestCase):
         summary_sheet = workbook["Financial Summary"]
         self.assertEqual(log_sheet["A4"].value, "Date")
         self.assertEqual(log_sheet["B4"].value, "Amount Collected")
+        self.assertEqual(log_sheet["C4"].value, "Method")
+        self.assertEqual(log_sheet["C5"].value, "Mobile Money")
         self.assertEqual(summary_sheet["A4"].value, "Period")
         self.assertEqual(summary_sheet["B5"].value, 180)
         self.assertEqual(summary_sheet["C5"].value, 40)

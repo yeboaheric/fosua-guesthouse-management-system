@@ -279,6 +279,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
         fields = [
             "created_at",
             "amount",
+            "collection_method",
             "collected_by",
         ]
         widgets = {
@@ -288,6 +289,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
             "amount": forms.NumberInput(
                 attrs={"class": "form-control", "step": "0.01", "min": "0.01"}
             ),
+            "collection_method": forms.Select(attrs={"class": "form-select"}),
             "collected_by": forms.TextInput(attrs={"class": "form-control"}),
         }
 

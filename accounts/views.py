@@ -722,7 +722,8 @@ def _sales_deposit_filtered_queryset(request):
 
     if query:
         withdrawals = withdrawals.filter(
-            Q(collected_by__icontains=query)
+            Q(collection_method__icontains=query)
+            | Q(collected_by__icontains=query)
             | Q(recorded_by__username__icontains=query)
             | Q(recorded_by__first_name__icontains=query)
             | Q(recorded_by__last_name__icontains=query)
@@ -790,6 +791,7 @@ def sales_deposits_center(request):
             details={
                 "event": "sales_deposit_created",
                 "amount": str(withdrawal.amount),
+                "collection_method": withdrawal.collection_method,
                 "collected_by": withdrawal.collected_by,
             },
         )
@@ -844,6 +846,7 @@ def sales_deposit_update(request, pk):
             details={
                 "event": "sales_deposit_updated",
                 "amount": str(updated_withdrawal.amount),
+                "collection_method": updated_withdrawal.collection_method,
                 "collected_by": updated_withdrawal.collected_by,
             },
         )
@@ -5178,7 +5181,7 @@ def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_d
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
-    worksheet.append(["Date", "Amount Collected", "Recorded By", "Collected By"])
+    worksheet.append(["Date", "Amount Collected", "Method", "Recorded By", "Collected By"])
 
     for cell in worksheet[4]:
         cell.font = header_font
@@ -5192,12 +5195,13 @@ def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_d
             [
                 timezone.localtime(withdrawal.created_at).strftime("%d/%m/%Y %H:%M"),
                 float(withdrawal.amount or 0),
+                withdrawal.get_collection_method_display(),
                 withdrawal.recorded_by_name,
                 withdrawal.collected_by,
             ]
         )
 
-    worksheet.append(["TOTALS", float(total_amount), f"{len(withdrawals)} entries", ""])
+    worksheet.append(["TOTALS", float(total_amount), f"{len(withdrawals)} entries", "", ""])
     for cell in worksheet[worksheet.max_row]:
         cell.font = Font(bold=True)
         cell.fill = summary_fill

@@ -958,33 +958,32 @@ def sale_update(request, pk):
         raise PermissionDenied("You are not authorized to manage POS sales.")
 
     if request.method == "POST":
-        with transaction.atomic():
-            sale = get_object_or_404(Sale.objects.select_for_update().select_related("cashier"), pk=pk)
-            form = SaleEditForm(request.POST, instance=sale)
-            inventory_items_by_id = {item.pk: item for item in _sale_editable_items_queryset(sale)}
-            if form.is_valid():
-                normalized_lines, line_errors = _normalize_sale_edit_lines(
-                    form.cleaned_data["items_payload"],
-                    inventory_items_by_id,
-                )
-                if not normalized_lines and not line_errors:
-                    line_errors.append("Add at least one sale item before saving.")
-                for error in line_errors:
-                    form.add_error(None, error)
-                if not form.errors:
-                    original_sale_state = Sale.objects.get(pk=sale.pk)
-                    sale_date = form.cleaned_data["sale_date"]
-                    field_changes = _sale_edit_field_changes(original_sale_state, form.instance, sale_date)
-                    try:
+        sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
+        form = SaleEditForm(request.POST, instance=sale)
+        try:
+            with transaction.atomic():
+                sale = get_object_or_404(Sale.objects.select_for_update().select_related("cashier"), pk=pk)
+                form = SaleEditForm(request.POST, instance=sale)
+                inventory_items_by_id = {item.pk: item for item in _sale_editable_items_queryset(sale)}
+                if form.is_valid():
+                    normalized_lines, line_errors = _normalize_sale_edit_lines(
+                        form.cleaned_data["items_payload"],
+                        inventory_items_by_id,
+                    )
+                    if not normalized_lines and not line_errors:
+                        line_errors.append("Add at least one sale item before saving.")
+                    for error in line_errors:
+                        form.add_error(None, error)
+                    if not form.errors:
+                        original_sale_state = Sale.objects.get(pk=sale.pk)
+                        sale_date = form.cleaned_data["sale_date"]
+                        field_changes = _sale_edit_field_changes(original_sale_state, form.instance, sale_date)
                         item_changes = _apply_sale_item_edits(
                             sale=sale,
                             request_user=request.user,
                             normalized_lines=normalized_lines,
                             notes=form.cleaned_data.get("notes", ""),
                         )
-                    except ValidationError as exc:
-                        form.add_error(None, exc.message)
-                    if not form.errors:
                         updated_sale = form.save(commit=False)
                         sale.customer_name = updated_sale.customer_name
                         sale.customer_phone = updated_sale.customer_phone
@@ -1036,6 +1035,13 @@ def sale_update(request, pk):
                         )
                         messages.success(request, f"Sale {sale.receipt_number} updated successfully.")
                         return redirect("inventory-sale-detail", pk=sale.pk)
+        except ValidationError as exc:
+            message = "; ".join(exc.messages) if getattr(exc, "messages", None) else "Unable to save these sale changes."
+            logger.warning("POS sale edit validation failed for user %s sale %s: %s", request.user, pk, message)
+            form.add_error(None, message)
+        except Exception:
+            logger.exception("Unexpected POS sale edit failure for user %s sale %s", request.user, pk)
+            form.add_error(None, "Unable to save this edited sale right now. Please review the items and try again.")
     else:
         sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
         form = SaleEditForm(

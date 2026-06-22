@@ -404,6 +404,45 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(str(self.item_two.quantity_in_stock), "4.000")
         self.assertEqual(str(sale.subtotal), "15.00")
 
+    def test_invalid_pos_sale_edit_returns_form_error_instead_of_server_error(self):
+        self.client.force_login(self.user)
+        checkout_response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "20.00",
+                "notes": "Validation test sale",
+                "cart": json.dumps([{"id": self.item.pk, "quantity": 2}]),
+            },
+        )
+        self.assertEqual(checkout_response.status_code, 302)
+        sale = Sale.objects.latest("created_at")
+
+        response = self.client.post(
+            reverse("inventory-sale-update", args=[sale.pk]),
+            {
+                "sale_date": timezone.localdate().isoformat(),
+                "customer_name": "",
+                "customer_phone": "",
+                "customer_email": "",
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "20.00",
+                "notes": "Broken edit attempt",
+                "items_payload": json.dumps(
+                    [
+                        {"item_id": self.item.pk, "quantity": 1, "unit_price": "10.00"},
+                        {"item_id": self.item.pk, "quantity": 1, "unit_price": "10.00"},
+                    ]
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "each inventory item can appear only once on a sale", html=False)
+
     def test_sale_list_csv_export_works(self):
         Sale.objects.create(
             cashier=self.user,

@@ -967,6 +967,10 @@ def sale_update(request, pk):
     if not _user_can_edit_sale(request.user):
         raise PermissionDenied("You are not authorized to manage POS sales.")
 
+    audit_payload = None
+    success_receipt_number = None
+    success_sale_pk = None
+
     if request.method == "POST":
         sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
         form = SaleEditForm(request.POST, instance=sale)
@@ -1029,22 +1033,13 @@ def sale_update(request, pk):
                                 "updated_at",
                             ]
                         )
-                        log_audit_event(
-                            request=request,
-                            user=request.user,
-                            action=AuditLog.ActionType.UPDATE,
-                            module="pos",
-                            object_repr=sale.receipt_number,
-                            object_id=sale.pk,
-                            details={
-                                "field_changes": field_changes,
-                                "item_changes": item_changes,
-                                "edited_at": timezone.localtime(sale.edited_at).isoformat(),
-                            },
-                            mark_request=False,
-                        )
-                        messages.success(request, f"Sale {sale.receipt_number} updated successfully.")
-                        return redirect("inventory-sale-detail", pk=sale.pk)
+                        audit_payload = {
+                            "field_changes": field_changes,
+                            "item_changes": item_changes,
+                            "edited_at": timezone.localtime(sale.edited_at).isoformat(),
+                        }
+                        success_receipt_number = sale.receipt_number
+                        success_sale_pk = sale.pk
         except ValidationError as exc:
             message = "; ".join(exc.messages) if getattr(exc, "messages", None) else "Unable to save these sale changes."
             logger.warning("POS sale edit validation failed for user %s sale %s: %s", request.user, pk, message)
@@ -1052,6 +1047,27 @@ def sale_update(request, pk):
         except Exception:
             logger.exception("Unexpected POS sale edit failure for user %s sale %s", request.user, pk)
             form.add_error(None, "Unable to save this edited sale right now. Please review the items and try again.")
+        else:
+            if success_sale_pk is not None:
+                try:
+                    log_audit_event(
+                        request=request,
+                        user=request.user,
+                        action=AuditLog.ActionType.UPDATE,
+                        module="pos",
+                        object_repr=success_receipt_number,
+                        object_id=success_sale_pk,
+                        details=audit_payload or {},
+                        mark_request=False,
+                    )
+                except Exception:
+                    logger.exception(
+                        "POS sale edit audit logging failed for user %s sale %s after successful save",
+                        request.user,
+                        success_sale_pk,
+                    )
+                messages.success(request, f"Sale {success_receipt_number} updated successfully.")
+                return redirect("inventory-sale-detail", pk=success_sale_pk)
     else:
         sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
         form = SaleEditForm(

@@ -404,6 +404,78 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(str(self.item_two.quantity_in_stock), "4.000")
         self.assertEqual(str(sale.subtotal), "15.00")
 
+    def test_admin_can_save_an_already_edited_pos_sale_again(self):
+        self.client.force_login(self.user)
+        checkout_response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "20.00",
+                "notes": "First save",
+                "cart": json.dumps([{"id": self.item.pk, "quantity": 2}]),
+            },
+        )
+        self.assertEqual(checkout_response.status_code, 302)
+        sale = Sale.objects.latest("created_at")
+
+        first_edit = self.client.post(
+            reverse("inventory-sale-update", args=[sale.pk]),
+            {
+                "sale_date": timezone.localdate().isoformat(),
+                "customer_name": "First edit",
+                "customer_phone": "",
+                "customer_email": "",
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "20.00",
+                "notes": "Edited once",
+                "items_payload": json.dumps(
+                    [
+                        {
+                            "item_id": self.item.pk,
+                            "quantity": 2,
+                            "unit_price": "10.00",
+                        },
+                    ]
+                ),
+            },
+            follow=True,
+        )
+        self.assertEqual(first_edit.status_code, 200)
+
+        second_edit = self.client.post(
+            reverse("inventory-sale-update", args=[sale.pk]),
+            {
+                "sale_date": timezone.localdate().isoformat(),
+                "customer_name": "Second edit",
+                "customer_phone": "",
+                "customer_email": "",
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "1.00",
+                "discount_amount": "0.00",
+                "amount_paid": "21.00",
+                "notes": "Edited twice",
+                "items_payload": json.dumps(
+                    [
+                        {
+                            "item_id": self.item.pk,
+                            "quantity": 2,
+                            "unit_price": "10.00",
+                        },
+                    ]
+                ),
+            },
+            follow=True,
+        )
+        self.assertEqual(second_edit.status_code, 200)
+        sale.refresh_from_db()
+        self.assertEqual(sale.customer_name, "Second edit")
+        self.assertEqual(str(sale.tax_amount), "1.00")
+        self.assertEqual(str(sale.grand_total), "21.00")
+
     def test_invalid_pos_sale_edit_returns_form_error_instead_of_server_error(self):
         self.client.force_login(self.user)
         checkout_response = self.client.post(

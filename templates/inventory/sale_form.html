@@ -44,7 +44,7 @@
                 <h2 class="module-card-title">Receipt items</h2>
                 <div class="module-card-copy">Edit quantities and unit prices, remove items safely, or add more inventory items to this completed sale.</div>
               </div>
-              <button class="btn btn-outline-secondary" type="button" id="addSaleItemButton">Add item</button>
+              <button class="btn btn-outline-secondary" type="button" id="addSaleItemButton" data-loading-ignore="true">Add item</button>
             </div>
             <div class="module-card-body p-0">
               <div class="module-table-wrap">
@@ -169,7 +169,7 @@
     function nextAvailableItemId() {
       const usedIds = new Set(saleLines.map(function (line) { return Number(line.item_id); }));
       const candidate = inventoryItems.find(function (item) { return !usedIds.has(Number(item.id)); });
-      return candidate ? Number(candidate.id) : (inventoryItems[0] ? Number(inventoryItems[0].id) : 0);
+      return candidate ? Number(candidate.id) : 0;
     }
 
     function lineForItem(itemId) {
@@ -248,7 +248,7 @@
             <div class="text-muted small">Available ${stockUnits(availableStock)}</div>
           </td>
           <td class="text-end">
-            <button class="btn btn-outline-danger btn-sm remove-sale-line" type="button" data-index="${index}">Remove</button>
+            <button class="btn btn-outline-danger btn-sm remove-sale-line" type="button" data-index="${index}" data-loading-ignore="true">Remove</button>
           </td>
         `;
         linesBody.appendChild(row);
@@ -260,6 +260,7 @@
     addButton.addEventListener("click", function () {
       const nextItemId = nextAvailableItemId();
       if (!nextItemId) {
+        window.alert("No other inventory items are available to add to this sale.");
         return;
       }
       const inventoryItem = inventoryMap.get(nextItemId);

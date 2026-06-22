@@ -699,17 +699,35 @@ def _sales_deposit_date_value(raw_value):
         return None
 
 
-def _sales_deposit_summary_cards():
+def _sales_deposit_summary_cards(filtered_queryset=None, start_date=None, end_date=None):
     today = timezone.localdate()
     week_start, week_end = shared_report_window_for_period("weekly", today)
     month_start, month_end = shared_report_window_for_period("monthly", today)
     year_start, year_end = shared_report_window_for_period("yearly", today)
-    return [
+    cards = [
         {"label": "Collected today", "value": _display_money(_money_total(owner_withdrawals_queryset(today, today), "amount"))},
         {"label": "This week", "value": _display_money(_money_total(owner_withdrawals_queryset(week_start, week_end), "amount"))},
         {"label": "This month", "value": _display_money(_money_total(owner_withdrawals_queryset(month_start, month_end), "amount"))},
         {"label": "This year", "value": _display_money(_money_total(owner_withdrawals_queryset(year_start, year_end), "amount"))},
     ]
+    if filtered_queryset is not None and (start_date or end_date):
+        if start_date and end_date:
+            if start_date == end_date:
+                label = f"Selected date ({start_date.strftime('%d/%m/%Y')})"
+            else:
+                label = f"Selected range ({start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')})"
+        elif start_date:
+            label = f"From {start_date.strftime('%d/%m/%Y')}"
+        else:
+            label = f"Until {end_date.strftime('%d/%m/%Y')}"
+        cards.insert(
+            0,
+            {
+                "label": label,
+                "value": _display_money(_money_total(filtered_queryset, "amount")),
+            },
+        )
+    return cards
 
 
 def _sales_deposit_filtered_queryset(request):
@@ -806,7 +824,11 @@ def sales_deposits_center(request):
         {
             "form": form,
             "form_title": "Log collection",
-            "summary_cards": _sales_deposit_summary_cards(),
+            "summary_cards": _sales_deposit_summary_cards(
+                filtered["withdrawals"],
+                _sales_deposit_date_value(filtered["start_date"]),
+                _sales_deposit_date_value(filtered["end_date"]),
+            ),
             "withdrawals": filtered["withdrawals"],
             "query": filtered["query"],
             "start_date": filtered["start_date"],
@@ -862,7 +884,11 @@ def sales_deposit_update(request, pk):
             "form": form,
             "form_title": "Edit collection",
             "editing_withdrawal": withdrawal,
-            "summary_cards": _sales_deposit_summary_cards(),
+            "summary_cards": _sales_deposit_summary_cards(
+                filtered["withdrawals"],
+                _sales_deposit_date_value(filtered["start_date"]),
+                _sales_deposit_date_value(filtered["end_date"]),
+            ),
             "withdrawals": filtered["withdrawals"],
             "query": filtered["query"],
             "start_date": filtered["start_date"],

@@ -10,7 +10,7 @@ from accounts.forms import ExpenseForm, LeaveRequestForm, StaffUserForm
 from accounts.models import AuditLog, AttendanceRecord, Employee, EmployeeQualification, Expense, LeaveRequest, Notification, OwnerWithdrawal, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from django.contrib.auth.models import Group, User
 from django.contrib.auth.hashers import PBKDF2PasswordHasher
 from django.core.cache import cache
@@ -437,6 +437,20 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(summary_sheet["D5"].value, 140)
 
     def test_sales_deposit_filter_normalizes_inverted_dates(self):
+        OwnerWithdrawal.objects.create(
+            amount="60.00",
+            collection_method=OwnerWithdrawal.CollectionMethod.CASH,
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+            created_at=timezone.make_aware(datetime.combine(timezone.localdate() - timedelta(days=1), datetime.min.time())),
+        )
+        OwnerWithdrawal.objects.create(
+            amount="40.00",
+            collection_method=OwnerWithdrawal.CollectionMethod.CASH,
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+            created_at=timezone.make_aware(datetime.combine(timezone.localdate(), datetime.min.time())),
+        )
         self.client.force_login(self.admin_user)
         today = timezone.localdate()
         yesterday = today - timedelta(days=1)
@@ -452,6 +466,8 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["start_date"], yesterday.isoformat())
         self.assertEqual(response.context["end_date"], today.isoformat())
+        self.assertEqual(response.context["summary_cards"][0]["label"], f"Selected range ({yesterday.strftime('%d/%m/%Y')} - {today.strftime('%d/%m/%Y')})")
+        self.assertEqual(response.context["summary_cards"][0]["value"], "GHS 100.00")
 
     def test_revenue_analytics_shows_gross_and_net_revenue(self):
         OwnerWithdrawal.objects.create(

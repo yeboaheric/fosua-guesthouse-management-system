@@ -476,7 +476,7 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(str(sale.tax_amount), "1.00")
         self.assertEqual(str(sale.grand_total), "21.00")
 
-    def test_invalid_pos_sale_edit_returns_form_error_instead_of_server_error(self):
+    def test_duplicate_pos_sale_lines_are_merged_on_save(self):
         self.client.force_login(self.user)
         checkout_response = self.client.post(
             reverse("inventory-pos-checkout"),
@@ -511,9 +511,17 @@ class InventoryPosWorkflowTests(TestCase):
                     ]
                 ),
             },
+            follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "each inventory item can appear only once on a sale", html=False)
+        sale.refresh_from_db()
+        self.item.refresh_from_db()
+        self.assertEqual(sale.items.count(), 1)
+        merged_line = sale.items.get()
+        self.assertEqual(str(merged_line.quantity), "2.000")
+        self.assertEqual(str(merged_line.line_total), "20.00")
+        self.assertEqual(str(sale.grand_total), "20.00")
+        self.assertContains(response, "updated successfully")
 
     def test_sale_list_csv_export_works(self):
         Sale.objects.create(

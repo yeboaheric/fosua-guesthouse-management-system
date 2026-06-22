@@ -137,9 +137,9 @@ def _serialized_inventory_choices(sale):
 
 
 def _normalize_sale_edit_lines(raw_lines, available_items):
-    normalized_lines = []
+    normalized_lines_map = {}
+    normalized_item_order = []
     errors = []
-    seen_item_ids = set()
 
     for index, raw_line in enumerate(raw_lines, start=1):
         try:
@@ -149,10 +149,6 @@ def _normalize_sale_edit_lines(raw_lines, available_items):
         if not item_id or item_id not in available_items:
             errors.append(f"Line {index}: choose a valid inventory item.")
             continue
-        if item_id in seen_item_ids:
-            errors.append(f"Line {index}: each inventory item can appear only once on a sale.")
-            continue
-        seen_item_ids.add(item_id)
 
         try:
             quantity = _quantize_quantity(raw_line.get("quantity"))
@@ -173,13 +169,27 @@ def _normalize_sale_edit_lines(raw_lines, available_items):
             continue
 
         item = available_items[item_id]
-        normalized_lines.append(
-            {
+        if item_id not in normalized_lines_map:
+            normalized_item_order.append(item_id)
+            normalized_lines_map[item_id] = {
                 "item": item,
                 "item_id": item_id,
                 "quantity": quantity,
                 "unit_price": unit_price,
-                "line_total": (quantity * unit_price).quantize(MONEY_PLACES),
+            }
+        else:
+            normalized_lines_map[item_id]["quantity"] = _quantize_quantity(
+                normalized_lines_map[item_id]["quantity"] + quantity
+            )
+            normalized_lines_map[item_id]["unit_price"] = unit_price
+
+    normalized_lines = []
+    for item_id in normalized_item_order:
+        line = normalized_lines_map[item_id]
+        normalized_lines.append(
+            {
+                **line,
+                "line_total": (line["quantity"] * line["unit_price"]).quantize(MONEY_PLACES),
             }
         )
 

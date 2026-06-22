@@ -6,8 +6,8 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from axes.helpers import get_cool_off
-from accounts.forms import LeaveRequestForm, StaffUserForm
-from accounts.models import AuditLog, AttendanceRecord, Employee, EmployeeQualification, LeaveRequest, Notification, OwnerWithdrawal, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
+from accounts.forms import ExpenseForm, LeaveRequestForm, StaffUserForm
+from accounts.models import AuditLog, AttendanceRecord, Employee, EmployeeQualification, Expense, LeaveRequest, Notification, OwnerWithdrawal, PayrollRecord, Rota, RolePermission, TrainingRecord, UserAccessProfile
 from accounts.permissions import user_has_permission
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from datetime import date, time, timedelta
@@ -431,6 +431,23 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(summary_sheet["C5"].value, 40)
         self.assertEqual(summary_sheet["D5"].value, 140)
 
+    def test_sales_deposit_filter_normalizes_inverted_dates(self):
+        self.client.force_login(self.admin_user)
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+
+        response = self.client.get(
+            reverse("sales-deposits-center"),
+            {
+                "start_date": today.isoformat(),
+                "end_date": yesterday.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["start_date"], yesterday.isoformat())
+        self.assertEqual(response.context["end_date"], today.isoformat())
+
     def test_revenue_analytics_shows_gross_and_net_revenue(self):
         OwnerWithdrawal.objects.create(
             amount="50.00",
@@ -453,6 +470,126 @@ class SalesDepositsModuleTests(TestCase):
         self.assertContains(response, "Gross revenue")
         self.assertContains(response, "Net revenue")
         self.assertContains(response, "Owner withdrawals")
+
+
+class FinanceModuleTests(TestCase):
+    def setUp(self):
+        self.admin_group = Group.objects.create(name="Admin")
+        self.reception_group = Group.objects.create(name="Receptionist")
+        self.admin_user = User.objects.create_user(username="finance-owner", password="pass123456")
+        self.admin_user.groups.add(self.admin_group)
+        self.reception_user = User.objects.create_user(username="finance-frontdesk", password="pass123456")
+        self.reception_user.groups.add(self.reception_group)
+
+        self.room = Room.objects.create(
+            room_number="301",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=200,
+        )
+        self.guest = Guest.objects.create(
+            first_name="Abena",
+            last_name="Adjei",
+            phone_number="0244441111",
+        )
+        Booking.objects.create(
+            guest=self.guest,
+            room=self.room,
+            check_in=timezone.localdate(),
+            check_out=timezone.localdate() + timedelta(days=1),
+            status=Booking.BookingStatus.CONFIRMED,
+            created_by=self.admin_user,
+        )
+        Sale.objects.create(
+            cashier=self.admin_user,
+            payment_method=Sale.PaymentMethod.CASH,
+            subtotal="25.00",
+            grand_total="25.00",
+            amount_paid="25.00",
+        )
+        OwnerWithdrawal.objects.create(
+            amount="10.00",
+            reason="Owner pickup",
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+        )
+
+    def test_finance_module_is_admin_only(self):
+        self.client.force_login(self.reception_user)
+        response = self.client.get(reverse("finance-center"), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Access Denied: Finance is available to admin accounts only.")
+
+    def test_admin_can_create_expense_and_export_finance_workbook(self):
+        self.client.force_login(self.admin_user)
+        create_response = self.client.post(
+            reverse("finance-center"),
+            {
+                "date": timezone.localdate().isoformat(),
+                "category": "Utilities",
+                "description": "Water bill",
+                "amount": "30.00",
+                "payment_method": Expense.PaymentMethod.CASH,
+            },
+            follow=True,
+        )
+        self.assertEqual(create_response.status_code, 200)
+        self.assertContains(create_response, "Expense logged successfully.")
+        self.assertEqual(Expense.objects.count(), 1)
+
+        export_response = self.client.get(
+            reverse("finance-export-xlsx"),
+            {
+                "start_date": timezone.localdate().isoformat(),
+                "end_date": timezone.localdate().isoformat(),
+            },
+        )
+        self.assertEqual(
+            export_response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = load_workbook(BytesIO(export_response.content))
+        self.assertEqual(
+            workbook.sheetnames,
+            ["Revenue Breakdown", "Expense Breakdown", "Sales Deposit Log", "Profit Loss", "Balance Sheet"],
+        )
+        pnl_sheet = workbook["Profit Loss"]
+        pnl_labels = [
+            pnl_sheet[f"A{row_index}"].value
+            for row_index in range(1, pnl_sheet.max_row + 1)
+            if pnl_sheet[f"A{row_index}"].value
+        ]
+        self.assertIn("Room Bookings Revenue", pnl_labels)
+        self.assertIn("NET PROFIT / LOSS", pnl_labels)
+
+    def test_expense_form_offers_default_and_saved_custom_categories(self):
+        Expense.objects.create(
+            date=timezone.localdate(),
+            category="Custom Vendor Charge",
+            description="One-off specialist service",
+            amount="15.00",
+            payment_method=Expense.PaymentMethod.CASH,
+            recorded_by=self.admin_user,
+        )
+
+        form = ExpenseForm()
+        grouped_choices = form.fields["category"].choices
+        grouped_lookup = {
+            label: choices
+            for label, choices in grouped_choices
+            if isinstance(choices, (list, tuple))
+        }
+
+        self.assertIn("Staffing", grouped_lookup)
+        self.assertIn(
+            ("Salaries & Wages", "Salaries & Wages"),
+            grouped_lookup["Staffing"],
+        )
+        self.assertIn("Saved custom categories", grouped_lookup)
+        self.assertIn(
+            ("Custom Vendor Charge", "Custom Vendor Charge"),
+            grouped_lookup["Saved custom categories"],
+        )
 
 
 class UsersRolesPermissionPropagationTests(TestCase):

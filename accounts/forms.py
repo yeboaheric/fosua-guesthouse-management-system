@@ -13,6 +13,7 @@ from accounts.models import (
     Employee,
     EmployeeDocument,
     EmployeeQualification,
+    Expense,
     EmploymentHistoryEntry,
     LeaveRequest,
     OwnerWithdrawal,
@@ -322,6 +323,106 @@ class OwnerWithdrawalForm(forms.ModelForm):
 
     def clean_reason(self):
         return self.cleaned_data.get("reason", "").strip()
+
+
+class ExpenseForm(forms.ModelForm):
+    CUSTOM_CATEGORY_VALUE = "__custom__"
+    custom_category = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Enter a custom expense category",
+            }
+        ),
+    )
+
+    class Meta:
+        model = Expense
+        fields = [
+            "date",
+            "category",
+            "description",
+            "amount",
+            "payment_method",
+            "receipt",
+        ]
+        widgets = {
+            "date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "category": forms.Select(attrs={"class": "form-select"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0.01"}),
+            "payment_method": forms.Select(attrs={"class": "form-select"}),
+            "receipt": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".pdf,image/*"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["category"].choices = self._category_choices()
+        if not self.is_bound and not (self.instance and self.instance.pk):
+            self.initial["date"] = timezone.localdate().isoformat()
+        if self.instance and self.instance.pk and self.instance.category not in Expense.DEFAULT_CATEGORIES:
+            self.initial["custom_category"] = self.instance.category
+
+    def _category_choices(self):
+        choices = [("", "Select a category")]
+        default_categories = set(Expense.DEFAULT_CATEGORIES)
+        for group_label, categories in Expense.DEFAULT_CATEGORY_GROUPS:
+            choices.append((group_label, [(category, category) for category in categories]))
+
+        custom_categories = sorted(
+            set(
+                Expense.objects.exclude(category="")
+                .exclude(category__in=default_categories)
+                .values_list("category", flat=True)
+                .distinct()
+            )
+        )
+        current_category = (getattr(self.instance, "category", "") or "").strip()
+        if current_category and current_category not in default_categories and current_category not in custom_categories:
+            custom_categories.append(current_category)
+            custom_categories.sort()
+        if custom_categories:
+            choices.append(("Saved custom categories", [(category, category) for category in custom_categories]))
+
+        choices.append((self.CUSTOM_CATEGORY_VALUE, "Custom category"))
+        return choices
+
+    def clean_date(self):
+        return self.cleaned_data["date"]
+
+    def clean_category(self):
+        value = self.cleaned_data.get("category", "").strip()
+        custom_value = self.cleaned_data.get("custom_category", "").strip()
+        if value == self.CUSTOM_CATEGORY_VALUE:
+            if not custom_value:
+                raise ValidationError("Enter a custom category.")
+            return custom_value
+        if not value:
+            raise ValidationError("Category is required.")
+        return value
+
+    def clean_description(self):
+        value = self.cleaned_data.get("description", "").strip()
+        if not value:
+            raise ValidationError("Description is required.")
+        return value
+
+    def clean_amount(self):
+        amount = self.cleaned_data["amount"]
+        if amount <= 0:
+            raise ValidationError("Expense amount must be greater than zero.")
+        return amount
+
+    def clean_receipt(self):
+        receipt = self.cleaned_data.get("receipt")
+        if not receipt:
+            return receipt
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"}
+        file_name = (getattr(receipt, "name", "") or "").lower()
+        if not any(file_name.endswith(extension) for extension in allowed_extensions):
+            raise ValidationError("Receipt must be an image or PDF file.")
+        return receipt
 
 
 class LeaveRequestForm(forms.ModelForm):

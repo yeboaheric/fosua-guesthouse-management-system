@@ -1,7 +1,7 @@
 from django import template
 
 from accounts.formatting import format_quantity
-from accounts.permissions import user_has_permission
+from accounts.permissions import user_has_permission, user_is_admin_role
 
 register = template.Library()
 
@@ -38,6 +38,11 @@ def get_item(mapping, key):
 @register.filter
 def can_access_module(user, module_name):
     return user_has_permission(user, module_name, "view")
+
+
+@register.filter
+def is_admin_role(user):
+    return user_is_admin_role(user)
 
 
 @register.filter

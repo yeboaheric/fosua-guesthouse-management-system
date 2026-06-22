@@ -6,6 +6,7 @@ from accounts.models import (
     Employee,
     EmployeeDocument,
     EmployeeQualification,
+    Expense,
     EmploymentHistoryEntry,
     LeaveRequest,
     Notification,
@@ -126,6 +127,13 @@ class OwnerWithdrawalAdmin(admin.ModelAdmin):
     list_display = ["created_at", "amount", "collected_by", "recorded_by"]
     search_fields = ["reason", "collected_by", "recorded_by__username", "recorded_by__first_name", "recorded_by__last_name"]
     list_filter = ["created_at"]
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ["date", "category", "amount", "payment_method", "recorded_by"]
+    search_fields = ["category", "description", "recorded_by__username", "recorded_by__first_name", "recorded_by__last_name"]
+    list_filter = ["date", "category", "payment_method"]
 
 
 @admin.register(MaintenanceRequest)

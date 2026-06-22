@@ -53,9 +53,34 @@ def local_datetime_range(start_date, end_date):
     return start_at, end_at
 
 
+def filter_queryset_for_local_datetime_bounds(queryset, field_name, start_date=None, end_date=None):
+    if start_date and end_date:
+        start_date, end_date = normalize_date_range(start_date, end_date)
+
+    local_tz = timezone.get_current_timezone()
+    filters = {}
+    if start_date:
+        filters[f"{field_name}__gte"] = timezone.make_aware(
+            datetime.combine(start_date, time.min),
+            local_tz,
+        )
+    if end_date:
+        filters[f"{field_name}__lte"] = timezone.make_aware(
+            datetime.combine(end_date, time.max),
+            local_tz,
+        )
+    if not filters:
+        return queryset
+    return queryset.filter(**filters)
+
+
 def filter_queryset_for_local_datetime_range(queryset, field_name, start_date, end_date):
-    start_at, end_at = local_datetime_range(start_date, end_date)
-    return queryset.filter(**{f"{field_name}__gte": start_at, f"{field_name}__lte": end_at})
+    return filter_queryset_for_local_datetime_bounds(
+        queryset,
+        field_name,
+        start_date,
+        end_date,
+    )
 
 
 def money_total(queryset, field_name):

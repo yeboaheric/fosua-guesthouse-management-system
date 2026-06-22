@@ -764,6 +764,157 @@ class OwnerWithdrawal(models.Model):
         return full_name or self.recorded_by.username
 
 
+class Expense(models.Model):
+    DEFAULT_CATEGORY_GROUPS = (
+        (
+            "Staffing",
+            (
+                "Salaries & Wages",
+                "Staff Bonuses/Commissions",
+                "Staff Meals/Welfare",
+                "Recruitment Costs",
+                "Staff Training",
+            ),
+        ),
+        (
+            "Utilities",
+            (
+                "Electricity (ECG)",
+                "Water (Ghana Water)",
+                "Internet & Phone/Data Bundles",
+                "Gas (Kitchen/Laundry)",
+                "Generator Fuel/Diesel",
+            ),
+        ),
+        (
+            "Supplies & Inventory",
+            (
+                "Toiletries & Guest Amenities Restock",
+                "Cleaning Supplies & Detergents",
+                "Linens, Towels, Bedding",
+                "Kitchen/Restaurant Supplies",
+                "Office Supplies & Stationery",
+                "Staff Uniforms",
+            ),
+        ),
+        (
+            "Maintenance & Repairs",
+            (
+                "Plumbing Repairs",
+                "Electrical Repairs",
+                "AC Servicing/Repairs",
+                "Furniture Repairs/Replacement",
+                "Painting & Renovation",
+                "Pest Control",
+                "Generator Servicing",
+            ),
+        ),
+        (
+            "Marketing & Guest Acquisition",
+            (
+                "OTA Commissions (Booking.com, Expedia)",
+                "Social Media Ads",
+                "Website Hosting/Domain",
+                "Photography/Content Creation",
+                "Promotions & Discounts Given",
+            ),
+        ),
+        (
+            "Administrative",
+            (
+                "Software Subscriptions",
+                "Bank Charges & Transaction Fees",
+                "Mobile Money Charges",
+                "Accounting/Audit Fees",
+                "Legal & Licensing Fees",
+                "Business Permits & Renewals",
+            ),
+        ),
+        (
+            "Property & Rent",
+            (
+                "Rent",
+                "Property Insurance",
+                "Property Tax/Rates",
+            ),
+        ),
+        (
+            "Transport & Logistics",
+            (
+                "Fuel (Hotel Vehicles)",
+                "Vehicle Maintenance",
+            ),
+        ),
+        (
+            "Food & Beverage",
+            (
+                "Food Ingredients/Produce",
+                "Beverages & Drinks Stock",
+                "Kitchen Gas/Fuel",
+                "Food Spoilage/Waste Losses",
+            ),
+        ),
+        (
+            "Miscellaneous",
+            (
+                "Security Services",
+                "Waste/Garbage Disposal",
+                "Laundry Services",
+                "Donations/CSR",
+                "Emergency/Unexpected Repairs",
+            ),
+        ),
+    )
+    DEFAULT_CATEGORIES = tuple(
+        category
+        for _group_label, categories in DEFAULT_CATEGORY_GROUPS
+        for category in categories
+    )
+
+    class PaymentMethod(models.TextChoices):
+        CASH = "cash", "Cash"
+        BANK_TRANSFER = "bank_transfer", "Bank Transfer"
+        MOBILE_MONEY = "mobile_money", "Mobile Money"
+        CARD = "card", "Card"
+
+    date = models.DateField(default=timezone.localdate)
+    category = models.CharField(max_length=120)
+    description = models.TextField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+    )
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="expenses_recorded",
+    )
+    receipt = models.FileField(upload_to="expense_receipts/", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["date"]),
+            models.Index(fields=["category"]),
+        ]
+
+    def __str__(self):
+        return f"{self.category} expense {self.amount} on {self.date:%d/%m/%Y}"
+
+    @property
+    def recorded_by_name(self):
+        if not self.recorded_by:
+            return "-"
+        full_name = self.recorded_by.get_full_name().strip()
+        return full_name or self.recorded_by.username
+
+
 class StaffProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,

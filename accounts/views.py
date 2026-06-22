@@ -35,6 +35,7 @@ from accounts.forms import (
     EmployeeDocumentForm,
     EmployeeForm,
     EmployeeQualificationForm,
+    ExpenseForm,
     EmploymentHistoryForm,
     LeaveRequestForm,
     OwnerWithdrawalForm,
@@ -54,6 +55,7 @@ from accounts.models import (
     Employee,
     EmployeeDocument,
     EmployeeQualification,
+    Expense,
     EmploymentHistoryEntry,
     LeaveRequest,
     PayrollRecord,
@@ -84,6 +86,7 @@ from accounts.reporting import (
     daily_total_revenue_map,
     event_payment_queryset,
     event_revenue_queryset,
+    filter_queryset_for_local_datetime_bounds,
     money_total as shared_money_total,
     normalize_date_range,
     owner_withdrawals_queryset,
@@ -713,6 +716,8 @@ def _sales_deposit_filtered_queryset(request):
     query = request.GET.get("q", "").strip()
     start_date = _sales_deposit_date_value(request.GET.get("start_date"))
     end_date = _sales_deposit_date_value(request.GET.get("end_date"))
+    if start_date and end_date:
+        start_date, end_date = normalize_date_range(start_date, end_date)
     withdrawals = OwnerWithdrawal.objects.select_related("recorded_by").order_by("-created_at", "-pk")
 
     if query:
@@ -724,13 +729,12 @@ def _sales_deposit_filtered_queryset(request):
             | Q(recorded_by__last_name__icontains=query)
         )
 
-    if start_date and end_date:
-        start_date, end_date = normalize_date_range(start_date, end_date)
-        withdrawals = withdrawals.filter(created_at__date__range=[start_date, end_date])
-    elif start_date:
-        withdrawals = withdrawals.filter(created_at__date__gte=start_date)
-    elif end_date:
-        withdrawals = withdrawals.filter(created_at__date__lte=end_date)
+    withdrawals = filter_queryset_for_local_datetime_bounds(
+        withdrawals,
+        "created_at",
+        start_date,
+        end_date,
+    )
 
     return {
         "withdrawals": withdrawals,
@@ -936,6 +940,668 @@ def sales_deposits_export_xlsx(request):
     return _xlsx_response(
         workbook,
         f"owner-withdrawals-report-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
+    )
+
+
+def _finance_filters_querystring(filters):
+    query = QueryDict("", mutable=True)
+    query["period"] = filters["report_window"]["period"]
+    query["start_date"] = filters["report_window"]["start_date"].isoformat()
+    query["end_date"] = filters["report_window"]["end_date"].isoformat()
+    if filters["query"]:
+        query["q"] = filters["query"]
+    if filters["category"]:
+        query["category"] = filters["category"]
+    return query.urlencode()
+
+
+def _finance_export_querystring(filters):
+    query = QueryDict("", mutable=True)
+    query["period"] = filters["report_window"]["period"]
+    query["start_date"] = filters["report_window"]["start_date"].isoformat()
+    query["end_date"] = filters["report_window"]["end_date"].isoformat()
+    return query.urlencode()
+
+
+def _finance_filters_from_request(request):
+    report_window = _report_window_from_request(request)
+    return {
+        "report_window": report_window,
+        "query": request.GET.get("q", "").strip(),
+        "category": request.GET.get("category", "").strip(),
+    }
+
+
+def _finance_category_options():
+    categories = list(Expense.DEFAULT_CATEGORIES)
+    existing = list(
+        Expense.objects.exclude(category="")
+        .values_list("category", flat=True)
+        .distinct()
+    )
+    for category in sorted(existing):
+        if category not in categories:
+            categories.append(category)
+    return categories
+
+
+def _finance_pnl_group_labels():
+    return [group_label for group_label, _categories in Expense.DEFAULT_CATEGORY_GROUPS]
+
+
+def _finance_expenses_queryset(start_date, end_date, query="", category=""):
+    expenses = Expense.objects.select_related("recorded_by").filter(
+        date__range=[start_date, end_date]
+    ).order_by("-date", "-created_at", "-pk")
+    if query:
+        expenses = expenses.filter(
+            Q(category__icontains=query)
+            | Q(description__icontains=query)
+            | Q(recorded_by__username__icontains=query)
+            | Q(recorded_by__first_name__icontains=query)
+            | Q(recorded_by__last_name__icontains=query)
+        )
+    if category:
+        expenses = expenses.filter(category=category)
+    return expenses
+
+
+def _finance_summary_cards():
+    today = timezone.localdate()
+    week_start, week_end = shared_report_window_for_period("weekly", today)
+    month_start, month_end = shared_report_window_for_period("monthly", today)
+    year_start, year_end = shared_report_window_for_period("yearly", today)
+    return [
+        {"label": "Expenses today", "value": _display_money(_money_total(Expense.objects.filter(date=today), "amount"))},
+        {"label": "This week", "value": _display_money(_money_total(Expense.objects.filter(date__range=[week_start, week_end]), "amount"))},
+        {"label": "This month", "value": _display_money(_money_total(Expense.objects.filter(date__range=[month_start, month_end]), "amount"))},
+        {"label": "This year", "value": _display_money(_money_total(Expense.objects.filter(date__range=[year_start, year_end]), "amount"))},
+    ]
+
+
+def _finance_revenue_source_breakdown(start_date, end_date):
+    revenue = revenue_components(start_date, end_date)
+    return [
+        {"label": "Room Bookings Revenue", "amount": Decimal(str(revenue["booking_revenue"] or 0))},
+        {"label": "POS Sales Revenue", "amount": Decimal(str(revenue["pos_sales"] or 0))},
+        {"label": "Event Reservations Revenue", "amount": Decimal(str(revenue["event_revenue"] or 0))},
+        {"label": "Other Revenue", "amount": Decimal("0.00")},
+    ]
+
+
+def _finance_pnl_expense_totals(expenses_queryset):
+    category_to_group = {}
+    for group_label, categories in Expense.DEFAULT_CATEGORY_GROUPS:
+        for category in categories:
+            category_to_group[category] = group_label
+
+    category_totals = {group_label: Decimal("0.00") for group_label in _finance_pnl_group_labels()}
+    category_totals["Other"] = Decimal("0.00")
+    for row in expenses_queryset.values("category").annotate(
+        total=Coalesce(
+            Sum("amount"),
+            Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        )
+    ):
+        category_name = (row["category"] or "").strip()
+        total = Decimal(str(row["total"] or 0))
+        group_name = category_to_group.get(category_name)
+        if group_name:
+            category_totals[group_name] += total
+        else:
+            category_totals["Other"] += total
+    return category_totals
+
+
+def _finance_pnl_rows(revenue_breakdown, expense_category_totals, gross_revenue, total_expenses, sales_deposits_total, net_profit):
+    rows = [
+        ["Room Bookings Revenue", _display_money(revenue_breakdown[0]["amount"])],
+        ["POS Sales Revenue", _display_money(revenue_breakdown[1]["amount"])],
+        ["Event Reservations Revenue", _display_money(revenue_breakdown[2]["amount"])],
+        ["Other Revenue", _display_money(revenue_breakdown[3]["amount"])],
+        ["TOTAL REVENUE", _display_money(gross_revenue)],
+    ]
+    for group_label in _finance_pnl_group_labels():
+        rows.append([group_label, _display_money(expense_category_totals[group_label])])
+    rows.extend(
+        [
+            ["Other Expenses", _display_money(expense_category_totals["Other"])],
+            ["TOTAL EXPENSES", _display_money(total_expenses)],
+            ["SALES DEPOSITS", _display_money(sales_deposits_total)],
+            ["NET PROFIT / LOSS", _display_money(net_profit)],
+        ]
+    )
+    return rows
+
+
+def _finance_expense_category_breakdown(expenses_queryset):
+    rows = []
+    export_rows = []
+    for row in expenses_queryset.values("category").annotate(
+        total=Coalesce(
+            Sum("amount"),
+            Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+        ),
+        entries=Count("id"),
+    ).order_by("-total", "category"):
+        category_name = row["category"] or "Uncategorised"
+        rows.append([category_name, row["entries"], _display_money(row["total"])])
+        export_rows.append([category_name, row["entries"], float(row["total"] or 0)])
+    return rows, export_rows
+
+
+def _finance_daily_money_map_from_queryset(queryset, field_name, amount_field):
+    rows = (
+        queryset.values(field_name)
+        .annotate(
+            total=Coalesce(
+                Sum(amount_field),
+                Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+            )
+        )
+        .order_by(field_name)
+    )
+    return {row[field_name]: Decimal(str(row["total"] or 0)) for row in rows}
+
+
+def _finance_daily_datetime_money_map_from_queryset(queryset, field_name, amount_field):
+    rows = (
+        queryset.annotate(day=TruncDate(field_name))
+        .values("day")
+        .annotate(
+            total=Coalesce(
+                Sum(amount_field),
+                Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
+            )
+        )
+        .order_by("day")
+    )
+    return {row["day"]: Decimal(str(row["total"] or 0)) for row in rows}
+
+
+def _finance_daily_breakdown(start_date, end_date):
+    room_map = _finance_daily_money_map_from_queryset(
+        booking_revenue_queryset(start_date, end_date),
+        "check_in",
+        "total_amount",
+    )
+    pos_map = _finance_daily_datetime_money_map_from_queryset(
+        completed_pos_sales_queryset(start_date, end_date),
+        "created_at",
+        "grand_total",
+    )
+    event_map = _finance_daily_datetime_money_map_from_queryset(
+        event_revenue_queryset(start_date, end_date),
+        "event_start",
+        "total_amount",
+    )
+    expense_map = _finance_daily_money_map_from_queryset(
+        Expense.objects.filter(date__range=[start_date, end_date]),
+        "date",
+        "amount",
+    )
+    deposit_map = daily_owner_withdrawals_map(start_date, end_date)
+
+    rows = []
+    for current_day in _report_days(start_date, end_date):
+        room_total = room_map.get(current_day, Decimal("0"))
+        pos_total = pos_map.get(current_day, Decimal("0"))
+        event_total = event_map.get(current_day, Decimal("0"))
+        other_total = Decimal("0")
+        gross_total = room_total + pos_total + event_total + other_total
+        expense_total = expense_map.get(current_day, Decimal("0"))
+        deposit_total = deposit_map.get(current_day, Decimal("0"))
+        net_total = gross_total - expense_total - deposit_total
+        rows.append(
+            {
+                "date": current_day,
+                "room_revenue": room_total,
+                "pos_revenue": pos_total,
+                "event_revenue": event_total,
+                "other_revenue": other_total,
+                "gross_revenue": gross_total,
+                "expenses": expense_total,
+                "sales_deposits": deposit_total,
+                "net_profit": net_total,
+            }
+        )
+    return rows
+
+
+def _finance_cash_on_hand(snapshot_date):
+    booking_cash = _money_total(
+        Payment.objects.filter(
+            method=Payment.PaymentMethod.CASH,
+            paid_at__date__lte=snapshot_date,
+        ),
+        "amount",
+    )
+    event_cash = _money_total(
+        EventPayment.objects.filter(
+            method=EventPayment.PaymentMethod.CASH,
+            paid_at__date__lte=snapshot_date,
+        ),
+        "amount",
+    )
+    pos_cash = _money_total(
+        Sale.objects.filter(
+            status=Sale.SaleStatus.COMPLETED,
+            payment_method=Sale.PaymentMethod.CASH,
+            created_at__date__lte=snapshot_date,
+        ),
+        "grand_total",
+    )
+    withdrawals = _money_total(
+        OwnerWithdrawal.objects.filter(created_at__date__lte=snapshot_date),
+        "amount",
+    )
+    cash_expenses = _money_total(
+        Expense.objects.filter(
+            date__lte=snapshot_date,
+            payment_method=Expense.PaymentMethod.CASH,
+        ),
+        "amount",
+    )
+    return Decimal(str(booking_cash + event_cash + pos_cash - withdrawals - cash_expenses))
+
+
+def _finance_retained_earnings(snapshot_date):
+    system_start = date(2000, 1, 1)
+    revenue = revenue_components(system_start, snapshot_date)
+    expenses_total = _money_total(Expense.objects.filter(date__lte=snapshot_date), "amount")
+    return Decimal(str(revenue["gross_revenue"] - expenses_total - revenue["owner_withdrawals"]))
+
+
+def _finance_balance_sheet_snapshot(snapshot_date):
+    inventory_items = list(InventoryItem.objects.filter(is_active=True))
+    inventory_value = sum(
+        (Decimal(str(item.purchase_price or 0)) * Decimal(str(item.quantity_in_stock or 0)) for item in inventory_items),
+        Decimal("0.00"),
+    )
+    return {
+        "snapshot_date": snapshot_date,
+        "cash_on_hand": _finance_cash_on_hand(snapshot_date),
+        "inventory_value": inventory_value,
+        "inventory_item_count": len(inventory_items),
+        "liabilities_note": "No liability data tracked yet",
+        "retained_earnings": _finance_retained_earnings(snapshot_date),
+    }
+
+
+@group_required(
+    "Admin",
+    denied_redirect="dashboard",
+    denied_message="Access Denied: Finance is available to admin accounts only.",
+)
+def finance_center(request):
+    filters = _finance_filters_from_request(request)
+    report_window = filters["report_window"]
+    start_date = report_window["start_date"]
+    end_date = report_window["end_date"]
+
+    expense_form = ExpenseForm(request.POST or None, request.FILES or None)
+    editing_expense = None
+
+    if request.method == "POST" and expense_form.is_valid():
+        expense = expense_form.save(commit=False)
+        expense.recorded_by = request.user
+        expense.save()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.CREATE,
+            module="finance",
+            object_repr=f"Expense {expense.pk}",
+            object_id=expense.pk,
+            details={"event": "expense_created", "amount": str(expense.amount), "category": expense.category},
+        )
+        messages.success(request, "Expense logged successfully.")
+        return redirect("finance-center")
+
+    all_range_expenses = Expense.objects.filter(date__range=[start_date, end_date])
+    filtered_expenses = _finance_expenses_queryset(
+        start_date,
+        end_date,
+        query=filters["query"],
+        category=filters["category"],
+    )
+    revenue_breakdown = _finance_revenue_source_breakdown(start_date, end_date)
+    gross_revenue = sum((row["amount"] for row in revenue_breakdown), Decimal("0.00"))
+    total_expenses = _money_total(all_range_expenses, "amount")
+    sales_deposits_total = _money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
+    net_profit = gross_revenue - total_expenses - sales_deposits_total
+    expense_category_totals = _finance_pnl_expense_totals(all_range_expenses)
+    expense_breakdown_rows, expense_breakdown_export_rows = _finance_expense_category_breakdown(all_range_expenses)
+    balance_sheet = _finance_balance_sheet_snapshot(end_date)
+
+    daily_rows = _finance_daily_breakdown(start_date, end_date)
+    chart_series = _analytics_aggregate_points(
+        [
+            {
+                "date": row["date"],
+                "gross_revenue": row["gross_revenue"],
+                "expenses": row["expenses"],
+                "net_profit": row["net_profit"],
+            }
+            for row in daily_rows
+        ],
+        report_window["period"],
+        start_date,
+        end_date,
+        sum_fields=("gross_revenue", "expenses", "net_profit"),
+    )
+
+    expense_donut_labels = [row[0] for row in expense_breakdown_export_rows] or ["No expenses"]
+    expense_donut_values = [row[2] for row in expense_breakdown_export_rows] or [0]
+    revenue_donut_labels = [row["label"] for row in revenue_breakdown]
+    revenue_donut_values = [float(row["amount"]) for row in revenue_breakdown]
+    charts = [
+        _analytics_chart(
+            "finance-revenue-expense-chart",
+            "Revenue vs expenses",
+            "line",
+            chart_series["labels"],
+            [
+                {"label": "Gross Revenue", "data": chart_series["values"]["gross_revenue"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.12)", "fill": True, "tension": 0.35},
+                {"label": "Expenses", "data": chart_series["values"]["expenses"], "borderColor": "#CFAE84", "backgroundColor": "rgba(207,174,132,0.10)", "fill": False, "tension": 0.35},
+            ],
+        ),
+        _analytics_chart(
+            "finance-net-profit-chart",
+            "Net profit trend",
+            "line",
+            chart_series["labels"],
+            [
+                {"label": "Net Profit / Loss", "data": chart_series["values"]["net_profit"], "borderColor": "#3D7DFF", "backgroundColor": "rgba(61,125,255,0.12)", "fill": True, "tension": 0.35},
+            ],
+        ),
+        _analytics_chart(
+            "finance-expense-breakdown-chart",
+            "Expense breakdown by category",
+            "doughnut",
+            expense_donut_labels,
+            [
+                {"label": "Expenses", "data": expense_donut_values, "backgroundColor": ["#23444B", "#CFAE84", "#3D7DFF", "#78C0A8", "#D95D39", "#6C757D", "#A06CD5"]},
+            ],
+        ),
+        _analytics_chart(
+            "finance-revenue-breakdown-chart",
+            "Revenue breakdown by source",
+            "doughnut",
+            revenue_donut_labels,
+            [
+                {"label": "Revenue", "data": revenue_donut_values, "backgroundColor": ["#23444B", "#3D7DFF", "#78C0A8", "#CFAE84"]},
+            ],
+        ),
+    ]
+
+    revenue_breakdown_rows = [
+        [row["label"], _display_money(row["amount"])]
+        for row in revenue_breakdown
+    ]
+    pnl_rows = _finance_pnl_rows(
+        revenue_breakdown,
+        expense_category_totals,
+        gross_revenue,
+        total_expenses,
+        sales_deposits_total,
+        net_profit,
+    )
+
+    return render(
+        request,
+        "accounts/finance_center.html",
+        {
+            "report_window": report_window,
+            "selected_period": report_window["period"],
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "query": filters["query"],
+            "selected_category": filters["category"],
+            "category_options": _finance_category_options(),
+            "expense_form": expense_form,
+            "editing_expense": editing_expense,
+            "summary_cards": _finance_summary_cards(),
+            "gross_revenue": gross_revenue,
+            "total_expenses": total_expenses,
+            "sales_deposits_total": sales_deposits_total,
+            "net_profit": net_profit,
+            "revenue_breakdown_rows": revenue_breakdown_rows,
+            "expense_breakdown_rows": expense_breakdown_rows,
+            "pnl_rows": pnl_rows,
+            "balance_sheet": balance_sheet,
+            "expenses": filtered_expenses,
+            "charts": charts,
+            "charts_json": json.dumps(charts),
+            "filter_query_string": _finance_filters_querystring(filters),
+            "export_url": f"{reverse('finance-export-xlsx')}?{_finance_export_querystring(filters)}",
+            "custom_category_sentinel": ExpenseForm.CUSTOM_CATEGORY_VALUE,
+        },
+    )
+
+
+@group_required(
+    "Admin",
+    denied_redirect="dashboard",
+    denied_message="Access Denied: Finance is available to admin accounts only.",
+)
+def finance_expense_update(request, pk):
+    expense = get_object_or_404(Expense.objects.select_related("recorded_by"), pk=pk)
+    filters = _finance_filters_from_request(request)
+    report_window = filters["report_window"]
+    start_date = report_window["start_date"]
+    end_date = report_window["end_date"]
+
+    expense_form = ExpenseForm(request.POST or None, request.FILES or None, instance=expense)
+    if request.method == "POST" and expense_form.is_valid():
+        updated_expense = expense_form.save(commit=False)
+        if not updated_expense.recorded_by_id:
+            updated_expense.recorded_by = request.user
+        updated_expense.save()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.UPDATE,
+            module="finance",
+            object_repr=f"Expense {updated_expense.pk}",
+            object_id=updated_expense.pk,
+            details={"event": "expense_updated", "amount": str(updated_expense.amount), "category": updated_expense.category},
+        )
+        messages.success(request, "Expense updated successfully.")
+        return redirect(f"{reverse('finance-center')}?{_finance_filters_querystring(filters)}")
+
+    all_range_expenses = Expense.objects.filter(date__range=[start_date, end_date])
+    filtered_expenses = _finance_expenses_queryset(start_date, end_date, filters["query"], filters["category"])
+    revenue_breakdown = _finance_revenue_source_breakdown(start_date, end_date)
+    gross_revenue = sum((row["amount"] for row in revenue_breakdown), Decimal("0.00"))
+    total_expenses = _money_total(all_range_expenses, "amount")
+    sales_deposits_total = _money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
+    net_profit = gross_revenue - total_expenses - sales_deposits_total
+    expense_category_totals = _finance_pnl_expense_totals(all_range_expenses)
+    expense_breakdown_rows, expense_breakdown_export_rows = _finance_expense_category_breakdown(all_range_expenses)
+    balance_sheet = _finance_balance_sheet_snapshot(end_date)
+    daily_rows = _finance_daily_breakdown(start_date, end_date)
+    chart_series = _analytics_aggregate_points(
+        [
+            {
+                "date": row["date"],
+                "gross_revenue": row["gross_revenue"],
+                "expenses": row["expenses"],
+                "net_profit": row["net_profit"],
+            }
+            for row in daily_rows
+        ],
+        report_window["period"],
+        start_date,
+        end_date,
+        sum_fields=("gross_revenue", "expenses", "net_profit"),
+    )
+    charts = [
+        _analytics_chart(
+            "finance-revenue-expense-chart",
+            "Revenue vs expenses",
+            "line",
+            chart_series["labels"],
+            [
+                {"label": "Gross Revenue", "data": chart_series["values"]["gross_revenue"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.12)", "fill": True, "tension": 0.35},
+                {"label": "Expenses", "data": chart_series["values"]["expenses"], "borderColor": "#CFAE84", "backgroundColor": "rgba(207,174,132,0.10)", "fill": False, "tension": 0.35},
+            ],
+        ),
+        _analytics_chart(
+            "finance-net-profit-chart",
+            "Net profit trend",
+            "line",
+            chart_series["labels"],
+            [
+                {"label": "Net Profit / Loss", "data": chart_series["values"]["net_profit"], "borderColor": "#3D7DFF", "backgroundColor": "rgba(61,125,255,0.12)", "fill": True, "tension": 0.35},
+            ],
+        ),
+        _analytics_chart(
+            "finance-expense-breakdown-chart",
+            "Expense breakdown by category",
+            "doughnut",
+            [row[0] for row in expense_breakdown_export_rows] or ["No expenses"],
+            [
+                {"label": "Expenses", "data": [row[2] for row in expense_breakdown_export_rows] or [0], "backgroundColor": ["#23444B", "#CFAE84", "#3D7DFF", "#78C0A8", "#D95D39", "#6C757D", "#A06CD5"]},
+            ],
+        ),
+        _analytics_chart(
+            "finance-revenue-breakdown-chart",
+            "Revenue breakdown by source",
+            "doughnut",
+            [row["label"] for row in revenue_breakdown],
+            [
+                {"label": "Revenue", "data": [float(row["amount"]) for row in revenue_breakdown], "backgroundColor": ["#23444B", "#3D7DFF", "#78C0A8", "#CFAE84"]},
+            ],
+        ),
+    ]
+    pnl_rows = _finance_pnl_rows(
+        revenue_breakdown,
+        expense_category_totals,
+        gross_revenue,
+        total_expenses,
+        sales_deposits_total,
+        net_profit,
+    )
+    return render(
+        request,
+        "accounts/finance_center.html",
+        {
+            "report_window": report_window,
+            "selected_period": report_window["period"],
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "query": filters["query"],
+            "selected_category": filters["category"],
+            "category_options": _finance_category_options(),
+            "expense_form": expense_form,
+            "editing_expense": expense,
+            "summary_cards": _finance_summary_cards(),
+            "gross_revenue": gross_revenue,
+            "total_expenses": total_expenses,
+            "sales_deposits_total": sales_deposits_total,
+            "net_profit": net_profit,
+            "revenue_breakdown_rows": [[row["label"], _display_money(row["amount"])] for row in revenue_breakdown],
+            "expense_breakdown_rows": expense_breakdown_rows,
+            "pnl_rows": pnl_rows,
+            "balance_sheet": balance_sheet,
+            "expenses": filtered_expenses,
+            "charts": charts,
+            "charts_json": json.dumps(charts),
+            "filter_query_string": _finance_filters_querystring(filters),
+            "export_url": f"{reverse('finance-export-xlsx')}?{_finance_export_querystring(filters)}",
+            "custom_category_sentinel": ExpenseForm.CUSTOM_CATEGORY_VALUE,
+        },
+    )
+
+
+@require_POST
+@group_required(
+    "Admin",
+    denied_redirect="dashboard",
+    denied_message="Access Denied: Finance is available to admin accounts only.",
+)
+def finance_expense_delete(request, pk):
+    expense = get_object_or_404(Expense, pk=pk)
+    expense_id = expense.pk
+    expense_amount = expense.amount
+    expense_category = expense.category
+    expense.delete()
+    log_audit_event(
+        request=request,
+        user=request.user,
+        action=AuditLog.ActionType.DELETE,
+        module="finance",
+        object_repr=f"Expense {expense_id}",
+        object_id=expense_id,
+        details={"event": "expense_deleted", "amount": str(expense_amount), "category": expense_category},
+    )
+    messages.success(request, "Expense deleted successfully.")
+    return redirect("finance-center")
+
+
+@group_required(
+    "Admin",
+    denied_redirect="dashboard",
+    denied_message="Access Denied: Finance is available to admin accounts only.",
+)
+def finance_export_xlsx(request):
+    workbook = _create_reports_workbook_or_none(request)
+    if workbook is None:
+        return redirect("finance-center")
+
+    report_window = _report_window_from_request(request)
+    start_date = report_window["start_date"]
+    end_date = report_window["end_date"]
+    revenue_breakdown = _finance_revenue_source_breakdown(start_date, end_date)
+    daily_rows = _finance_daily_breakdown(start_date, end_date)
+    expenses = Expense.objects.select_related("recorded_by").filter(date__range=[start_date, end_date]).order_by("date", "created_at")
+    expense_breakdown_rows, expense_breakdown_export_rows = _finance_expense_category_breakdown(expenses)
+    deposits = list(owner_withdrawals_queryset(start_date, end_date).select_related("recorded_by").order_by("-created_at", "-pk"))
+    gross_revenue = sum((row["amount"] for row in revenue_breakdown), Decimal("0.00"))
+    total_expenses = _money_total(expenses, "amount")
+    sales_deposits_total = _money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
+    net_profit = gross_revenue - total_expenses - sales_deposits_total
+    expense_category_totals = _finance_pnl_expense_totals(expenses)
+    balance_sheet = _finance_balance_sheet_snapshot(end_date)
+
+    revenue_sheet = workbook.active
+    revenue_sheet.title = "Revenue Breakdown"
+    _write_finance_revenue_sheet(revenue_sheet, revenue_breakdown, daily_rows, start_date, end_date)
+
+    expense_sheet = workbook.create_sheet(title="Expense Breakdown")
+    _write_finance_expense_sheet(expense_sheet, expense_breakdown_export_rows, expenses, start_date, end_date)
+
+    deposit_sheet = workbook.create_sheet(title="Sales Deposit Log")
+    _write_owner_withdrawals_log_sheet(deposit_sheet, deposits, start_date, end_date)
+
+    pnl_sheet = workbook.create_sheet(title="Profit Loss")
+    _write_finance_pnl_sheet(
+        pnl_sheet,
+        revenue_breakdown,
+        expense_category_totals,
+        gross_revenue,
+        total_expenses,
+        sales_deposits_total,
+        net_profit,
+        start_date,
+        end_date,
+    )
+
+    balance_sheet_ws = workbook.create_sheet(title="Balance Sheet")
+    _write_finance_balance_sheet(balance_sheet_ws, balance_sheet)
+
+    log_audit_event(
+        request=request,
+        user=request.user,
+        action=AuditLog.ActionType.EXPORT,
+        module="finance",
+        object_repr="Finance workbook export",
+        details={"event": "finance_exported", "start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+    )
+    return _xlsx_response(
+        workbook,
+        f"finance-report-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
     )
 
 
@@ -4601,6 +5267,252 @@ def _write_owner_withdrawals_summary_sheet(worksheet, start_date, end_date):
             max_length = max(max_length, len(str(cell.value or "")))
             cell.alignment = Alignment(vertical="top", wrap_text=True)
         worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 28)
+
+
+def _write_finance_revenue_sheet(worksheet, revenue_breakdown, daily_rows, start_date, end_date):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet["A1"] = "Revenue Breakdown"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+    worksheet.append([])
+    worksheet.append(["Revenue Source", "Total"])
+    for cell in worksheet[4]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    gross_total = Decimal("0.00")
+    for row in revenue_breakdown:
+        gross_total += Decimal(str(row["amount"] or 0))
+        worksheet.append([row["label"], float(row["amount"] or 0)])
+    worksheet.append(["TOTAL REVENUE", float(gross_total)])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    worksheet.append([])
+    worksheet.append(["Date", "Room Revenue", "POS Revenue", "Event Revenue", "Other Revenue", "Gross Revenue"])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for row in daily_rows:
+        worksheet.append(
+            [
+                row["date"].strftime("%d/%m/%Y"),
+                float(row["room_revenue"]),
+                float(row["pos_revenue"]),
+                float(row["event_revenue"]),
+                float(row["other_revenue"]),
+                float(row["gross_revenue"]),
+            ]
+        )
+    worksheet.append(
+        [
+            "TOTALS",
+            float(sum((row["room_revenue"] for row in daily_rows), Decimal("0.00"))),
+            float(sum((row["pos_revenue"] for row in daily_rows), Decimal("0.00"))),
+            float(sum((row["event_revenue"] for row in daily_rows), Decimal("0.00"))),
+            float(sum((row["other_revenue"] for row in daily_rows), Decimal("0.00"))),
+            float(sum((row["gross_revenue"] for row in daily_rows), Decimal("0.00"))),
+        ]
+    )
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 26)
+
+
+def _write_finance_expense_sheet(worksheet, expense_breakdown_rows, expenses, start_date, end_date):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet["A1"] = "Expense Breakdown"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+    worksheet.append([])
+    worksheet.append(["Category", "Entries", "Total"])
+    for cell in worksheet[4]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    for row in expense_breakdown_rows:
+        worksheet.append(row)
+    worksheet.append(
+        [
+            "TOTALS",
+            expenses.count(),
+            float(_money_total(expenses, "amount")),
+        ]
+    )
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    worksheet.append([])
+    worksheet.append(["Date", "Category", "Description", "Amount", "Payment Method", "Recorded By", "Receipt"])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    daily_totals = {}
+    for expense in expenses:
+        daily_totals[expense.date] = daily_totals.get(expense.date, Decimal("0.00")) + Decimal(str(expense.amount or 0))
+        worksheet.append(
+            [
+                expense.date.strftime("%d/%m/%Y"),
+                expense.category,
+                expense.description,
+                float(expense.amount or 0),
+                expense.get_payment_method_display(),
+                expense.recorded_by_name,
+                expense.receipt.name.split("/")[-1] if expense.receipt else "",
+            ]
+        )
+    worksheet.append(["TOTALS", "", "", float(_money_total(expenses, "amount")), "", "", ""])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    worksheet.append([])
+    worksheet.append(["Date", "Daily Expense Total"])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+    for expense_date in sorted(daily_totals):
+        worksheet.append([expense_date.strftime("%d/%m/%Y"), float(daily_totals[expense_date])])
+    worksheet.append(["TOTALS", float(sum(daily_totals.values(), Decimal("0.00")))])
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 30)
+
+
+def _write_finance_pnl_sheet(
+    worksheet,
+    revenue_breakdown,
+    expense_category_totals,
+    gross_revenue,
+    total_expenses,
+    sales_deposits_total,
+    net_profit,
+    start_date,
+    end_date,
+):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet["A1"] = "Profit & Loss Statement"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+    worksheet.append([])
+    worksheet.append(["Line Item", "Amount"])
+    for cell in worksheet[4]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    rows = [
+        ["Room Bookings Revenue", float(revenue_breakdown[0]["amount"])],
+        ["POS Sales Revenue", float(revenue_breakdown[1]["amount"])],
+        ["Event Reservations Revenue", float(revenue_breakdown[2]["amount"])],
+        ["Other Revenue", float(revenue_breakdown[3]["amount"])],
+        ["TOTAL REVENUE", float(gross_revenue)],
+    ]
+    for group_label in _finance_pnl_group_labels():
+        rows.append([group_label, float(expense_category_totals[group_label])])
+    rows.extend(
+        [
+            ["Other Expenses", float(expense_category_totals["Other"])],
+            ["TOTAL EXPENSES", float(total_expenses)],
+            ["SALES DEPOSITS", float(sales_deposits_total)],
+            ["NET PROFIT / LOSS", float(net_profit)],
+        ]
+    )
+    for row in rows:
+        worksheet.append(row)
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 30)
+
+
+def _write_finance_balance_sheet(worksheet, balance_sheet):
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    title_font = Font(bold=True, size=14)
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
+    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
+
+    worksheet["A1"] = "Balance Sheet Snapshot"
+    worksheet["A1"].font = title_font
+    worksheet["A2"] = f"As at: {balance_sheet['snapshot_date'].strftime('%d/%m/%Y')}"
+    worksheet.append([])
+    worksheet.append(["Section", "Line Item", "Value", "Notes"])
+    for cell in worksheet[4]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    rows = [
+        ["ASSETS", "Cash on hand", float(balance_sheet["cash_on_hand"]), "Cash payments received minus withdrawals and cash expenses."],
+        ["ASSETS", "Inventory value", float(balance_sheet["inventory_value"]), f"{balance_sheet['inventory_item_count']} active inventory items valued at current purchase cost."],
+        ["LIABILITIES", "Outstanding supplier payments", "", balance_sheet["liabilities_note"]],
+        ["EQUITY", "Retained earnings", float(balance_sheet["retained_earnings"]), "Accumulated net profit after expenses and owner withdrawals."],
+    ]
+    for row in rows:
+        worksheet.append(row)
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = Font(bold=True)
+        cell.fill = summary_fill
+
+    for column in worksheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            max_length = max(max_length, len(str(cell.value or "")))
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 36)
 
 
 def _xlsx_response(workbook, filename):

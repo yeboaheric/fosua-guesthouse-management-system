@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Financial control</div>
         <h1 class="module-title">Finance</h1>
-        <div class="module-subcopy">Review consolidated hotel revenue, track expenses, monitor withdrawals, and export accounting-grade finance reports.</div>
+        <div class="module-subcopy">Review consolidated hotel revenue, track expenses, and export accounting-grade finance reports.</div>
       </div>
       <div class="module-action-row">
         <a class="topbar-pill" href="{{ export_url }}"><i data-lucide="download"></i> Export finance workbook</a>
@@ -66,32 +66,25 @@
     </section>
 
     <div class="row g-3 mb-3">
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="mini-metric h-100">
           <div class="metric-label">Gross revenue</div>
           <div class="metric-value">GHS {{ gross_revenue|floatformat:2 }}</div>
           <div class="text-muted small mt-2">GHS across rooms, POS, and event revenue for the selected range.</div>
         </div>
       </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="mini-metric h-100">
           <div class="metric-label">Total expenses</div>
           <div class="metric-value">GHS {{ total_expenses|floatformat:2 }}</div>
           <div class="text-muted small mt-2">All logged operating expenses within the selected range.</div>
         </div>
       </div>
-      <div class="col-md-3">
-        <div class="mini-metric h-100">
-          <div class="metric-label">Sales deposits</div>
-          <div class="metric-value">GHS {{ sales_deposits_total|floatformat:2 }}</div>
-          <div class="text-muted small mt-2">Existing owner withdrawals deducted without changing the Sales Deposits module.</div>
-        </div>
-      </div>
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="mini-metric h-100">
           <div class="metric-label">Net profit / loss</div>
           <div class="metric-value">GHS {{ net_profit|floatformat:2 }}</div>
-          <div class="text-muted small mt-2">Gross revenue minus expenses and sales deposits for this period.</div>
+          <div class="text-muted small mt-2">Gross revenue minus expenses for this period.</div>
         </div>
       </div>
     </div>
@@ -229,7 +222,7 @@
                   </thead>
                   <tbody>
                     {% for row in pnl_rows %}
-                      <tr {% if "TOTAL" in row.0 or "NET PROFIT" in row.0 or "SALES DEPOSITS" in row.0 %}class="table-light fw-semibold"{% endif %}>
+                      <tr {% if "TOTAL" in row.0 or "NET PROFIT" in row.0 %}class="table-light fw-semibold"{% endif %}>
                         <td>{{ row.0 }}</td>
                         <td>{{ row.1 }}</td>
                       </tr>

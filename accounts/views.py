@@ -1055,7 +1055,7 @@ def _finance_pnl_expense_totals(expenses_queryset):
     return category_totals
 
 
-def _finance_pnl_rows(revenue_breakdown, expense_category_totals, gross_revenue, total_expenses, sales_deposits_total, net_profit):
+def _finance_pnl_rows(revenue_breakdown, expense_category_totals, gross_revenue, total_expenses, net_profit):
     rows = [
         ["Room Bookings Revenue", _display_money(revenue_breakdown[0]["amount"])],
         ["POS Sales Revenue", _display_money(revenue_breakdown[1]["amount"])],
@@ -1069,7 +1069,6 @@ def _finance_pnl_rows(revenue_breakdown, expense_category_totals, gross_revenue,
         [
             ["Other Expenses", _display_money(expense_category_totals["Other"])],
             ["TOTAL EXPENSES", _display_money(total_expenses)],
-            ["SALES DEPOSITS", _display_money(sales_deposits_total)],
             ["NET PROFIT / LOSS", _display_money(net_profit)],
         ]
     )
@@ -1142,8 +1141,6 @@ def _finance_daily_breakdown(start_date, end_date):
         "date",
         "amount",
     )
-    deposit_map = daily_owner_withdrawals_map(start_date, end_date)
-
     rows = []
     for current_day in _report_days(start_date, end_date):
         room_total = room_map.get(current_day, Decimal("0"))
@@ -1152,8 +1149,7 @@ def _finance_daily_breakdown(start_date, end_date):
         other_total = Decimal("0")
         gross_total = room_total + pos_total + event_total + other_total
         expense_total = expense_map.get(current_day, Decimal("0"))
-        deposit_total = deposit_map.get(current_day, Decimal("0"))
-        net_total = gross_total - expense_total - deposit_total
+        net_total = gross_total - expense_total
         rows.append(
             {
                 "date": current_day,
@@ -1163,7 +1159,6 @@ def _finance_daily_breakdown(start_date, end_date):
                 "other_revenue": other_total,
                 "gross_revenue": gross_total,
                 "expenses": expense_total,
-                "sales_deposits": deposit_total,
                 "net_profit": net_total,
             }
         )
@@ -1193,10 +1188,6 @@ def _finance_cash_on_hand(snapshot_date):
         ),
         "grand_total",
     )
-    withdrawals = _money_total(
-        OwnerWithdrawal.objects.filter(created_at__date__lte=snapshot_date),
-        "amount",
-    )
     cash_expenses = _money_total(
         Expense.objects.filter(
             date__lte=snapshot_date,
@@ -1204,14 +1195,14 @@ def _finance_cash_on_hand(snapshot_date):
         ),
         "amount",
     )
-    return Decimal(str(booking_cash + event_cash + pos_cash - withdrawals - cash_expenses))
+    return Decimal(str(booking_cash + event_cash + pos_cash - cash_expenses))
 
 
 def _finance_retained_earnings(snapshot_date):
     system_start = date(2000, 1, 1)
     revenue = revenue_components(system_start, snapshot_date)
     expenses_total = _money_total(Expense.objects.filter(date__lte=snapshot_date), "amount")
-    return Decimal(str(revenue["gross_revenue"] - expenses_total - revenue["owner_withdrawals"]))
+    return Decimal(str(revenue["gross_revenue"] - expenses_total))
 
 
 def _finance_balance_sheet_snapshot(snapshot_date):
@@ -1270,8 +1261,7 @@ def finance_center(request):
     revenue_breakdown = _finance_revenue_source_breakdown(start_date, end_date)
     gross_revenue = sum((row["amount"] for row in revenue_breakdown), Decimal("0.00"))
     total_expenses = _money_total(all_range_expenses, "amount")
-    sales_deposits_total = _money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
-    net_profit = gross_revenue - total_expenses - sales_deposits_total
+    net_profit = gross_revenue - total_expenses
     expense_category_totals = _finance_pnl_expense_totals(all_range_expenses)
     expense_breakdown_rows, expense_breakdown_export_rows = _finance_expense_category_breakdown(all_range_expenses)
     balance_sheet = _finance_balance_sheet_snapshot(end_date)
@@ -1346,7 +1336,6 @@ def finance_center(request):
         expense_category_totals,
         gross_revenue,
         total_expenses,
-        sales_deposits_total,
         net_profit,
     )
 
@@ -1366,7 +1355,6 @@ def finance_center(request):
             "summary_cards": _finance_summary_cards(),
             "gross_revenue": gross_revenue,
             "total_expenses": total_expenses,
-            "sales_deposits_total": sales_deposits_total,
             "net_profit": net_profit,
             "revenue_breakdown_rows": revenue_breakdown_rows,
             "expense_breakdown_rows": expense_breakdown_rows,
@@ -1417,8 +1405,7 @@ def finance_expense_update(request, pk):
     revenue_breakdown = _finance_revenue_source_breakdown(start_date, end_date)
     gross_revenue = sum((row["amount"] for row in revenue_breakdown), Decimal("0.00"))
     total_expenses = _money_total(all_range_expenses, "amount")
-    sales_deposits_total = _money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
-    net_profit = gross_revenue - total_expenses - sales_deposits_total
+    net_profit = gross_revenue - total_expenses
     expense_category_totals = _finance_pnl_expense_totals(all_range_expenses)
     expense_breakdown_rows, expense_breakdown_export_rows = _finance_expense_category_breakdown(all_range_expenses)
     balance_sheet = _finance_balance_sheet_snapshot(end_date)
@@ -1482,7 +1469,6 @@ def finance_expense_update(request, pk):
         expense_category_totals,
         gross_revenue,
         total_expenses,
-        sales_deposits_total,
         net_profit,
     )
     return render(
@@ -1501,7 +1487,6 @@ def finance_expense_update(request, pk):
             "summary_cards": _finance_summary_cards(),
             "gross_revenue": gross_revenue,
             "total_expenses": total_expenses,
-            "sales_deposits_total": sales_deposits_total,
             "net_profit": net_profit,
             "revenue_breakdown_rows": [[row["label"], _display_money(row["amount"])] for row in revenue_breakdown],
             "expense_breakdown_rows": expense_breakdown_rows,
@@ -1559,11 +1544,9 @@ def finance_export_xlsx(request):
     daily_rows = _finance_daily_breakdown(start_date, end_date)
     expenses = Expense.objects.select_related("recorded_by").filter(date__range=[start_date, end_date]).order_by("date", "created_at")
     expense_breakdown_rows, expense_breakdown_export_rows = _finance_expense_category_breakdown(expenses)
-    deposits = list(owner_withdrawals_queryset(start_date, end_date).select_related("recorded_by").order_by("-created_at", "-pk"))
     gross_revenue = sum((row["amount"] for row in revenue_breakdown), Decimal("0.00"))
     total_expenses = _money_total(expenses, "amount")
-    sales_deposits_total = _money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
-    net_profit = gross_revenue - total_expenses - sales_deposits_total
+    net_profit = gross_revenue - total_expenses
     expense_category_totals = _finance_pnl_expense_totals(expenses)
     balance_sheet = _finance_balance_sheet_snapshot(end_date)
 
@@ -1574,9 +1557,6 @@ def finance_export_xlsx(request):
     expense_sheet = workbook.create_sheet(title="Expense Breakdown")
     _write_finance_expense_sheet(expense_sheet, expense_breakdown_export_rows, expenses, start_date, end_date)
 
-    deposit_sheet = workbook.create_sheet(title="Sales Deposit Log")
-    _write_owner_withdrawals_log_sheet(deposit_sheet, deposits, start_date, end_date)
-
     pnl_sheet = workbook.create_sheet(title="Profit Loss")
     _write_finance_pnl_sheet(
         pnl_sheet,
@@ -1584,7 +1564,6 @@ def finance_export_xlsx(request):
         expense_category_totals,
         gross_revenue,
         total_expenses,
-        sales_deposits_total,
         net_profit,
         start_date,
         end_date,
@@ -5424,7 +5403,6 @@ def _write_finance_pnl_sheet(
     expense_category_totals,
     gross_revenue,
     total_expenses,
-    sales_deposits_total,
     net_profit,
     start_date,
     end_date,
@@ -5459,7 +5437,6 @@ def _write_finance_pnl_sheet(
         [
             ["Other Expenses", float(expense_category_totals["Other"])],
             ["TOTAL EXPENSES", float(total_expenses)],
-            ["SALES DEPOSITS", float(sales_deposits_total)],
             ["NET PROFIT / LOSS", float(net_profit)],
         ]
     )

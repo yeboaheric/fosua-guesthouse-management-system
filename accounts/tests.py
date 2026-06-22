@@ -556,7 +556,7 @@ class FinanceModuleTests(TestCase):
         workbook = load_workbook(BytesIO(export_response.content))
         self.assertEqual(
             workbook.sheetnames,
-            ["Revenue Breakdown", "Expense Breakdown", "Sales Deposit Log", "Profit Loss", "Balance Sheet"],
+            ["Revenue Breakdown", "Expense Breakdown", "Profit Loss", "Balance Sheet"],
         )
         pnl_sheet = workbook["Profit Loss"]
         pnl_labels = [
@@ -566,6 +566,27 @@ class FinanceModuleTests(TestCase):
         ]
         self.assertIn("Room Bookings Revenue", pnl_labels)
         self.assertIn("NET PROFIT / LOSS", pnl_labels)
+        self.assertNotIn("SALES DEPOSITS", pnl_labels)
+
+    def test_admin_can_create_expense_with_custom_category(self):
+        self.client.force_login(self.admin_user)
+        response = self.client.post(
+            reverse("finance-center"),
+            {
+                "date": timezone.localdate().isoformat(),
+                "category": ExpenseForm.CUSTOM_CATEGORY_VALUE,
+                "custom_category": "Special Repairs",
+                "description": "Emergency contractor support",
+                "amount": "55.00",
+                "payment_method": Expense.PaymentMethod.CASH,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Expense logged successfully.")
+        expense = Expense.objects.get(description="Emergency contractor support")
+        self.assertEqual(expense.category, "Special Repairs")
 
     def test_expense_form_offers_default_and_saved_custom_categories(self):
         Expense.objects.create(
@@ -595,6 +616,17 @@ class FinanceModuleTests(TestCase):
             ("Custom Vendor Charge", "Custom Vendor Charge"),
             grouped_lookup["Saved custom categories"],
         )
+        custom_form = ExpenseForm(
+            data={
+                "date": timezone.localdate().isoformat(),
+                "category": ExpenseForm.CUSTOM_CATEGORY_VALUE,
+                "custom_category": "Custom Vendor Charge",
+                "description": "Repeat vendor charge",
+                "amount": "10.00",
+                "payment_method": Expense.PaymentMethod.CASH,
+            }
+        )
+        self.assertTrue(custom_form.is_valid(), custom_form.errors)
 
 
 class UsersRolesPermissionPropagationTests(TestCase):

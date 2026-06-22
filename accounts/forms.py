@@ -393,14 +393,20 @@ class ExpenseForm(forms.ModelForm):
 
     def clean_category(self):
         value = self.cleaned_data.get("category", "").strip()
-        custom_value = self.cleaned_data.get("custom_category", "").strip()
-        if value == self.CUSTOM_CATEGORY_VALUE:
-            if not custom_value:
-                raise ValidationError("Enter a custom category.")
-            return custom_value
         if not value:
             raise ValidationError("Category is required.")
         return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        category = (cleaned_data.get("category") or "").strip()
+        custom_value = (cleaned_data.get("custom_category") or "").strip()
+        if category == self.CUSTOM_CATEGORY_VALUE:
+            if not custom_value:
+                self.add_error("category", "Enter a custom category.")
+            else:
+                cleaned_data["category"] = custom_value
+        return cleaned_data
 
     def clean_description(self):
         value = self.cleaned_data.get("description", "").strip()

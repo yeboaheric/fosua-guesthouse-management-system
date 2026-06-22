@@ -5,6 +5,7 @@ from io import BytesIO
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from openpyxl import load_workbook
 
 from accounts.models import UserAccessProfile
@@ -254,10 +255,14 @@ class InventoryPosWorkflowTests(TestCase):
         edit_response = self.client.get(reverse("inventory-sale-update", args=[sale.pk]))
         self.assertEqual(edit_response.status_code, 200)
         self.assertContains(edit_response, "Edit POS Sale")
+        self.assertContains(edit_response, 'name="sale_date"', html=False)
+        self.assertContains(edit_response, 'name="customer_name"', html=False)
+        original_local_timestamp = timezone.localtime(sale.created_at)
 
         update_response = self.client.post(
             reverse("inventory-sale-update", args=[sale.pk]),
             {
+                "sale_date": "2026-06-01",
                 "customer_name": "Corrected Guest",
                 "customer_phone": "0244000000",
                 "customer_email": "guest@example.com",
@@ -271,12 +276,15 @@ class InventoryPosWorkflowTests(TestCase):
         )
         self.assertEqual(update_response.status_code, 200)
         sale.refresh_from_db()
+        updated_local_timestamp = timezone.localtime(sale.created_at)
+        self.assertEqual(str(updated_local_timestamp.date()), "2026-06-01")
+        self.assertEqual(updated_local_timestamp.time().replace(microsecond=0), original_local_timestamp.time().replace(microsecond=0))
         self.assertEqual(sale.customer_name, "Corrected Guest")
         self.assertEqual(sale.payment_method, Sale.PaymentMethod.MOBILE_MONEY)
         self.assertEqual(str(sale.subtotal), "30.00")
         self.assertEqual(str(sale.grand_total), "31.00")
         self.assertEqual(str(sale.amount_paid), "35.00")
-        self.assertContains(update_response, "Sale")
+        self.assertContains(update_response, "updated successfully")
 
     def test_admin_can_delete_sale_and_restore_stock(self):
         self.client.force_login(self.user)

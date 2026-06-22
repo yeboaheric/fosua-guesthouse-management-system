@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Point of sale</div>
         <h1 class="module-title">{{ title }}</h1>
-        <div class="module-subcopy">Correct sale details for receipt {{ sale.receipt_number }} without affecting receipt viewing, printing, or stock movement.</div>
+        <div class="module-subcopy">Correct the recorded sale details for receipt {{ sale.receipt_number }}, including the sale date, without affecting receipt viewing or stock movement.</div>
       </div>
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Back to receipt</a>
@@ -31,13 +31,13 @@
               <strong>GHS {{ sale.subtotal }}</strong>
             </article>
             <article class="module-summary-block">
-              <div class="module-inline-label">Created</div>
+              <div class="module-inline-label">Current timestamp</div>
               <strong>{{ sale.created_at|date:"d/m/Y H:i" }}</strong>
             </article>
           </div>
           <div class="module-form-grid">
             {% for field in form %}
-              <div class="{% if field.name == 'notes' %}module-form-field module-form-field--full{% else %}module-form-field module-form-field--half{% endif %}">
+              <div class="module-form-field module-form-field--half">
                 <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
                 {{ field }}
                 {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
@@ -46,7 +46,7 @@
             {% endfor %}
           </div>
           <div class="module-form-actions">
-            <div class="module-card-copy">Sale line items and stock deductions remain unchanged. Only the recorded sale details are corrected here.</div>
+            <div class="module-card-copy">Sale line items and stock deductions remain unchanged. You can correct the recorded date and sale details here while the receipt history stays intact.</div>
             <div class="module-form-actions-end">
               <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Cancel</a>
               <button class="btn btn-primary" type="submit">Save sale</button>

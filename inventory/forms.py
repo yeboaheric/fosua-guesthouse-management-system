@@ -1,6 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
 
 from django import forms
+from django.utils import timezone
 
 from accounts.formatting import format_quantity
 from inventory.models import (
@@ -122,6 +124,11 @@ class POSCheckoutForm(forms.Form):
 
 
 class SaleEditForm(forms.ModelForm):
+    sale_date = forms.DateField(
+        label="Sale date",
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+
     class Meta:
         model = Sale
         fields = [
@@ -144,6 +151,26 @@ class SaleEditForm(forms.ModelForm):
             "amount_paid": forms.NumberInput(attrs={"class": "form-control", "step": "0.01"}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk and self.instance.created_at:
+            self.fields["sale_date"].initial = timezone.localtime(self.instance.created_at).date()
+
+    def save(self, commit=True):
+        sale = self.instance
+        for field_name in self.Meta.fields:
+            setattr(sale, field_name, self.cleaned_data.get(field_name))
+        existing_local_dt = timezone.localtime(sale.created_at)
+        selected_date = self.cleaned_data["sale_date"]
+        updated_local_dt = timezone.make_aware(
+            datetime.combine(selected_date, existing_local_dt.time()),
+            timezone.get_current_timezone(),
+        )
+        sale.created_at = updated_local_dt
+        if commit:
+            sale.save()
+        return sale
 
     def clean_tax_amount(self):
         return self.cleaned_data.get("tax_amount") or Decimal("0.00")

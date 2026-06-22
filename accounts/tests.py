@@ -367,7 +367,6 @@ class SalesDepositsModuleTests(TestCase):
             {
                 "created_at": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
                 "amount": "45.00",
-                "reason": "Bank deposit",
                 "collected_by": "Owner",
             },
             follow=True,
@@ -422,10 +421,11 @@ class SalesDepositsModuleTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         workbook = load_workbook(BytesIO(response.content))
-        self.assertEqual(workbook.sheetnames, ["Withdrawals Log", "Financial Summary"])
-        log_sheet = workbook["Withdrawals Log"]
+        self.assertEqual(workbook.sheetnames, ["Collections Log", "Financial Summary"])
+        log_sheet = workbook["Collections Log"]
         summary_sheet = workbook["Financial Summary"]
         self.assertEqual(log_sheet["A4"].value, "Date")
+        self.assertEqual(log_sheet["B4"].value, "Amount Collected")
         self.assertEqual(summary_sheet["A4"].value, "Period")
         self.assertEqual(summary_sheet["B5"].value, 180)
         self.assertEqual(summary_sheet["C5"].value, 40)

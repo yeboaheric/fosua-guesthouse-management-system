@@ -705,7 +705,7 @@ def _sales_deposit_summary_cards():
     month_start, month_end = shared_report_window_for_period("monthly", today)
     year_start, year_end = shared_report_window_for_period("yearly", today)
     return [
-        {"label": "Withdrawn today", "value": _display_money(_money_total(owner_withdrawals_queryset(today, today), "amount"))},
+        {"label": "Collected today", "value": _display_money(_money_total(owner_withdrawals_queryset(today, today), "amount"))},
         {"label": "This week", "value": _display_money(_money_total(owner_withdrawals_queryset(week_start, week_end), "amount"))},
         {"label": "This month", "value": _display_money(_money_total(owner_withdrawals_queryset(month_start, month_end), "amount"))},
         {"label": "This year", "value": _display_money(_money_total(owner_withdrawals_queryset(year_start, year_end), "amount"))},
@@ -722,8 +722,7 @@ def _sales_deposit_filtered_queryset(request):
 
     if query:
         withdrawals = withdrawals.filter(
-            Q(reason__icontains=query)
-            | Q(collected_by__icontains=query)
+            Q(collected_by__icontains=query)
             | Q(recorded_by__username__icontains=query)
             | Q(recorded_by__first_name__icontains=query)
             | Q(recorded_by__last_name__icontains=query)
@@ -804,7 +803,7 @@ def sales_deposits_center(request):
         "accounts/sales_deposits_center.html",
         {
             "form": form,
-            "form_title": "Log withdrawal",
+            "form_title": "Log collection",
             "summary_cards": _sales_deposit_summary_cards(),
             "withdrawals": filtered["withdrawals"],
             "query": filtered["query"],
@@ -858,7 +857,7 @@ def sales_deposit_update(request, pk):
         "accounts/sales_deposits_center.html",
         {
             "form": form,
-            "form_title": "Edit withdrawal",
+            "form_title": "Edit collection",
             "editing_withdrawal": withdrawal,
             "summary_cards": _sales_deposit_summary_cards(),
             "withdrawals": filtered["withdrawals"],
@@ -918,7 +917,7 @@ def sales_deposits_export_xlsx(request):
     )
 
     sheet = workbook.active
-    sheet.title = "Withdrawals Log"
+    sheet.title = "Collections Log"
     _write_owner_withdrawals_log_sheet(sheet, withdrawals, start_date, end_date)
 
     summary_sheet = workbook.create_sheet(title="Financial Summary")
@@ -5175,11 +5174,11 @@ def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_d
     header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
     summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
 
-    worksheet["A1"] = "Sales Deposits Withdrawal Log"
+    worksheet["A1"] = "Sales Deposits Collections Log"
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
-    worksheet.append(["Date", "Amount", "Reason", "Recorded By", "Collected By"])
+    worksheet.append(["Date", "Amount Collected", "Recorded By", "Collected By"])
 
     for cell in worksheet[4]:
         cell.font = header_font
@@ -5193,13 +5192,12 @@ def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_d
             [
                 timezone.localtime(withdrawal.created_at).strftime("%d/%m/%Y %H:%M"),
                 float(withdrawal.amount or 0),
-                withdrawal.reason or "-",
                 withdrawal.recorded_by_name,
                 withdrawal.collected_by,
             ]
         )
 
-    worksheet.append(["TOTALS", float(total_amount), f"{len(withdrawals)} entries", "", ""])
+    worksheet.append(["TOTALS", float(total_amount), f"{len(withdrawals)} entries", ""])
     for cell in worksheet[worksheet.max_row]:
         cell.font = Font(bold=True)
         cell.fill = summary_fill

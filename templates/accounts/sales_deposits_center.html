@@ -56,14 +56,9 @@
                 {% for error in form.created_at.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
-                <label class="form-label" for="{{ form.amount.id_for_label }}">Amount withdrawn</label>
+                <label class="form-label" for="{{ form.amount.id_for_label }}">Amount collected</label>
                 {{ form.amount }}
                 {% for error in form.amount.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-              </div>
-              <div class="mb-3">
-                <label class="form-label" for="{{ form.reason.id_for_label }}">Reason / purpose</label>
-                {{ form.reason }}
-                {% for error in form.reason.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
                 <label class="form-label" for="{{ form.collected_by.id_for_label }}">Collected by</label>
@@ -80,7 +75,7 @@
                 </div>
               {% endif %}
               <div class="d-flex gap-2 flex-wrap">
-                <button class="btn btn-primary" type="submit">{% if is_editing %}Update withdrawal{% else %}Save withdrawal{% endif %}</button>
+                <button class="btn btn-primary" type="submit">{% if is_editing %}Update collection{% else %}Save collection{% endif %}</button>
                 {% if is_editing %}
                   <a class="btn btn-outline-secondary" href="{% url 'sales-deposits-center' %}">Cancel</a>
                 {% endif %}
@@ -94,7 +89,7 @@
         <section class="module-card h-100">
           <div class="module-card-header">
             <div>
-              <h2 class="module-card-title">Withdrawal log</h2>
+              <h2 class="module-card-title">Collections log</h2>
               <div class="module-card-copy">Most recent collections appear first. Use search and dates to narrow the list before exporting.</div>
             </div>
           </div>
@@ -102,7 +97,7 @@
             <form method="get" class="row g-3 align-items-end mb-3">
               <div class="col-lg-4">
                 <label class="form-label" for="q">Search</label>
-                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Reason, collector, recorder">
+                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Collector or recorder">
               </div>
               <div class="col-lg-3">
                 <label class="form-label" for="start_date">Start date</label>
@@ -132,8 +127,7 @@
                   <thead class="table-light">
                     <tr>
                       <th>Date</th>
-                      <th>Amount</th>
-                      <th>Reason</th>
+                      <th>Amount Collected</th>
                       <th>Recorded By</th>
                       <th>Collected By</th>
                       {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
@@ -144,7 +138,6 @@
                       <tr>
                         <td>{{ withdrawal.created_at|date:"d/m/Y H:i" }}</td>
                         <td>GHS {{ withdrawal.amount }}</td>
-                        <td>{{ withdrawal.reason|default:"-" }}</td>
                         <td>{{ withdrawal.recorded_by_name }}</td>
                         <td>{{ withdrawal.collected_by }}</td>
                         {% if can_manage_sales_deposits %}
@@ -161,7 +154,7 @@
                       </tr>
                     {% empty %}
                       <tr>
-                        <td colspan="{% if can_manage_sales_deposits %}6{% else %}5{% endif %}" class="text-muted">No sales deposits logged for the selected filter.</td>
+                        <td colspan="{% if can_manage_sales_deposits %}5{% else %}4{% endif %}" class="text-muted">No sales deposits logged for the selected filter.</td>
                       </tr>
                     {% endfor %}
                   </tbody>

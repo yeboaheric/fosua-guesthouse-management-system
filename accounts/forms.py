@@ -279,7 +279,6 @@ class OwnerWithdrawalForm(forms.ModelForm):
         fields = [
             "created_at",
             "amount",
-            "reason",
             "collected_by",
         ]
         widgets = {
@@ -289,7 +288,6 @@ class OwnerWithdrawalForm(forms.ModelForm):
             "amount": forms.NumberInput(
                 attrs={"class": "form-control", "step": "0.01", "min": "0.01"}
             ),
-            "reason": forms.TextInput(attrs={"class": "form-control"}),
             "collected_by": forms.TextInput(attrs={"class": "form-control"}),
         }
 
@@ -312,7 +310,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
     def clean_amount(self):
         amount = self.cleaned_data["amount"]
         if amount <= 0:
-            raise ValidationError("Amount withdrawn must be greater than zero.")
+            raise ValidationError("Amount collected must be greater than zero.")
         return amount
 
     def clean_collected_by(self):
@@ -320,9 +318,6 @@ class OwnerWithdrawalForm(forms.ModelForm):
         if not value:
             raise ValidationError("Collected by is required.")
         return value
-
-    def clean_reason(self):
-        return self.cleaned_data.get("reason", "").strip()
 
 
 class ExpenseForm(forms.ModelForm):

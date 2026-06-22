@@ -526,7 +526,7 @@ class FinanceModuleTests(TestCase):
             reverse("finance-center"),
             {
                 "date": timezone.localdate().isoformat(),
-                "category": "Utilities",
+                "category": "Electricity (ECG)",
                 "description": "Water bill",
                 "amount": "30.00",
                 "payment_method": Expense.PaymentMethod.CASH,

@@ -327,6 +327,10 @@ class OwnerWithdrawalForm(forms.ModelForm):
 
 class ExpenseForm(forms.ModelForm):
     CUSTOM_CATEGORY_VALUE = "__custom__"
+    category = forms.ChoiceField(
+        required=True,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     custom_category = forms.CharField(
         required=False,
         widget=forms.TextInput(
@@ -349,7 +353,6 @@ class ExpenseForm(forms.ModelForm):
         ]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "category": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
             "amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0.01"}),
             "payment_method": forms.Select(attrs={"class": "form-select"}),

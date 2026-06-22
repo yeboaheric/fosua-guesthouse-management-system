@@ -67,7 +67,12 @@
               <tbody>
                 {% for sale in sales %}
                   <tr>
-                    <td class="fw-semibold">{{ sale.receipt_number }}</td>
+                    <td class="fw-semibold">
+                      {{ sale.receipt_number }}
+                      {% if can_edit_sale and sale.is_edited %}
+                        <span class="status-pill warning ms-2">Edited</span>
+                      {% endif %}
+                    </td>
                     <td>{{ sale.customer_name|default:"Walk-in customer" }}</td>
                     <td>GHS {{ sale.grand_total }}</td>
                     <td>GHS {{ sale.amount_paid }}</td>

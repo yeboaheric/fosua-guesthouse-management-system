@@ -7,7 +7,7 @@
     <section class="module-hero">
       <div class="module-hero-copy">
         <div class="module-kicker">Point of sale</div>
-        <h1 class="module-title">POS Receipt</h1>
+        <h1 class="module-title">POS Receipt {% if can_edit_sale and sale.is_edited %}<span class="status-pill warning align-middle ms-2">Edited</span>{% endif %}</h1>
         <div class="module-subcopy">Review receipt {{ sale.receipt_number }} for {{ sale.customer_name|default:"the walk-in customer" }} recorded on {{ sale.created_at|date:"d/m/Y H:i" }}.</div>
       </div>
       <div class="module-action-row">
@@ -88,9 +88,31 @@
           <div class="d-flex justify-content-between"><span class="text-muted">Email</span><strong>{{ sale.customer_email|default:"-" }}</strong></div>
           <div class="d-flex justify-content-between"><span class="text-muted">Phone</span><strong>{{ sale.customer_phone|default:"-" }}</strong></div>
           <div class="d-flex justify-content-between"><span class="text-muted">Status</span><strong>{{ sale.get_status_display }}</strong></div>
+          {% if can_edit_sale and sale.is_edited %}
+            <div class="d-flex justify-content-between"><span class="text-muted">Edited by</span><strong>{{ sale.edited_by.get_full_name|default:sale.edited_by.username|default:"-" }}</strong></div>
+            <div class="d-flex justify-content-between"><span class="text-muted">Edited at</span><strong>{{ sale.edited_at|date:"d/m/Y H:i" }}</strong></div>
+          {% endif %}
         </div>
         </div>
       </section>
+
+      {% if can_edit_sale and latest_edit_log %}
+        <section class="module-card mb-3">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Edit audit</h2>
+              <div class="module-card-copy">Latest saved changes on this receipt.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="d-grid gap-2">
+              <div class="d-flex justify-content-between"><span class="text-muted">Updated by</span><strong>{{ latest_edit_log.user.get_full_name|default:latest_edit_log.user.username|default:"-" }}</strong></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">Logged at</span><strong>{{ latest_edit_log.created_at|date:"d/m/Y H:i" }}</strong></div>
+              <div class="text-muted small">Field changes: {{ latest_edit_log.details.field_changes|length }} · Item changes: {{ latest_edit_log.details.item_changes|length }}</div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
 
       <section class="module-card">
         <div class="module-card-header">

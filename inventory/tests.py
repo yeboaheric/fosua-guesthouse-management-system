@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 from openpyxl import load_workbook
 
-from accounts.models import UserAccessProfile
+from accounts.models import AuditLog, UserAccessProfile
 from inventory.models import (
     InventoryCategory,
     InventoryItem,
@@ -113,6 +113,18 @@ class InventoryPosWorkflowTests(TestCase):
             minimum_stock_threshold="2.000",
             unit_of_measure=InventoryItem.UnitOfMeasure.BOTTLE,
             description="Cold mango juice",
+        )
+        self.item_two = InventoryItem.objects.create(
+            name="Apple Juice",
+            category=self.category,
+            subcategory=self.subcategory,
+            supplier=self.supplier,
+            purchase_price="9.00",
+            selling_price="15.00",
+            quantity_in_stock="5.000",
+            minimum_stock_threshold="1.000",
+            unit_of_measure=InventoryItem.UnitOfMeasure.BOTTLE,
+            description="Fresh apple juice",
         )
 
     def test_item_creation_records_opening_stock_transaction(self):
@@ -222,27 +234,27 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertEqual(worksheet.title, "Stock List")
         self.assertEqual(worksheet["A1"].value, "Item Name")
         self.assertEqual(worksheet["B1"].value, "Quantity in Stock")
-        self.assertEqual(worksheet["A2"].value, "Mango Juice")
-        self.assertEqual(worksheet["B2"].value, 10)
+        exported_rows = {
+            (worksheet["A2"].value, worksheet["B2"].value),
+            (worksheet["A3"].value, worksheet["B3"].value),
+        }
+        self.assertIn(("Mango Juice", 10), exported_rows)
 
     def test_admin_can_open_and_save_pos_sale_edit(self):
-        sale = Sale.objects.create(
-            cashier=self.user,
-            customer_name="Walk-in",
-            payment_method=Sale.PaymentMethod.CASH,
-            subtotal="30.00",
-            grand_total="30.00",
-            amount_paid="30.00",
-        )
-        SaleItem.objects.create(
-            sale=sale,
-            item=self.item,
-            quantity="3.000",
-            unit_price="10.00",
-            line_total="30.00",
-        )
-
         self.client.force_login(self.user)
+        checkout_response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "30.00",
+                "notes": "Original sale",
+                "cart": json.dumps([{"id": self.item.pk, "quantity": 3}]),
+            },
+        )
+        self.assertEqual(checkout_response.status_code, 302)
+        sale = Sale.objects.latest("created_at")
 
         sale_list_response = self.client.get(reverse("inventory-sales"))
         self.assertContains(sale_list_response, reverse("inventory-sale-update", args=[sale.pk]))
@@ -257,6 +269,7 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertContains(edit_response, "Edit POS Sale")
         self.assertContains(edit_response, 'name="sale_date"', html=False)
         self.assertContains(edit_response, 'name="customer_name"', html=False)
+        self.assertContains(edit_response, 'name="items_payload"', html=False)
         original_local_timestamp = timezone.localtime(sale.created_at)
 
         update_response = self.client.post(
@@ -271,20 +284,45 @@ class InventoryPosWorkflowTests(TestCase):
                 "discount_amount": "1.00",
                 "amount_paid": "35.00",
                 "notes": "Corrected after cashier review",
+                "items_payload": json.dumps(
+                    [
+                        {
+                            "item_id": self.item.pk,
+                            "quantity": 2,
+                            "unit_price": "12.50",
+                        },
+                        {
+                            "item_id": self.item_two.pk,
+                            "quantity": 1,
+                            "unit_price": "15.00",
+                        },
+                    ]
+                ),
             },
             follow=True,
         )
         self.assertEqual(update_response.status_code, 200)
         sale.refresh_from_db()
+        self.item.refresh_from_db()
+        self.item_two.refresh_from_db()
         updated_local_timestamp = timezone.localtime(sale.created_at)
         self.assertEqual(str(updated_local_timestamp.date()), "2026-06-01")
         self.assertEqual(updated_local_timestamp.time().replace(microsecond=0), original_local_timestamp.time().replace(microsecond=0))
         self.assertEqual(sale.customer_name, "Corrected Guest")
         self.assertEqual(sale.payment_method, Sale.PaymentMethod.MOBILE_MONEY)
-        self.assertEqual(str(sale.subtotal), "30.00")
-        self.assertEqual(str(sale.grand_total), "31.00")
+        self.assertEqual(str(sale.subtotal), "40.00")
+        self.assertEqual(str(sale.grand_total), "41.00")
         self.assertEqual(str(sale.amount_paid), "35.00")
+        self.assertEqual(str(self.item.quantity_in_stock), "8.000")
+        self.assertEqual(str(self.item_two.quantity_in_stock), "4.000")
+        self.assertEqual(sale.items.count(), 2)
+        self.assertIsNotNone(sale.edited_at)
+        self.assertEqual(sale.edited_by, self.user)
+        edit_log = AuditLog.objects.filter(module="pos", object_id=str(sale.pk), action=AuditLog.ActionType.UPDATE).latest("created_at")
+        self.assertEqual(edit_log.details["field_changes"]["customer_name"]["to"], "Corrected Guest")
+        self.assertEqual(len(edit_log.details["item_changes"]), 2)
         self.assertContains(update_response, "updated successfully")
+        self.assertContains(update_response, "Edited")
 
     def test_admin_can_delete_sale_and_restore_stock(self):
         self.client.force_login(self.user)
@@ -311,6 +349,60 @@ class InventoryPosWorkflowTests(TestCase):
         self.assertFalse(Sale.objects.filter(pk=sale.pk).exists())
         self.assertEqual(str(self.item.quantity_in_stock), "10.000")
         self.assertContains(delete_response, "Sale deleted successfully.")
+
+    def test_admin_can_remove_sale_line_and_restore_stock(self):
+        self.client.force_login(self.user)
+        checkout_response = self.client.post(
+            reverse("inventory-pos-checkout"),
+            {
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "45.00",
+                "notes": "Multi item sale",
+                "cart": json.dumps(
+                    [
+                        {"id": self.item.pk, "quantity": 3},
+                        {"id": self.item_two.pk, "quantity": 1},
+                    ]
+                ),
+            },
+        )
+        self.assertEqual(checkout_response.status_code, 302)
+        sale = Sale.objects.latest("created_at")
+
+        update_response = self.client.post(
+            reverse("inventory-sale-update", args=[sale.pk]),
+            {
+                "sale_date": timezone.localdate().isoformat(),
+                "customer_name": "",
+                "customer_phone": "",
+                "customer_email": "",
+                "payment_method": Sale.PaymentMethod.CASH,
+                "tax_amount": "0.00",
+                "discount_amount": "0.00",
+                "amount_paid": "15.00",
+                "notes": "Removed one line",
+                "items_payload": json.dumps(
+                    [
+                        {
+                            "item_id": self.item_two.pk,
+                            "quantity": 1,
+                            "unit_price": "15.00",
+                        },
+                    ]
+                ),
+            },
+            follow=True,
+        )
+        self.assertEqual(update_response.status_code, 200)
+        sale.refresh_from_db()
+        self.item.refresh_from_db()
+        self.item_two.refresh_from_db()
+        self.assertEqual(sale.items.count(), 1)
+        self.assertEqual(str(self.item.quantity_in_stock), "10.000")
+        self.assertEqual(str(self.item_two.quantity_in_stock), "4.000")
+        self.assertEqual(str(sale.subtotal), "15.00")
 
     def test_sale_list_csv_export_works(self):
         Sale.objects.create(

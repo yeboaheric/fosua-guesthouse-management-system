@@ -26,7 +26,9 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
+from accounts.audit import log_audit_event
 from accounts.decorators import group_required
+from accounts.models import AuditLog
 from accounts.permissions import user_is_admin_role
 from accounts.reporting import (
     completed_pos_sales_queryset,
@@ -56,6 +58,8 @@ from inventory.models import (
 
 ZERO_MONEY = Value(Decimal("0.00"), output_field=DecimalField(max_digits=14, decimal_places=2))
 ZERO_UNITS = Value(Decimal("0.000"), output_field=DecimalField(max_digits=12, decimal_places=3))
+MONEY_PLACES = Decimal("0.01")
+QUANTITY_PLACES = Decimal("0.001")
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +81,229 @@ def _inventory_xlsx_response(workbook, filename):
 
 def _user_can_edit_sale(user):
     return user_is_admin_role(user)
+
+
+def _quantize_money(value):
+    return Decimal(str(value or "0")).quantize(MONEY_PLACES)
+
+
+def _quantize_quantity(value):
+    return Decimal(str(value or "0")).quantize(QUANTITY_PLACES)
+
+
+def _sale_editable_items_queryset(sale):
+    existing_item_ids = sale.items.values_list("item_id", flat=True)
+    return (
+        InventoryItem.objects.filter(Q(is_active=True) | Q(pk__in=existing_item_ids))
+        .select_related("category")
+        .distinct()
+        .order_by("name")
+    )
+
+
+def _serialized_sale_lines(sale):
+    return [
+        {
+            "item_id": line.item_id,
+            "item_name": line.item.name,
+            "category_name": line.item.category.name if line.item.category_id else "",
+            "quantity": float(line.quantity),
+            "unit_price": float(line.unit_price),
+            "line_total": float(line.line_total),
+            "available_stock": float((line.item.quantity_in_stock or Decimal("0.000")) + (line.quantity or Decimal("0.000"))),
+            "unit": line.item.get_unit_of_measure_display(),
+        }
+        for line in sale.items.select_related("item", "item__category")
+    ]
+
+
+def _serialized_inventory_choices(sale):
+    current_quantities = {
+        line.item_id: line.quantity
+        for line in sale.items.all()
+    }
+    return [
+        {
+            "id": item.pk,
+            "name": item.name,
+            "category": item.category.name if item.category_id else "",
+            "price": float(item.selling_price),
+            "stock": float(item.quantity_in_stock or Decimal("0.000")),
+            "available_for_edit": float((item.quantity_in_stock or Decimal("0.000")) + current_quantities.get(item.pk, Decimal("0.000"))),
+            "unit": item.get_unit_of_measure_display(),
+        }
+        for item in _sale_editable_items_queryset(sale)
+    ]
+
+
+def _normalize_sale_edit_lines(raw_lines, available_items):
+    normalized_lines = []
+    errors = []
+    seen_item_ids = set()
+
+    for index, raw_line in enumerate(raw_lines, start=1):
+        try:
+            item_id = int(raw_line.get("item_id") or 0)
+        except (TypeError, ValueError):
+            item_id = 0
+        if not item_id or item_id not in available_items:
+            errors.append(f"Line {index}: choose a valid inventory item.")
+            continue
+        if item_id in seen_item_ids:
+            errors.append(f"Line {index}: each inventory item can appear only once on a sale.")
+            continue
+        seen_item_ids.add(item_id)
+
+        try:
+            quantity = _quantize_quantity(raw_line.get("quantity"))
+        except (InvalidOperation, TypeError, ValueError):
+            errors.append(f"Line {index}: quantity must be a valid number.")
+            continue
+        if quantity < Decimal("1.000"):
+            errors.append(f"Line {index}: quantity must be at least 1.")
+            continue
+
+        try:
+            unit_price = _quantize_money(raw_line.get("unit_price"))
+        except (InvalidOperation, TypeError, ValueError):
+            errors.append(f"Line {index}: unit price must be a valid amount.")
+            continue
+        if unit_price < Decimal("0.00"):
+            errors.append(f"Line {index}: unit price cannot be negative.")
+            continue
+
+        item = available_items[item_id]
+        normalized_lines.append(
+            {
+                "item": item,
+                "item_id": item_id,
+                "quantity": quantity,
+                "unit_price": unit_price,
+                "line_total": (quantity * unit_price).quantize(MONEY_PLACES),
+            }
+        )
+
+    return normalized_lines, errors
+
+
+def _sale_edit_field_changes(previous_sale, updated_sale, sale_date):
+    previous_local_date = timezone.localtime(previous_sale.created_at).date()
+    changes = {}
+    tracked_fields = (
+        "customer_name",
+        "customer_phone",
+        "customer_email",
+        "payment_method",
+        "tax_amount",
+        "discount_amount",
+        "amount_paid",
+        "notes",
+    )
+    for field_name in tracked_fields:
+        old_value = getattr(previous_sale, field_name)
+        new_value = getattr(updated_sale, field_name)
+        if old_value != new_value:
+            changes[field_name] = {
+                "from": str(old_value or ""),
+                "to": str(new_value or ""),
+            }
+    if previous_local_date != sale_date:
+        changes["sale_date"] = {
+            "from": previous_local_date.isoformat(),
+            "to": sale_date.isoformat(),
+        }
+    return changes
+
+
+def _apply_sale_item_edits(*, sale, request_user, normalized_lines, notes):
+    existing_lines = {
+        line.item_id: line
+        for line in sale.items.select_related("item")
+    }
+    target_lines = {
+        line["item_id"]: line
+        for line in normalized_lines
+    }
+    affected_item_ids = sorted(set(existing_lines.keys()) | set(target_lines.keys()))
+    inventory_items = {
+        item.pk: item
+        for item in InventoryItem.objects.select_for_update().filter(pk__in=affected_item_ids)
+    }
+
+    item_changes = []
+    for item_id in affected_item_ids:
+        inventory_item = inventory_items[item_id]
+        existing_line = existing_lines.get(item_id)
+        target_line = target_lines.get(item_id)
+        old_quantity = _quantize_quantity(existing_line.quantity if existing_line else 0)
+        new_quantity = _quantize_quantity(target_line["quantity"] if target_line else 0)
+        quantity_delta = new_quantity - old_quantity
+        projected_stock = _quantize_quantity((inventory_item.quantity_in_stock or Decimal("0.000")) - quantity_delta)
+        if projected_stock < Decimal("0.000"):
+            raise ValidationError(f"Not enough stock for {inventory_item.name}.")
+        if existing_line:
+            old_unit_price = _quantize_money(existing_line.unit_price)
+            old_line_total = _quantize_money(existing_line.line_total)
+        else:
+            old_unit_price = Decimal("0.00")
+            old_line_total = Decimal("0.00")
+        if target_line:
+            new_unit_price = _quantize_money(target_line["unit_price"])
+            new_line_total = _quantize_money(target_line["line_total"])
+        else:
+            new_unit_price = Decimal("0.00")
+            new_line_total = Decimal("0.00")
+
+        if old_quantity != new_quantity or old_unit_price != new_unit_price:
+            change_type = "updated"
+            if existing_line and not target_line:
+                change_type = "removed"
+            elif not existing_line and target_line:
+                change_type = "added"
+            item_changes.append(
+                {
+                    "item_id": item_id,
+                    "item_name": inventory_item.name,
+                    "change_type": change_type,
+                    "quantity": {"from": str(old_quantity), "to": str(new_quantity)},
+                    "unit_price": {"from": str(old_unit_price), "to": str(new_unit_price)},
+                    "line_total": {"from": str(old_line_total), "to": str(new_line_total)},
+                }
+            )
+
+        if quantity_delta != 0:
+            previous_stock = _quantize_quantity(inventory_item.quantity_in_stock)
+            inventory_item.quantity_in_stock = projected_stock
+            inventory_item.save(update_fields=["quantity_in_stock", "updated_at"])
+            _log_transaction(
+                item=inventory_item,
+                quantity_before=previous_stock,
+                quantity_changed=-quantity_delta,
+                quantity_after=projected_stock,
+                transaction_type=InventoryTransaction.TransactionType.ADJUSTMENT,
+                created_by=request_user,
+                sale=sale,
+                reference=f"{sale.receipt_number} edit",
+                notes=notes or "POS sale line adjustment",
+            )
+
+        if existing_line and target_line:
+            existing_line.quantity = new_quantity
+            existing_line.unit_price = new_unit_price
+            existing_line.line_total = new_line_total
+            existing_line.save(update_fields=["quantity", "unit_price", "line_total"])
+        elif existing_line and not target_line:
+            existing_line.delete()
+        elif target_line and not existing_line:
+            SaleItem.objects.create(
+                sale=sale,
+                item=inventory_item,
+                quantity=new_quantity,
+                unit_price=new_unit_price,
+                line_total=new_line_total,
+            )
+
+    return item_changes
 
 
 @group_required("Admin", "Receptionist", module="inventory")
@@ -701,6 +928,18 @@ def sale_list(request):
 def sale_detail(request, pk):
     sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
     items = sale.items.select_related("item")
+    latest_edit_log = None
+    if _user_can_edit_sale(request.user):
+        latest_edit_log = (
+            AuditLog.objects.select_related("user")
+            .filter(
+                module="pos",
+                object_id=str(sale.pk),
+                action=AuditLog.ActionType.UPDATE,
+            )
+            .order_by("-created_at")
+            .first()
+        )
     return render(
         request,
         "inventory/sale_detail.html",
@@ -708,26 +947,106 @@ def sale_detail(request, pk):
             "sale": sale,
             "items": items,
             "can_edit_sale": _user_can_edit_sale(request.user),
+            "latest_edit_log": latest_edit_log,
         },
     )
 
 
 @group_required("Admin", "Receptionist", module="pos", action="edit")
 def sale_update(request, pk):
-    sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
     if not _user_can_edit_sale(request.user):
         raise PermissionDenied("You are not authorized to manage POS sales.")
 
-    form = SaleEditForm(request.POST or None, instance=sale)
-    if request.method == "POST" and form.is_valid():
-        updated_sale = form.save(commit=False)
-        subtotal = sale.items.aggregate(total=Coalesce(Sum("line_total"), ZERO_MONEY))["total"]
-        gross_total = subtotal + (updated_sale.tax_amount or Decimal("0.00")) - (updated_sale.discount_amount or Decimal("0.00"))
-        updated_sale.subtotal = subtotal.quantize(Decimal("0.01"))
-        updated_sale.grand_total = max(gross_total, Decimal("0.00")).quantize(Decimal("0.01"))
-        updated_sale.save()
-        messages.success(request, f"Sale {sale.receipt_number} updated successfully.")
-        return redirect("inventory-sale-detail", pk=sale.pk)
+    if request.method == "POST":
+        with transaction.atomic():
+            sale = get_object_or_404(Sale.objects.select_for_update().select_related("cashier"), pk=pk)
+            form = SaleEditForm(request.POST, instance=sale)
+            inventory_items_by_id = {item.pk: item for item in _sale_editable_items_queryset(sale)}
+            if form.is_valid():
+                normalized_lines, line_errors = _normalize_sale_edit_lines(
+                    form.cleaned_data["items_payload"],
+                    inventory_items_by_id,
+                )
+                if not normalized_lines and not line_errors:
+                    line_errors.append("Add at least one sale item before saving.")
+                for error in line_errors:
+                    form.add_error(None, error)
+                if not form.errors:
+                    original_sale_state = Sale.objects.get(pk=sale.pk)
+                    sale_date = form.cleaned_data["sale_date"]
+                    field_changes = _sale_edit_field_changes(original_sale_state, form.instance, sale_date)
+                    try:
+                        item_changes = _apply_sale_item_edits(
+                            sale=sale,
+                            request_user=request.user,
+                            normalized_lines=normalized_lines,
+                            notes=form.cleaned_data.get("notes", ""),
+                        )
+                    except ValidationError as exc:
+                        form.add_error(None, exc.message)
+                    if not form.errors:
+                        updated_sale = form.save(commit=False)
+                        sale.customer_name = updated_sale.customer_name
+                        sale.customer_phone = updated_sale.customer_phone
+                        sale.customer_email = updated_sale.customer_email
+                        sale.payment_method = updated_sale.payment_method
+                        sale.tax_amount = _quantize_money(updated_sale.tax_amount)
+                        sale.discount_amount = _quantize_money(updated_sale.discount_amount)
+                        sale.amount_paid = _quantize_money(updated_sale.amount_paid)
+                        sale.notes = updated_sale.notes
+                        sale.created_at = updated_sale.created_at
+                        subtotal = sum((line["line_total"] for line in normalized_lines), Decimal("0.00")).quantize(MONEY_PLACES)
+                        sale.subtotal = subtotal
+                        sale.grand_total = max(subtotal + sale.tax_amount - sale.discount_amount, Decimal("0.00")).quantize(MONEY_PLACES)
+                        sale.change_due = max(sale.amount_paid - sale.grand_total, Decimal("0.00")).quantize(MONEY_PLACES)
+                        sale.edited_at = timezone.now()
+                        sale.edited_by = request.user
+                        sale.save(
+                            update_fields=[
+                                "customer_name",
+                                "customer_phone",
+                                "customer_email",
+                                "payment_method",
+                                "tax_amount",
+                                "discount_amount",
+                                "subtotal",
+                                "grand_total",
+                                "amount_paid",
+                                "change_due",
+                                "notes",
+                                "created_at",
+                                "edited_at",
+                                "edited_by",
+                                "updated_at",
+                            ]
+                        )
+                        log_audit_event(
+                            request=request,
+                            user=request.user,
+                            action=AuditLog.ActionType.UPDATE,
+                            module="pos",
+                            object_repr=sale.receipt_number,
+                            object_id=sale.pk,
+                            details={
+                                "field_changes": field_changes,
+                                "item_changes": item_changes,
+                                "edited_at": timezone.localtime(sale.edited_at).isoformat(),
+                            },
+                            mark_request=False,
+                        )
+                        messages.success(request, f"Sale {sale.receipt_number} updated successfully.")
+                        return redirect("inventory-sale-detail", pk=sale.pk)
+    else:
+        sale = get_object_or_404(Sale.objects.select_related("cashier"), pk=pk)
+        form = SaleEditForm(
+            instance=sale,
+            initial={"items_payload": json.dumps(_serialized_sale_lines(sale))},
+        )
+
+    try:
+        sale_lines_data = json.loads(form["items_payload"].value()) if form["items_payload"].value() else _serialized_sale_lines(sale)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        sale_lines_data = _serialized_sale_lines(sale)
 
     return render(
         request,
@@ -736,6 +1055,8 @@ def sale_update(request, pk):
             "form": form,
             "sale": sale,
             "title": "Edit POS Sale",
+            "sale_lines_data": sale_lines_data,
+            "inventory_items_data": _serialized_inventory_choices(sale),
         },
     )
 

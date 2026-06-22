@@ -280,6 +280,14 @@ class Sale(models.Model):
     change_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=SaleStatus.choices, default=SaleStatus.COMPLETED)
     notes = models.TextField(blank=True)
+    edited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="edited_sales",
+    )
+    edited_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -300,6 +308,10 @@ class Sale(models.Model):
             self.grand_total = grand_total
             self.change_due = max(amount_paid - grand_total, Decimal("0.00"))
         super().save(*args, **kwargs)
+
+    @property
+    def is_edited(self):
+        return bool(self.edited_at)
 
     @staticmethod
     def generate_receipt_number():

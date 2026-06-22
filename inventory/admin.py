@@ -55,9 +55,9 @@ class SaleItemInline(admin.TabularInline):
 
 @admin.register(Sale)
 class SaleAdmin(admin.ModelAdmin):
-    list_display = ("receipt_number", "cashier", "payment_method", "grand_total", "created_at")
+    list_display = ("receipt_number", "cashier", "payment_method", "grand_total", "edited_at", "created_at")
     search_fields = ("receipt_number", "customer_name", "customer_phone", "customer_email")
-    list_filter = ("payment_method", "status", "created_at")
+    list_filter = ("payment_method", "status", "edited_at", "created_at")
     inlines = [SaleItemInline]
 
 

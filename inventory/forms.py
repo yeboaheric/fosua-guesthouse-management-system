@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from decimal import Decimal
 
@@ -128,6 +129,7 @@ class SaleEditForm(forms.ModelForm):
         label="Sale date",
         widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
     )
+    items_payload = forms.CharField(widget=forms.HiddenInput)
 
     class Meta:
         model = Sale
@@ -180,3 +182,13 @@ class SaleEditForm(forms.ModelForm):
 
     def clean_amount_paid(self):
         return self.cleaned_data.get("amount_paid") or Decimal("0.00")
+
+    def clean_items_payload(self):
+        raw_payload = self.cleaned_data.get("items_payload", "")
+        try:
+            payload = json.loads(raw_payload)
+        except json.JSONDecodeError as exc:
+            raise forms.ValidationError("The sale items could not be read. Please refresh and try again.") from exc
+        if not isinstance(payload, list) or not payload:
+            raise forms.ValidationError("Add at least one sale item before saving.")
+        return payload

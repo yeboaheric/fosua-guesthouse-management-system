@@ -7,54 +7,335 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Point of sale</div>
         <h1 class="module-title">{{ title }}</h1>
-        <div class="module-subcopy">Correct the recorded sale details for receipt {{ sale.receipt_number }}, including the sale date, without affecting receipt viewing or stock movement.</div>
+        <div class="module-subcopy">Correct the recorded sale details for receipt {{ sale.receipt_number }}, including line items, pricing, and the sale date, without breaking receipt history or stock tracking.</div>
       </div>
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Back to receipt</a>
       </div>
     </section>
 
-    <section class="module-card">
-      <div class="module-card-body">
-        <form method="post" class="module-stack">
-          {% csrf_token %}
-          {% if form.non_field_errors %}
-            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-          {% endif %}
-          <div class="module-summary-grid">
-            <article class="module-summary-block">
-              <div class="module-inline-label">Receipt</div>
-              <strong>{{ sale.receipt_number }}</strong>
-            </article>
-            <article class="module-summary-block">
-              <div class="module-inline-label">Subtotal</div>
-              <strong>GHS {{ sale.subtotal }}</strong>
-            </article>
-            <article class="module-summary-block">
-              <div class="module-inline-label">Current timestamp</div>
-              <strong>{{ sale.created_at|date:"d/m/Y H:i" }}</strong>
-            </article>
-          </div>
-          <div class="module-form-grid">
-            {% for field in form %}
-              <div class="module-form-field module-form-field--half">
-                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
-              </div>
-            {% endfor %}
-          </div>
-          <div class="module-form-actions">
-            <div class="module-card-copy">Sale line items and stock deductions remain unchanged. You can correct the recorded date and sale details here while the receipt history stays intact.</div>
-            <div class="module-form-actions-end">
-              <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Cancel</a>
-              <button class="btn btn-primary" type="submit">Save sale</button>
-            </div>
-          </div>
-        </form>
+    <form method="post" class="module-stack" id="saleEditForm" novalidate>
+      {% csrf_token %}
+      {{ form.items_payload }}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger mb-0">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div class="module-summary-grid">
+        <article class="module-summary-block">
+          <div class="module-inline-label">Receipt</div>
+          <strong>{{ sale.receipt_number }}</strong>
+        </article>
+        <article class="module-summary-block">
+          <div class="module-inline-label">Current timestamp</div>
+          <strong>{{ sale.created_at|date:"d/m/Y H:i" }}</strong>
+        </article>
+        <article class="module-summary-block">
+          <div class="module-inline-label">Current cashier</div>
+          <strong>{{ sale.cashier.get_full_name|default:sale.cashier.username }}</strong>
+        </article>
       </div>
-    </section>
+
+      <div class="row g-3">
+        <div class="col-xl-8">
+          <section class="module-card h-100">
+            <div class="module-card-header">
+              <div>
+                <h2 class="module-card-title">Receipt items</h2>
+                <div class="module-card-copy">Edit quantities and unit prices, remove items safely, or add more inventory items to this completed sale.</div>
+              </div>
+              <button class="btn btn-outline-secondary" type="button" id="addSaleItemButton">Add item</button>
+            </div>
+            <div class="module-card-body p-0">
+              <div class="module-table-wrap">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="min-width: 240px;">Item</th>
+                        <th style="min-width: 110px;">Quantity</th>
+                        <th style="min-width: 140px;">Unit price</th>
+                        <th style="min-width: 140px;">Line total</th>
+                        <th style="min-width: 160px;">Stock after edit</th>
+                        <th class="text-end">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="saleLinesBody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="col-xl-4">
+          <section class="module-card mb-3">
+            <div class="module-card-header">
+              <div>
+                <h2 class="module-card-title">Sale totals</h2>
+                <div class="module-card-copy">All totals refresh live while you edit the receipt.</div>
+              </div>
+            </div>
+            <div class="module-card-body">
+              <div class="d-grid gap-2">
+                <div class="d-flex justify-content-between"><span class="text-muted">Subtotal</span><strong id="editSubtotal">GHS 0.00</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Tax</span><strong id="editTax">GHS 0.00</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Discount</span><strong id="editDiscount">GHS 0.00</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Grand total</span><strong id="editGrand">GHS 0.00</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Amount paid</span><strong id="editPaid">GHS 0.00</strong></div>
+                <div class="d-flex justify-content-between"><span class="text-muted">Change due</span><strong id="editChange">GHS 0.00</strong></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="module-card-header">
+              <div>
+                <h2 class="module-card-title">Receipt details</h2>
+                <div class="module-card-copy">The sale date, customer details, notes, and payment figures stay editable for admins only.</div>
+              </div>
+            </div>
+            <div class="module-card-body">
+              <div class="module-form-grid">
+                {% for field in form %}
+                  {% if not field.is_hidden %}
+                    <div class="{% if field.name == 'notes' %}module-form-field module-form-field--full{% else %}module-form-field module-form-field--half{% endif %}">
+                      <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                      {{ field }}
+                      {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                      {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <div class="module-form-actions mt-3">
+                <div class="module-card-copy">Stock corrections, receipt totals, and audit history are applied together when you save.</div>
+                <div class="module-form-actions-end">
+                  <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Cancel</a>
+                  <button class="btn btn-primary" type="submit">Save sale</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </form>
   </div>
 </div>
+
+{{ sale_lines_data|json_script:"sale-lines-data" }}
+{{ inventory_items_data|json_script:"inventory-items-data" }}
+
+<script nonce="{{ request.csp_nonce }}">
+  (function () {
+    const form = document.getElementById("saleEditForm");
+    const linesBody = document.getElementById("saleLinesBody");
+    const addButton = document.getElementById("addSaleItemButton");
+    const itemsPayloadInput = document.getElementById("id_items_payload");
+    const taxInput = document.getElementById("id_tax_amount");
+    const discountInput = document.getElementById("id_discount_amount");
+    const amountPaidInput = document.getElementById("id_amount_paid");
+    const saleLinesSeed = JSON.parse(document.getElementById("sale-lines-data").textContent || "[]");
+    const inventoryItems = JSON.parse(document.getElementById("inventory-items-data").textContent || "[]");
+    const inventoryMap = new Map(inventoryItems.map(function (item) { return [Number(item.id), item]; }));
+    const subtotalEl = document.getElementById("editSubtotal");
+    const taxEl = document.getElementById("editTax");
+    const discountEl = document.getElementById("editDiscount");
+    const grandEl = document.getElementById("editGrand");
+    const paidEl = document.getElementById("editPaid");
+    const changeEl = document.getElementById("editChange");
+    const baseSubtotal = saleLinesSeed.reduce(function (sum, line) { return sum + Number(line.line_total || 0); }, 0);
+    const baseTaxRate = baseSubtotal > 0 ? Number(taxInput.value || 0) / baseSubtotal : 0;
+    const baseDiscountRate = baseSubtotal > 0 ? Number(discountInput.value || 0) / baseSubtotal : 0;
+    let taxManuallyChanged = false;
+    let discountManuallyChanged = false;
+    let saleLines = saleLinesSeed.map(function (line) {
+      return {
+        item_id: Number(line.item_id),
+        quantity: Number(line.quantity || 1),
+        unit_price: Number(line.unit_price || 0),
+      };
+    });
+
+    function money(value) {
+      return `GHS ${Number(value || 0).toFixed(2)}`;
+    }
+
+    function stockUnits(value) {
+      const number = Number(value || 0);
+      return Number.isInteger(number) ? String(number) : number.toFixed(3).replace(/\.?0+$/, "");
+    }
+
+    function nextAvailableItemId() {
+      const usedIds = new Set(saleLines.map(function (line) { return Number(line.item_id); }));
+      const candidate = inventoryItems.find(function (item) { return !usedIds.has(Number(item.id)); });
+      return candidate ? Number(candidate.id) : (inventoryItems[0] ? Number(inventoryItems[0].id) : 0);
+    }
+
+    function lineForItem(itemId) {
+      return saleLines.find(function (line) { return Number(line.item_id) === Number(itemId); });
+    }
+
+    function currentLineTotal(line) {
+      return Number(line.quantity || 0) * Number(line.unit_price || 0);
+    }
+
+    function syncPayload() {
+      itemsPayloadInput.value = JSON.stringify(saleLines.map(function (line) {
+        return {
+          item_id: Number(line.item_id),
+          quantity: Number(line.quantity || 0),
+          unit_price: Number(line.unit_price || 0).toFixed(2),
+        };
+      }));
+    }
+
+    function syncTotals() {
+      const subtotal = saleLines.reduce(function (sum, line) {
+        return sum + currentLineTotal(line);
+      }, 0);
+      if (!taxManuallyChanged && baseTaxRate > 0) {
+        taxInput.value = (subtotal * baseTaxRate).toFixed(2);
+      }
+      if (!discountManuallyChanged && baseDiscountRate > 0) {
+        discountInput.value = (subtotal * baseDiscountRate).toFixed(2);
+      }
+      const tax = Number(taxInput.value || 0);
+      const discount = Number(discountInput.value || 0);
+      const grandTotal = Math.max(subtotal + tax - discount, 0);
+      const amountPaid = Number(amountPaidInput.value || 0);
+      const changeDue = Math.max(amountPaid - grandTotal, 0);
+      subtotalEl.textContent = money(subtotal);
+      taxEl.textContent = money(tax);
+      discountEl.textContent = money(discount);
+      grandEl.textContent = money(grandTotal);
+      paidEl.textContent = money(amountPaid);
+      changeEl.textContent = money(changeDue);
+    }
+
+    function renderLines() {
+      linesBody.innerHTML = "";
+      saleLines.forEach(function (line, index) {
+        const selectedItem = inventoryMap.get(Number(line.item_id));
+        const row = document.createElement("tr");
+        const options = inventoryItems.map(function (item) {
+          const selected = Number(item.id) === Number(line.item_id) ? "selected" : "";
+          return `<option value="${item.id}" ${selected}>${item.name}</option>`;
+        }).join("");
+        const availableStock = selectedItem ? Number(selectedItem.available_for_edit || 0) : 0;
+        const projectedStock = Math.max(availableStock - Number(line.quantity || 0), 0);
+        const duplicateCount = saleLines.filter(function (candidate) {
+          return Number(candidate.item_id) === Number(line.item_id);
+        }).length;
+        row.innerHTML = `
+          <td>
+            <select class="form-select sale-line-item" data-index="${index}">
+              ${options}
+            </select>
+            <div class="text-muted small mt-2">${selectedItem ? selectedItem.category : "Inventory item"}</div>
+            <div class="text-muted small">${selectedItem ? selectedItem.unit : ""}</div>
+            ${duplicateCount > 1 ? '<div class="text-danger small mt-1">Duplicate item selected. Keep each item only once.</div>' : ''}
+          </td>
+          <td>
+            <input class="form-control sale-line-quantity" type="number" min="1" step="1" data-index="${index}" value="${Math.max(1, Number(line.quantity || 1))}">
+          </td>
+          <td>
+            <input class="form-control sale-line-price" type="number" min="0" step="0.01" data-index="${index}" value="${Number(line.unit_price || 0).toFixed(2)}">
+          </td>
+          <td class="fw-semibold">${money(currentLineTotal(line))}</td>
+          <td>
+            <div class="fw-semibold">${stockUnits(projectedStock)}</div>
+            <div class="text-muted small">Available ${stockUnits(availableStock)}</div>
+          </td>
+          <td class="text-end">
+            <button class="btn btn-outline-danger btn-sm remove-sale-line" type="button" data-index="${index}">Remove</button>
+          </td>
+        `;
+        linesBody.appendChild(row);
+      });
+      syncPayload();
+      syncTotals();
+    }
+
+    addButton.addEventListener("click", function () {
+      const nextItemId = nextAvailableItemId();
+      if (!nextItemId) {
+        return;
+      }
+      const inventoryItem = inventoryMap.get(nextItemId);
+      saleLines.push({
+        item_id: nextItemId,
+        quantity: 1,
+        unit_price: Number(inventoryItem ? inventoryItem.price : 0),
+      });
+      renderLines();
+    });
+
+    function handleLineMutation(event) {
+      const target = event.target;
+      const index = Number(target.dataset.index);
+      if (Number.isNaN(index) || !saleLines[index]) {
+        return;
+      }
+      if (target.classList.contains("sale-line-item")) {
+        const nextItemId = Number(target.value || 0);
+        const nextItem = inventoryMap.get(nextItemId);
+        saleLines[index].item_id = nextItemId;
+        if (nextItem) {
+          saleLines[index].unit_price = Number(nextItem.price || 0);
+        }
+      }
+      if (target.classList.contains("sale-line-quantity")) {
+        saleLines[index].quantity = Math.max(1, Number(target.value || 1));
+      }
+      if (target.classList.contains("sale-line-price")) {
+        saleLines[index].unit_price = Math.max(0, Number(target.value || 0));
+      }
+      renderLines();
+    }
+
+    linesBody.addEventListener("input", handleLineMutation);
+    linesBody.addEventListener("change", handleLineMutation);
+
+    linesBody.addEventListener("click", function (event) {
+      const button = event.target.closest(".remove-sale-line");
+      if (!button) {
+        return;
+      }
+      if (saleLines.length === 1) {
+        window.alert("A sale must keep at least one item. Delete the sale instead if the receipt should be removed completely.");
+        return;
+      }
+      saleLines.splice(Number(button.dataset.index), 1);
+      renderLines();
+    });
+
+    taxInput.addEventListener("input", function () {
+      taxManuallyChanged = true;
+      syncTotals();
+    });
+    discountInput.addEventListener("input", function () {
+      discountManuallyChanged = true;
+      syncTotals();
+    });
+    amountPaidInput.addEventListener("input", syncTotals);
+
+    form.addEventListener("submit", function (event) {
+      if (!saleLines.length) {
+        event.preventDefault();
+        window.alert("Add at least one item before saving the sale.");
+        return;
+      }
+      const duplicateIds = saleLines.map(function (line) { return Number(line.item_id); });
+      if (new Set(duplicateIds).size !== duplicateIds.length) {
+        event.preventDefault();
+        window.alert("Each inventory item can appear only once on a sale.");
+        return;
+      }
+      syncPayload();
+    });
+
+    renderLines();
+  })();
+</script>
 {% endblock %}

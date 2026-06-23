@@ -18,6 +18,7 @@ from inventory.models import (
     SaleItem,
     Supplier,
 )
+from inventory.views import _inventory_items_for_stock_lock
 
 
 class InventoryPermissionTests(TestCase):
@@ -153,6 +154,11 @@ class InventoryPosWorkflowTests(TestCase):
         )
         self.assertEqual(transactions.count(), 1)
         self.assertEqual(transactions.first().quantity_changed, created_item.quantity_in_stock)
+
+    def test_pos_sale_stock_lock_query_does_not_join_nullable_relations(self):
+        query_sql = str(_inventory_items_for_stock_lock([self.item.pk, self.item_two.pk]).query).upper()
+        self.assertNotIn("JOIN", query_sql)
+        self.assertIn("ORDER BY", query_sql)
 
     def test_pos_checkout_deducts_stock_and_creates_sale(self):
         self.client.force_login(self.user)

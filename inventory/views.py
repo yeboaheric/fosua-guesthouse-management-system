@@ -147,6 +147,10 @@ def _inventory_status_for_quantity(item, quantity):
     return InventoryItem.InventoryStatus.ACTIVE
 
 
+def _inventory_items_for_stock_lock(item_ids):
+    return InventoryItem.objects.filter(pk__in=item_ids).order_by("pk").select_for_update()
+
+
 def _normalize_sale_edit_lines(raw_lines, available_items):
     normalized_lines_map = {}
     normalized_item_order = []
@@ -248,7 +252,7 @@ def _apply_sale_item_edits(*, sale, request_user, normalized_lines, notes):
     affected_item_ids = sorted(set(existing_lines.keys()) | set(target_lines.keys()))
     inventory_items = {
         item.pk: item
-        for item in InventoryItem.objects.select_for_update().filter(pk__in=affected_item_ids)
+        for item in _inventory_items_for_stock_lock(affected_item_ids)
     }
 
     item_changes = []

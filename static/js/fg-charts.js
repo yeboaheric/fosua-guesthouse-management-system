@@ -148,6 +148,21 @@
     return [palette.deep, palette.gold, palette.sage, palette.bronze, palette.sand, "#6C7A80"][index % 6];
   }
 
+  function chartTheme() {
+    const darkMode = document.documentElement.getAttribute("data-theme") === "dark";
+    return {
+      darkMode: darkMode,
+      text: darkMode ? "#E7F0F1" : "#24373D",
+      muted: darkMode ? "#A9BCC2" : "#596A70",
+      grid: darkMode ? "rgba(231, 240, 241, 0.12)" : "rgba(32, 63, 70, 0.09)",
+      tooltipBg: darkMode ? "#F4F7F8" : "#1D343A",
+      tooltipTitle: darkMode ? "#102126" : "#FFFFFF",
+      tooltipBody: darkMode ? "#23383F" : "#F6F8F8",
+      radialCenter: darkMode ? "#0E1C21" : "#FFFFFF",
+      axisLabel: darkMode ? "#D7E4E6" : "#596A70",
+    };
+  }
+
   function normalizeDataset(dataset, index, chartType) {
     const color = mapColorString(dataset.borderColor || dataset.backgroundColor || defaultColorForIndex(index));
     const normalized = Object.assign({}, dataset);
@@ -216,6 +231,7 @@
 
   function chartOptions(config) {
     const radial = config.type === "doughnut" || config.type === "pie";
+    const theme = chartTheme();
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -237,7 +253,7 @@
                 display: false,
               },
               ticks: {
-                color: "#596A70",
+                color: theme.muted,
                 maxRotation: 0,
                 autoSkip: true,
                 font: {
@@ -248,7 +264,7 @@
               title: {
                 display: true,
                 text: config.xAxisTitle || "Period",
-                color: "#596A70",
+                color: theme.axisLabel,
                 font: {
                   size: 11,
                   weight: "600",
@@ -258,10 +274,10 @@
             y: {
               beginAtZero: true,
               grid: {
-                color: "rgba(32, 63, 70, 0.09)",
+                color: theme.grid,
               },
               ticks: {
-                color: "#596A70",
+                color: theme.muted,
                 precision: 0,
                 font: {
                   size: 11,
@@ -271,7 +287,7 @@
               title: {
                 display: true,
                 text: config.yAxisTitle || "Value",
-                color: "#596A70",
+                color: theme.axisLabel,
                 font: {
                   size: 11,
                   weight: "600",
@@ -286,7 +302,7 @@
           labels: {
             usePointStyle: true,
             boxWidth: 10,
-            color: "#24373D",
+            color: theme.text,
             font: {
               size: 12,
               weight: "500",
@@ -296,9 +312,11 @@
         },
         tooltip: {
           enabled: true,
-          backgroundColor: "#1D343A",
-          titleColor: "#FFFFFF",
-          bodyColor: "#F6F8F8",
+          backgroundColor: theme.tooltipBg,
+          titleColor: theme.tooltipTitle,
+          bodyColor: theme.tooltipBody,
+          borderColor: theme.darkMode ? "rgba(207, 174, 132, 0.28)" : "rgba(255, 255, 255, 0.12)",
+          borderWidth: 1,
           padding: 12,
           displayColors: true,
           callbacks: {
@@ -346,6 +364,7 @@
   }
 
   function prepareFallbackCanvas(canvas) {
+    const theme = chartTheme();
     const shell = canvas.closest(".chart-shell") || canvas.parentElement;
     const rect = shell ? shell.getBoundingClientRect() : canvas.getBoundingClientRect();
     const width = Math.max(220, Math.floor(rect.width || canvas.clientWidth || 320));
@@ -359,6 +378,7 @@
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
     context.font = "12px Poppins, system-ui, sans-serif";
+    context.fillStyle = theme.text;
     context.lineCap = "round";
     context.lineJoin = "round";
     return { context, width, height };
@@ -382,6 +402,7 @@
   }
 
   function drawFallbackLegend(context, labels, values, colors, x, y, maxWidth) {
+    const theme = chartTheme();
     context.textBaseline = "middle";
     labels.slice(0, 6).forEach(function (label, index) {
       const rowY = y + index * 22;
@@ -389,7 +410,7 @@
       context.beginPath();
       roundedRectPath(context, x, rowY - 5, 10, 10, 3);
       context.fill();
-      context.fillStyle = "#24373D";
+      context.fillStyle = theme.text;
       const text = `${label}: ${Number(values[index] || 0).toLocaleString()}`;
       context.fillText(text.length > 28 ? `${text.slice(0, 25)}...` : text, x + 16, rowY, maxWidth || 150);
     });
@@ -397,6 +418,7 @@
 
   function drawFallbackRadial(canvas, config) {
     const prepared = prepareFallbackCanvas(canvas);
+    const theme = chartTheme();
     const context = prepared.context;
     const width = prepared.width;
     const height = prepared.height;
@@ -430,16 +452,16 @@
     if (cutoutRatio) {
       context.beginPath();
       context.arc(centerX, centerY, radius * cutoutRatio, 0, Math.PI * 2);
-      context.fillStyle = "#FFFFFF";
+      context.fillStyle = theme.radialCenter;
       context.fill();
     }
 
-    context.fillStyle = "#203F46";
+    context.fillStyle = theme.text;
     context.textAlign = "center";
     context.font = "700 20px Poppins, system-ui, sans-serif";
     context.fillText(total.toLocaleString(), centerX, centerY + 4);
     context.font = "500 11px Poppins, system-ui, sans-serif";
-    context.fillStyle = "#596A70";
+    context.fillStyle = theme.muted;
     context.fillText("Total", centerX, centerY + 23);
 
     context.textAlign = "left";
@@ -456,6 +478,7 @@
 
   function drawFallbackCartesian(canvas, config) {
     const prepared = prepareFallbackCanvas(canvas);
+    const theme = chartTheme();
     const context = prepared.context;
     const width = prepared.width;
     const height = prepared.height;
@@ -475,9 +498,9 @@
     const chartHeight = height - top - bottom;
     const labelStep = Math.max(1, Math.ceil(labels.length / 6));
 
-    context.strokeStyle = "rgba(32, 63, 70, 0.1)";
+    context.strokeStyle = theme.grid;
     context.lineWidth = 1;
-    context.fillStyle = "#596A70";
+    context.fillStyle = theme.muted;
     context.textAlign = "right";
     context.textBaseline = "middle";
     for (let tick = 0; tick <= 4; tick += 1) {
@@ -604,6 +627,8 @@
       canvas._fgChart = null;
     }
     const normalizedConfig = Object.assign({}, config || {});
+    canvas._fgChartConfig = normalizedConfig;
+    canvas.dataset.fgChart = "true";
     normalizedConfig.labels = Array.isArray(normalizedConfig.labels) ? normalizedConfig.labels : [];
     normalizedConfig.datasets = Array.isArray(normalizedConfig.datasets) ? normalizedConfig.datasets : [];
 
@@ -620,6 +645,14 @@
     return canvas._fgChart;
   }
 
+  function refreshTheme() {
+    document.querySelectorAll("canvas[data-fg-chart='true']").forEach(function (canvas) {
+      if (canvas._fgChartConfig) {
+        upsert(canvas, canvas._fgChartConfig);
+      }
+    });
+  }
+
   function renderMany(configs) {
     (configs || []).forEach(function (config) {
       upsert(document.getElementById(config.id), config);
@@ -632,7 +665,10 @@
     withAlpha: withAlpha,
     upsert: upsert,
     renderMany: renderMany,
+    refreshTheme: refreshTheme,
   };
+
+  window.addEventListener("fg:themechange", refreshTheme);
 
   queuedOperations.forEach(function (operation) {
     if (!operation || !operation.method) {

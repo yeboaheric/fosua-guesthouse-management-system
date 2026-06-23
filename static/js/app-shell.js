@@ -9,6 +9,7 @@
     }
     root.setAttribute("data-theme", theme);
     localStorage.setItem(themeStorageKey, theme);
+    window.dispatchEvent(new CustomEvent("fg:themechange", { detail: { theme } }));
   }
 
   function currentSidebarState() {

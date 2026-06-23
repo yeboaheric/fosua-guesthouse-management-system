@@ -136,6 +136,17 @@ def _serialized_inventory_choices(sale):
     ]
 
 
+def _inventory_status_for_quantity(item, quantity):
+    if item.status == InventoryItem.InventoryStatus.DISCONTINUED:
+        return item.status
+    threshold = Decimal(str(item.minimum_stock_threshold or "0"))
+    if quantity <= Decimal("0.000"):
+        return InventoryItem.InventoryStatus.OUT_OF_STOCK
+    if quantity <= threshold:
+        return InventoryItem.InventoryStatus.LOW_STOCK
+    return InventoryItem.InventoryStatus.ACTIVE
+
+
 def _normalize_sale_edit_lines(raw_lines, available_items):
     normalized_lines_map = {}
     normalized_item_order = []
@@ -284,7 +295,12 @@ def _apply_sale_item_edits(*, sale, request_user, normalized_lines, notes):
         if quantity_delta != 0:
             previous_stock = _quantize_quantity(inventory_item.quantity_in_stock)
             inventory_item.quantity_in_stock = projected_stock
-            inventory_item.save(update_fields=["quantity_in_stock", "updated_at"])
+            inventory_item.status = _inventory_status_for_quantity(inventory_item, projected_stock)
+            InventoryItem.objects.filter(pk=inventory_item.pk).update(
+                quantity_in_stock=projected_stock,
+                status=inventory_item.status,
+                updated_at=timezone.now(),
+            )
             _log_transaction(
                 item=inventory_item,
                 quantity_before=previous_stock,
@@ -1045,7 +1061,12 @@ def sale_update(request, pk):
             logger.warning("POS sale edit validation failed for user %s sale %s: %s", request.user, pk, message)
             form.add_error(None, message)
         except Exception:
-            logger.exception("Unexpected POS sale edit failure for user %s sale %s", request.user, pk)
+            logger.exception(
+                "Unexpected POS sale edit failure for user %s sale %s with payload %s",
+                request.user,
+                pk,
+                request.POST.get("items_payload", ""),
+            )
             form.add_error(None, "Unable to save this edited sale right now. Please review the items and try again.")
         else:
             if success_sale_pk is not None:

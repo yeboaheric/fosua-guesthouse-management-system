@@ -6,7 +6,6 @@ from django.db.models import DecimalField, Sum, Value
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 
-from accounts.models import OwnerWithdrawal
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from inventory.models import Sale
 
@@ -132,15 +131,6 @@ def completed_pos_sales_queryset(start_date, end_date):
     )
 
 
-def owner_withdrawals_queryset(start_date, end_date):
-    return filter_queryset_for_local_datetime_range(
-        OwnerWithdrawal.objects.filter(entry_type=OwnerWithdrawal.EntryType.VISIT),
-        "created_at",
-        start_date,
-        end_date,
-    )
-
-
 def booking_revenue_total(start_date, end_date, room_type=""):
     return money_total(booking_revenue_queryset(start_date, end_date, room_type), "total_amount")
 
@@ -151,10 +141,6 @@ def event_revenue_total(start_date, end_date):
 
 def pos_sales_total(start_date, end_date):
     return money_total(completed_pos_sales_queryset(start_date, end_date), "grand_total")
-
-
-def owner_withdrawals_total(start_date, end_date):
-    return money_total(owner_withdrawals_queryset(start_date, end_date), "amount")
 
 
 def payments_received_total(start_date, end_date, room_type=""):
@@ -168,17 +154,14 @@ def revenue_components(start_date, end_date, room_type=""):
     booking_total = booking_revenue_total(start_date, end_date, room_type)
     event_total = event_revenue_total(start_date, end_date)
     pos_total = pos_sales_total(start_date, end_date)
-    withdrawals_total = owner_withdrawals_total(start_date, end_date)
     gross_total = booking_total + event_total + pos_total
     return {
         "booking_revenue": booking_total,
         "event_revenue": event_total,
         "pos_sales": pos_total,
-        "owner_withdrawals": withdrawals_total,
         "payments_received": payments_received_total(start_date, end_date, room_type),
         "total_revenue": gross_total,
         "gross_revenue": gross_total,
-        "net_revenue": gross_total - withdrawals_total,
     }
 
 
@@ -233,25 +216,3 @@ def daily_total_revenue_map(start_date, end_date, room_type=""):
         current_day += timedelta(days=1)
     return totals
 
-
-def daily_owner_withdrawals_map(start_date, end_date):
-    return _daily_money_map_from_datetime_queryset(
-        owner_withdrawals_queryset(start_date, end_date),
-        "created_at",
-        "amount",
-    )
-
-
-def daily_net_revenue_map(start_date, end_date, room_type=""):
-    gross_map = daily_total_revenue_map(start_date, end_date, room_type)
-    withdrawals_map = daily_owner_withdrawals_map(start_date, end_date)
-    current_day = min(start_date, end_date)
-    final_day = max(start_date, end_date)
-    totals = {}
-    while current_day <= final_day:
-        totals[current_day] = gross_map.get(current_day, Decimal("0")) - withdrawals_map.get(
-            current_day,
-            Decimal("0"),
-        )
-        current_day += timedelta(days=1)
-    return totals

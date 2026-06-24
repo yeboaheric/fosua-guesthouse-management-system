@@ -81,15 +81,12 @@ from accounts.reporting import (
     booking_revenue_queryset,
     completed_pos_sales_queryset,
     daily_booking_revenue_map,
-    daily_net_revenue_map,
-    daily_owner_withdrawals_map,
     daily_total_revenue_map,
     event_payment_queryset,
     event_revenue_queryset,
     filter_queryset_for_local_datetime_bounds,
     money_total as shared_money_total,
     normalize_date_range,
-    owner_withdrawals_queryset,
     report_window_for_period as shared_report_window_for_period,
     revenue_components,
 )
@@ -793,16 +790,25 @@ def _selected_owner_collection_week(request, week_rows):
     return None
 
 
+def _owner_collection_visit_queryset(start_date, end_date):
+    return filter_queryset_for_local_datetime_bounds(
+        OwnerWithdrawal.objects.filter(entry_type=OwnerWithdrawal.EntryType.VISIT),
+        "created_at",
+        start_date,
+        end_date,
+    )
+
+
 def _sales_deposit_summary_cards(filtered_queryset=None, start_date=None, end_date=None):
     today = timezone.localdate()
     week_start, week_end = shared_report_window_for_period("weekly", today)
     month_start, month_end = shared_report_window_for_period("monthly", today)
     year_start, year_end = shared_report_window_for_period("yearly", today)
     cards = [
-        {"label": "Collected today", "value": _display_money(_money_total(owner_withdrawals_queryset(today, today), "amount"))},
-        {"label": "This week", "value": _display_money(_money_total(owner_withdrawals_queryset(week_start, week_end), "amount"))},
-        {"label": "This month", "value": _display_money(_money_total(owner_withdrawals_queryset(month_start, month_end), "amount"))},
-        {"label": "This year", "value": _display_money(_money_total(owner_withdrawals_queryset(year_start, year_end), "amount"))},
+        {"label": "Collected today", "value": _display_money(_money_total(_owner_collection_visit_queryset(today, today), "amount"))},
+        {"label": "This week", "value": _display_money(_money_total(_owner_collection_visit_queryset(week_start, week_end), "amount"))},
+        {"label": "This month", "value": _display_money(_money_total(_owner_collection_visit_queryset(month_start, month_end), "amount"))},
+        {"label": "This year", "value": _display_money(_money_total(_owner_collection_visit_queryset(year_start, year_end), "amount"))},
     ]
     if filtered_queryset is not None and (start_date or end_date):
         if start_date and end_date:
@@ -1056,10 +1062,10 @@ def sales_deposits_export_xlsx(request):
 
     sheet = workbook.active
     sheet.title = "Weekly Collections"
-    _write_owner_withdrawals_log_sheet(sheet, withdrawals, start_date, end_date)
+    _write_owner_collections_log_sheet(sheet, withdrawals, start_date, end_date)
 
-    summary_sheet = workbook.create_sheet(title="Financial Summary")
-    _write_owner_withdrawals_summary_sheet(summary_sheet, start_date, end_date)
+    summary_sheet = workbook.create_sheet(title="Weekly Summary")
+    _write_owner_collections_summary_sheet(summary_sheet, withdrawals, start_date, end_date)
 
     log_audit_event(
         request=request,
@@ -1076,7 +1082,7 @@ def sales_deposits_export_xlsx(request):
 
     return _xlsx_response(
         workbook,
-        f"withdrawals-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
+        f"sales-deposits-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
     )
 
 
@@ -3707,8 +3713,6 @@ def _build_revenue_analytics_section(filters):
     event_total = revenue_breakdown["event_revenue"]
     pos_total = revenue_breakdown["pos_sales"]
     total_revenue = revenue_breakdown["gross_revenue"]
-    owner_withdrawals_total = revenue_breakdown["owner_withdrawals"]
-    net_revenue_total = revenue_breakdown["net_revenue"]
 
     fully_paid_bookings = booking_stays.annotate(
         paid_total=Coalesce(Sum("payments__amount"), Value(0, output_field=money_field)),
@@ -3722,15 +3726,11 @@ def _build_revenue_analytics_section(filters):
     revenue_points = []
     room_type_rollup = defaultdict(Decimal)
     revenue_by_day = daily_total_revenue_map(start_date, end_date, room_type)
-    withdrawals_by_day = daily_owner_withdrawals_map(start_date, end_date)
-    net_revenue_by_day = daily_net_revenue_map(start_date, end_date, room_type)
     for current_day in _report_days(start_date, end_date):
         revenue_points.append(
             {
                 "date": current_day,
-                "gross_revenue": revenue_by_day.get(current_day, Decimal("0")),
-                "owner_withdrawals": withdrawals_by_day.get(current_day, Decimal("0")),
-                "net_revenue": net_revenue_by_day.get(current_day, Decimal("0")),
+                "total_revenue": revenue_by_day.get(current_day, Decimal("0")),
             }
         )
 
@@ -3747,7 +3747,7 @@ def _build_revenue_analytics_section(filters):
         filters["period"],
         start_date,
         end_date,
-        sum_fields=("gross_revenue", "owner_withdrawals", "net_revenue"),
+        sum_fields=("total_revenue",),
     )
 
     average_revenue_per_booking = round(
@@ -3772,18 +3772,14 @@ def _build_revenue_analytics_section(filters):
         "title": "Revenue Analytics",
         "sheet_title": "Revenue Analytics",
         "filename_prefix": "revenue-analytics",
-        "subtitle": "Gross revenue, owner withdrawals, net revenue, room-type performance, POS sales, and payment completion for the selected period.",
+        "subtitle": "Hotel revenue, room-type performance, POS sales, and payment completion for the selected period.",
         "summary": {
             "total_revenue": total_revenue,
-            "net_revenue": net_revenue_total,
-            "owner_withdrawals": owner_withdrawals_total,
             "outstanding_total": outstanding_total,
             "fully_paid_count": fully_paid_count,
         },
         "metrics": [
-            {"label": "Gross revenue", "value": _display_money(total_revenue), "export_value": float(total_revenue)},
-            {"label": "Net revenue", "value": _display_money(net_revenue_total), "export_value": float(net_revenue_total)},
-            {"label": "Owner withdrawals", "value": _display_money(owner_withdrawals_total), "export_value": float(owner_withdrawals_total)},
+            {"label": "Total revenue", "value": _display_money(total_revenue), "export_value": float(total_revenue)},
             {"label": "Average revenue per booking", "value": _display_money(average_revenue_per_booking), "export_value": float(average_revenue_per_booking)},
             {"label": "Outstanding payments", "value": _display_money(outstanding_total), "export_value": float(outstanding_total)},
             {"label": "Fully paid bookings", "value": fully_paid_count, "export_value": fully_paid_count},
@@ -3792,12 +3788,11 @@ def _build_revenue_analytics_section(filters):
         "charts": [
             _analytics_chart(
                 "revenue-trend-chart",
-                "Gross vs net revenue",
+                "Revenue trend",
                 "line",
                 revenue_series["labels"],
                 [
-                    {"label": "Gross Revenue", "data": revenue_series["values"]["gross_revenue"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.14)", "fill": True, "tension": 0.35},
-                    {"label": "Net Revenue", "data": revenue_series["values"]["net_revenue"], "borderColor": "#CFAE84", "backgroundColor": "rgba(207,174,132,0.08)", "fill": False, "tension": 0.35},
+                    {"label": "Total Revenue", "data": revenue_series["values"]["total_revenue"], "borderColor": "#23444B", "backgroundColor": "rgba(35,68,75,0.14)", "fill": True, "tension": 0.35},
                 ],
             ),
             _analytics_chart(
@@ -3828,9 +3823,7 @@ def _build_revenue_analytics_section(filters):
                 "title": "Revenue overview",
                 "headers": ["Metric", "Value"],
                 "rows": [
-                    ["Gross revenue", _display_money(total_revenue)],
-                    ["Owner withdrawals", _display_money(owner_withdrawals_total)],
-                    ["Net revenue", _display_money(net_revenue_total)],
+                    ["Total revenue", _display_money(total_revenue)],
                     ["Booking revenue", _display_money(booking_total)],
                     ["Event revenue", _display_money(event_total)],
                     ["POS sales", _display_money(pos_total)],
@@ -3839,9 +3832,7 @@ def _build_revenue_analytics_section(filters):
                     ["Revenue vs expenses", expense_note],
                 ],
                 "export_rows": [
-                    ["Gross revenue", float(total_revenue)],
-                    ["Owner withdrawals", float(owner_withdrawals_total)],
-                    ["Net revenue", float(net_revenue_total)],
+                    ["Total revenue", float(total_revenue)],
                     ["Booking revenue", float(booking_total)],
                     ["Event revenue", float(event_total)],
                     ["POS sales", float(pos_total)],
@@ -3849,8 +3840,8 @@ def _build_revenue_analytics_section(filters):
                     ["Outstanding balances", float(outstanding_total)],
                     ["Revenue vs expenses", expense_note],
                 ],
-                "summary_row": ["TOTALS", _display_money(net_revenue_total)],
-                "export_summary_row": ["TOTALS", float(net_revenue_total)],
+                "summary_row": ["TOTALS", _display_money(total_revenue)],
+                "export_summary_row": ["TOTALS", float(total_revenue)],
             },
         ],
     }
@@ -5283,7 +5274,7 @@ def _write_report_overview_sheet(worksheet, sections, display_range):
             cell.alignment = Alignment(vertical="top", wrap_text=True)
 
 
-def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_date):
+def _write_owner_collections_log_sheet(worksheet, withdrawals, start_date, end_date):
     from openpyxl.styles import Alignment, Font, PatternFill
 
     title_font = Font(bold=True, size=14)
@@ -5399,7 +5390,7 @@ def _write_owner_withdrawals_log_sheet(worksheet, withdrawals, start_date, end_d
         worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 30)
 
 
-def _write_owner_withdrawals_summary_sheet(worksheet, start_date, end_date):
+def _write_owner_collections_summary_sheet(worksheet, withdrawals, start_date, end_date):
     from openpyxl.styles import Alignment, Font, PatternFill
 
     title_font = Font(bold=True, size=14)
@@ -5407,41 +5398,40 @@ def _write_owner_withdrawals_summary_sheet(worksheet, start_date, end_date):
     header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
     summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
 
-    worksheet["A1"] = "Financial Summary"
+    worksheet["A1"] = "Owner Collections Weekly Summary"
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
-    worksheet.append(["Period", "Gross Revenue", "Total Withdrawals", "Net Revenue"])
+    worksheet.append(["Week Range", "Owner Visit Collections", "Leftover Logged", "Leftover Balance", "Total for Week", "Status"])
 
     for cell in worksheet[4]:
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
 
-    gross_map = daily_total_revenue_map(start_date, end_date)
-    withdrawals_map = daily_owner_withdrawals_map(start_date, end_date)
-    net_map = daily_net_revenue_map(start_date, end_date)
-    gross_total = Decimal("0.00")
-    withdrawals_total = Decimal("0.00")
-    net_total = Decimal("0.00")
+    week_rows = _owner_collection_week_rows(withdrawals)
+    collected_total = Decimal("0.00")
+    leftover_total = Decimal("0.00")
+    leftover_balance_total = Decimal("0.00")
+    weekly_total = Decimal("0.00")
 
-    for current_day in _report_days(start_date, end_date):
-        gross_value = Decimal(str(gross_map.get(current_day, Decimal("0")) or 0))
-        withdrawal_value = Decimal(str(withdrawals_map.get(current_day, Decimal("0")) or 0))
-        net_value = Decimal(str(net_map.get(current_day, Decimal("0")) or 0))
-        gross_total += gross_value
-        withdrawals_total += withdrawal_value
-        net_total += net_value
+    for row in week_rows:
+        collected_total += row["total_collected"]
+        leftover_total += row["leftover_logged"]
+        leftover_balance_total += row["leftover_balance"]
+        weekly_total += row["total_for_week"]
         worksheet.append(
             [
-                current_day.strftime("%d/%m/%Y"),
-                float(gross_value),
-                float(withdrawal_value),
-                float(net_value),
+                row["week_range"],
+                float(row["total_collected"]),
+                float(row["leftover_logged"]),
+                float(row["leftover_balance"]),
+                float(row["total_for_week"]),
+                row["status_label"],
             ]
         )
 
-    worksheet.append(["TOTALS", float(gross_total), float(withdrawals_total), float(net_total)])
+    worksheet.append(["TOTALS", float(collected_total), float(leftover_total), float(leftover_balance_total), float(weekly_total), ""])
     for cell in worksheet[worksheet.max_row]:
         cell.font = Font(bold=True)
         cell.fill = summary_fill
@@ -5679,10 +5669,10 @@ def _write_finance_balance_sheet(worksheet, balance_sheet):
         cell.alignment = Alignment(horizontal="center")
 
     rows = [
-        ["ASSETS", "Cash on hand", float(balance_sheet["cash_on_hand"]), "Cash payments received minus withdrawals and cash expenses."],
+        ["ASSETS", "Cash on hand", float(balance_sheet["cash_on_hand"]), "Cash payments received minus cash expenses."],
         ["ASSETS", "Inventory value", float(balance_sheet["inventory_value"]), f"{balance_sheet['inventory_item_count']} active inventory items valued at current purchase cost."],
         ["LIABILITIES", "Outstanding supplier payments", "", balance_sheet["liabilities_note"]],
-        ["EQUITY", "Retained earnings", float(balance_sheet["retained_earnings"]), "Accumulated net profit after expenses and owner withdrawals."],
+        ["EQUITY", "Retained earnings", float(balance_sheet["retained_earnings"]), "Accumulated net profit after expenses."],
     ]
     for row in rows:
         worksheet.append(row)

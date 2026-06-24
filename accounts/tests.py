@@ -422,7 +422,7 @@ class SalesDepositsModuleTests(TestCase):
         self.assertContains(delete_response, "Access Denied")
         self.assertTrue(OwnerWithdrawal.objects.filter(pk=withdrawal.pk).exists())
 
-    def test_admin_can_export_sales_deposits_with_financial_summary(self):
+    def test_admin_can_export_sales_deposits_with_weekly_summary(self):
         now = timezone.localtime(timezone.now()).replace(hour=10, minute=0, second=0, microsecond=0)
         OwnerWithdrawal.objects.create(
             amount="40.00",
@@ -447,17 +447,16 @@ class SalesDepositsModuleTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         workbook = load_workbook(BytesIO(response.content))
-        self.assertEqual(workbook.sheetnames, ["Weekly Collections", "Financial Summary"])
+        self.assertEqual(workbook.sheetnames, ["Weekly Collections", "Weekly Summary"])
         log_sheet = workbook["Weekly Collections"]
-        summary_sheet = workbook["Financial Summary"]
+        summary_sheet = workbook["Weekly Summary"]
         self.assertEqual(log_sheet["A4"].value, "Week Range")
         self.assertEqual(log_sheet["B4"].value, "Entry Type")
         self.assertEqual(log_sheet["D4"].value, "Amount")
         self.assertEqual(log_sheet["E5"].value, "Mobile Money")
-        self.assertEqual(summary_sheet["A4"].value, "Period")
-        self.assertEqual(summary_sheet["B5"].value, 180)
-        self.assertEqual(summary_sheet["C5"].value, 40)
-        self.assertEqual(summary_sheet["D5"].value, 140)
+        self.assertEqual(summary_sheet["A4"].value, "Week Range")
+        self.assertEqual(summary_sheet["B4"].value, "Owner Visit Collections")
+        self.assertEqual(summary_sheet["B5"].value, 40)
 
     def test_sales_deposit_filter_normalizes_inverted_dates(self):
         OwnerWithdrawal.objects.create(
@@ -492,7 +491,7 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(response.context["summary_cards"][0]["label"], f"Selected range ({yesterday.strftime('%d/%m/%Y')} - {today.strftime('%d/%m/%Y')})")
         self.assertEqual(response.context["summary_cards"][0]["value"], "GHS 100.00")
 
-    def test_revenue_analytics_shows_gross_and_net_revenue(self):
+    def test_revenue_analytics_does_not_include_sales_deposits(self):
         OwnerWithdrawal.objects.create(
             amount="50.00",
             reason="Personal",
@@ -511,9 +510,9 @@ class SalesDepositsModuleTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Gross revenue")
-        self.assertContains(response, "Net revenue")
-        self.assertContains(response, "Owner withdrawals")
+        self.assertContains(response, "Total revenue")
+        self.assertNotContains(response, "Net revenue")
+        self.assertNotContains(response, "Owner withdrawals")
 
 
 class FinanceModuleTests(TestCase):

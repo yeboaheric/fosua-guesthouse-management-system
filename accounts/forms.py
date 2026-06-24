@@ -334,6 +334,14 @@ class DepositTargetForm(forms.ModelForm):
             "week_end": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            if self.instance.week_start:
+                self.initial["week_start"] = self.instance.week_start.isoformat()
+            if self.instance.week_end:
+                self.initial["week_end"] = self.instance.week_end.isoformat()
+
     def clean_target_amount(self):
         amount = self.cleaned_data["target_amount"]
         if amount <= 0:

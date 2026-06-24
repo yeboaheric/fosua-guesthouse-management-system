@@ -858,6 +858,8 @@ def _sales_deposits_page_context(
     target_form=None,
     collection_form=None,
     selected_target=None,
+    editing_target=None,
+    editing_collection=None,
 ):
     filtered = _sales_deposit_filtered_queryset(request)
     export_start_date, export_end_date = _sales_deposit_export_range(request)
@@ -900,6 +902,8 @@ def _sales_deposits_page_context(
         "is_editing": is_editing,
         "target_form": target_form or DepositTargetForm(),
         "collection_form": collection_form or DepositCollectionForm(),
+        "editing_target": editing_target,
+        "editing_collection": editing_collection,
         "target_rows": target_rows,
         "selected_target_data": selected_target_data,
         "target_export_start_date": target_export_start.isoformat(),
@@ -915,6 +919,11 @@ def _sales_deposits_page_context(
 def _sales_deposit_admin_redirect(request):
     messages.error(request, "Access Denied: only admin accounts can edit or delete sales deposits.")
     return redirect("sales-deposits-center")
+
+
+def _collection_date_belongs_to_target(collection, target):
+    collection_date = timezone.localtime(collection.date_collected).date()
+    return target.week_start <= collection_date <= target.week_end
 
 
 @group_required("Admin", "Receptionist", module="payments", action={"GET": "view", "POST": "create"})
@@ -1059,6 +1068,72 @@ def sales_deposit_target_detail(request, pk):
     )
 
 
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_target_update(request, pk):
+    if not user_is_admin_role(request.user):
+        return _sales_deposit_admin_redirect(request)
+
+    target = get_object_or_404(DepositTarget.objects.select_related("created_by"), pk=pk)
+    target_form = DepositTargetForm(request.POST or None, instance=target)
+    if request.method == "POST" and target_form.is_valid():
+        updated_target = target_form.save()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.UPDATE,
+            module="payments",
+            object_repr=f"Deposit target {updated_target.pk}",
+            object_id=updated_target.pk,
+            details={
+                "event": "deposit_target_updated",
+                "target_amount": str(updated_target.target_amount),
+                "week_start": updated_target.week_start.isoformat(),
+                "week_end": updated_target.week_end.isoformat(),
+            },
+        )
+        messages.success(request, "Weekly sales deposit target updated successfully.")
+        return redirect(f"{reverse('sales-deposit-target-detail', args=[updated_target.pk])}?tab=weekly")
+
+    return render(
+        request,
+        "accounts/sales_deposits_center.html",
+        _sales_deposits_page_context(
+            request,
+            form=OwnerWithdrawalForm(),
+            form_title="Log collection",
+            selected_target=target,
+            target_form=target_form,
+            editing_target=target,
+        ),
+    )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_target_delete(request, pk):
+    if not user_is_admin_role(request.user):
+        return _sales_deposit_admin_redirect(request)
+
+    target = get_object_or_404(DepositTarget, pk=pk)
+    target_id = target.pk
+    week_label = target.week_range_label
+    target.delete()
+    log_audit_event(
+        request=request,
+        user=request.user,
+        action=AuditLog.ActionType.DELETE,
+        module="payments",
+        object_repr=f"Deposit target {target_id}",
+        object_id=target_id,
+        details={
+            "event": "deposit_target_deleted",
+            "week_range": week_label,
+        },
+    )
+    messages.success(request, "Weekly sales deposit target deleted successfully.")
+    return redirect(f"{reverse('sales-deposits-center')}?tab=weekly")
+
+
 @require_POST
 @group_required("Admin", "Receptionist", module="payments", action="create")
 def sales_deposit_collection_create(request, pk):
@@ -1066,8 +1141,7 @@ def sales_deposit_collection_create(request, pk):
     collection_form = DepositCollectionForm(request.POST)
     if collection_form.is_valid():
         collection = collection_form.save(commit=False)
-        collection_date = timezone.localtime(collection.date_collected).date()
-        if not (target.week_start <= collection_date <= target.week_end):
+        if not _collection_date_belongs_to_target(collection, target):
             collection_form.add_error(
                 "date_collected",
                 "Collection date must fall within this target's Monday to Sunday week range.",
@@ -1105,6 +1179,89 @@ def sales_deposit_collection_create(request, pk):
             collection_form=collection_form,
         ),
     )
+
+
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_collection_update(request, pk):
+    if not user_is_admin_role(request.user):
+        return _sales_deposit_admin_redirect(request)
+
+    collection = get_object_or_404(
+        DepositCollection.objects.select_related("deposit_target", "recorded_by"),
+        pk=pk,
+    )
+    target = collection.deposit_target
+    collection_form = DepositCollectionForm(request.POST or None, instance=collection)
+    if request.method == "POST" and collection_form.is_valid():
+        updated_collection = collection_form.save(commit=False)
+        if not _collection_date_belongs_to_target(updated_collection, target):
+            collection_form.add_error(
+                "date_collected",
+                "Collection date must fall within this target's Monday to Sunday week range.",
+            )
+        else:
+            if not updated_collection.recorded_by_id:
+                updated_collection.recorded_by = request.user
+            updated_collection.deposit_target = target
+            updated_collection.save()
+            log_audit_event(
+                request=request,
+                user=request.user,
+                action=AuditLog.ActionType.UPDATE,
+                module="payments",
+                object_repr=f"Deposit collection {updated_collection.pk}",
+                object_id=updated_collection.pk,
+                details={
+                    "event": "deposit_collection_updated",
+                    "deposit_target": target.pk,
+                    "amount": str(updated_collection.amount),
+                    "collection_method": updated_collection.collection_method,
+                    "collected_by": updated_collection.collected_by,
+                },
+            )
+            messages.success(request, "Weekly sales deposit collection updated successfully.")
+            return redirect(f"{reverse('sales-deposit-target-detail', args=[target.pk])}?tab=weekly")
+
+    return render(
+        request,
+        "accounts/sales_deposits_center.html",
+        _sales_deposits_page_context(
+            request,
+            form=OwnerWithdrawalForm(),
+            form_title="Log collection",
+            selected_target=target,
+            collection_form=collection_form,
+            editing_collection=collection,
+        ),
+    )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_collection_delete(request, pk):
+    if not user_is_admin_role(request.user):
+        return _sales_deposit_admin_redirect(request)
+
+    collection = get_object_or_404(DepositCollection.objects.select_related("deposit_target"), pk=pk)
+    target = collection.deposit_target
+    collection_id = collection.pk
+    collection_amount = collection.amount
+    collection.delete()
+    log_audit_event(
+        request=request,
+        user=request.user,
+        action=AuditLog.ActionType.DELETE,
+        module="payments",
+        object_repr=f"Deposit collection {collection_id}",
+        object_id=collection_id,
+        details={
+            "event": "deposit_collection_deleted",
+            "deposit_target": target.pk,
+            "amount": str(collection_amount),
+        },
+    )
+    messages.success(request, "Weekly sales deposit collection deleted successfully.")
+    return redirect(f"{reverse('sales-deposit-target-detail', args=[target.pk])}?tab=weekly")
 
 
 @group_required("Admin", "Receptionist", module="payments", action="export")

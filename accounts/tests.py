@@ -586,6 +586,107 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(sheet["J5"].value, 450)
         self.assertEqual(sheet["K5"].value, "On Track")
 
+    def test_admin_can_edit_and_delete_weekly_target_from_view(self):
+        week_start = timezone.localdate() - timedelta(days=timezone.localdate().weekday())
+        target = DepositTarget.objects.create(
+            week_start=week_start,
+            week_end=week_start + timedelta(days=6),
+            target_amount="700.00",
+            created_by=self.admin_user,
+        )
+        self.client.force_login(self.admin_user)
+
+        update_response = self.client.post(
+            reverse("sales-deposit-target-update", args=[target.pk]),
+            {
+                "target_amount": "900.00",
+                "week_start": week_start.isoformat(),
+                "week_end": (week_start + timedelta(days=6)).isoformat(),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertContains(update_response, "Weekly sales deposit target updated successfully.")
+        target.refresh_from_db()
+        self.assertEqual(str(target.target_amount), "900.00")
+
+        delete_response = self.client.post(reverse("sales-deposit-target-delete", args=[target.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertContains(delete_response, "Weekly sales deposit target deleted successfully.")
+        self.assertFalse(DepositTarget.objects.filter(pk=target.pk).exists())
+
+    def test_admin_can_edit_and_delete_weekly_collection_from_view(self):
+        week_start = timezone.localdate() - timedelta(days=timezone.localdate().weekday())
+        target = DepositTarget.objects.create(
+            week_start=week_start,
+            week_end=week_start + timedelta(days=6),
+            target_amount="700.00",
+            created_by=self.admin_user,
+        )
+        collection = DepositCollection.objects.create(
+            deposit_target=target,
+            date_collected=timezone.make_aware(datetime.combine(week_start, time(hour=11))),
+            amount="250.00",
+            collection_method=DepositCollection.CollectionMethod.CASH,
+            collected_by="Owner",
+            note="Opening collection",
+            recorded_by=self.admin_user,
+        )
+        self.client.force_login(self.admin_user)
+
+        update_response = self.client.post(
+            reverse("sales-deposit-collection-update", args=[collection.pk]),
+            {
+                "date_collected": timezone.localtime(collection.date_collected).strftime("%Y-%m-%dT%H:%M"),
+                "amount": "300.00",
+                "collection_method": DepositCollection.CollectionMethod.MOBILE_MONEY,
+                "collected_by": "Owner",
+                "note": "Updated collection",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertContains(update_response, "Weekly sales deposit collection updated successfully.")
+        collection.refresh_from_db()
+        self.assertEqual(str(collection.amount), "300.00")
+        self.assertEqual(collection.collection_method, DepositCollection.CollectionMethod.MOBILE_MONEY)
+        self.assertEqual(collection.note, "Updated collection")
+
+        delete_response = self.client.post(reverse("sales-deposit-collection-delete", args=[collection.pk]), follow=True)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertContains(delete_response, "Weekly sales deposit collection deleted successfully.")
+        self.assertFalse(DepositCollection.objects.filter(pk=collection.pk).exists())
+
+    def test_non_admin_cannot_edit_or_delete_weekly_targets_or_collections(self):
+        week_start = timezone.localdate() - timedelta(days=timezone.localdate().weekday())
+        target = DepositTarget.objects.create(
+            week_start=week_start,
+            week_end=week_start + timedelta(days=6),
+            target_amount="700.00",
+            created_by=self.admin_user,
+        )
+        collection = DepositCollection.objects.create(
+            deposit_target=target,
+            date_collected=timezone.make_aware(datetime.combine(week_start, time(hour=11))),
+            amount="250.00",
+            collected_by="Owner",
+            recorded_by=self.admin_user,
+        )
+        self.client.force_login(self.reception_user)
+
+        target_update = self.client.get(reverse("sales-deposit-target-update", args=[target.pk]), follow=True)
+        target_delete = self.client.post(reverse("sales-deposit-target-delete", args=[target.pk]), follow=True)
+        collection_update = self.client.get(reverse("sales-deposit-collection-update", args=[collection.pk]), follow=True)
+        collection_delete = self.client.post(reverse("sales-deposit-collection-delete", args=[collection.pk]), follow=True)
+
+        for response in [target_update, target_delete, collection_update, collection_delete]:
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Access Denied")
+        self.assertTrue(DepositTarget.objects.filter(pk=target.pk).exists())
+        self.assertTrue(DepositCollection.objects.filter(pk=collection.pk).exists())
+
     def test_revenue_analytics_shows_gross_and_net_revenue(self):
         OwnerWithdrawal.objects.create(
             amount="50.00",

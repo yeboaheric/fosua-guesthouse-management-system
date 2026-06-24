@@ -278,6 +278,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
         model = OwnerWithdrawal
         fields = [
             "created_at",
+            "entry_type",
             "amount",
             "collection_method",
             "collected_by",
@@ -289,12 +290,16 @@ class OwnerWithdrawalForm(forms.ModelForm):
             "amount": forms.NumberInput(
                 attrs={"class": "form-control", "step": "0.01", "min": "0.01"}
             ),
+            "entry_type": forms.Select(attrs={"class": "form-select"}),
             "collection_method": forms.Select(attrs={"class": "form-select"}),
-            "collected_by": forms.TextInput(attrs={"class": "form-control"}),
+            "collected_by": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Required for owner visits"}
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["entry_type"].required = False
         created_at_value = None
         if self.instance and self.instance.pk and self.instance.created_at:
             created_at_value = timezone.localtime(self.instance.created_at)
@@ -309,15 +314,19 @@ class OwnerWithdrawalForm(forms.ModelForm):
             value = timezone.make_aware(value, timezone.get_current_timezone())
         return value
 
+    def clean_entry_type(self):
+        return self.cleaned_data.get("entry_type") or OwnerWithdrawal.EntryType.VISIT
+
     def clean_amount(self):
         amount = self.cleaned_data["amount"]
         if amount <= 0:
-            raise ValidationError("Amount collected must be greater than zero.")
+            raise ValidationError("Amount must be greater than zero.")
         return amount
 
     def clean_collected_by(self):
         value = self.cleaned_data.get("collected_by", "").strip()
-        if not value:
+        entry_type = self.cleaned_data.get("entry_type")
+        if entry_type == OwnerWithdrawal.EntryType.VISIT and not value:
             raise ValidationError("Collected by is required.")
         return value
 

@@ -124,9 +124,9 @@ class NotificationAdmin(admin.ModelAdmin):
 
 @admin.register(OwnerWithdrawal)
 class OwnerWithdrawalAdmin(admin.ModelAdmin):
-    list_display = ["created_at", "amount", "collection_method", "collected_by", "recorded_by"]
-    search_fields = ["reason", "collected_by", "recorded_by__username", "recorded_by__first_name", "recorded_by__last_name"]
-    list_filter = ["created_at", "collection_method"]
+    list_display = ["created_at", "entry_type", "amount", "collection_method", "collected_by", "recorded_by"]
+    search_fields = ["collected_by", "recorded_by__username", "recorded_by__first_name", "recorded_by__last_name"]
+    list_filter = ["created_at", "entry_type", "collection_method"]
 
 
 @admin.register(Expense)

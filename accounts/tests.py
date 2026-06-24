@@ -374,12 +374,35 @@ class SalesDepositsModuleTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Sales deposit logged successfully.")
+        self.assertContains(response, "Owner collection visit logged successfully.")
         withdrawal = OwnerWithdrawal.objects.get()
         self.assertEqual(str(withdrawal.amount), "45.00")
+        self.assertEqual(withdrawal.entry_type, OwnerWithdrawal.EntryType.VISIT)
         self.assertEqual(withdrawal.collection_method, OwnerWithdrawal.CollectionMethod.CASH)
         self.assertEqual(withdrawal.recorded_by, self.reception_user)
         self.assertEqual(withdrawal.collected_by, "Owner")
+
+    def test_staff_can_log_leftover_for_week(self):
+        self.client.force_login(self.reception_user)
+        response = self.client.post(
+            reverse("sales-deposits-center"),
+            {
+                "created_at": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
+                "entry_type": OwnerWithdrawal.EntryType.LEFTOVER,
+                "amount": "25.00",
+                "collection_method": OwnerWithdrawal.CollectionMethod.BOTH,
+                "collected_by": "",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Leftover amount logged successfully.")
+        self.assertContains(response, "Leftover Logged")
+        withdrawal = OwnerWithdrawal.objects.get()
+        self.assertEqual(withdrawal.entry_type, OwnerWithdrawal.EntryType.LEFTOVER)
+        self.assertEqual(withdrawal.collection_method, OwnerWithdrawal.CollectionMethod.BOTH)
+        self.assertEqual(withdrawal.collected_by, "")
 
     def test_non_admin_cannot_edit_or_delete_sales_deposits(self):
         withdrawal = OwnerWithdrawal.objects.create(
@@ -424,13 +447,13 @@ class SalesDepositsModuleTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         workbook = load_workbook(BytesIO(response.content))
-        self.assertEqual(workbook.sheetnames, ["Collections Log", "Financial Summary"])
-        log_sheet = workbook["Collections Log"]
+        self.assertEqual(workbook.sheetnames, ["Weekly Collections", "Financial Summary"])
+        log_sheet = workbook["Weekly Collections"]
         summary_sheet = workbook["Financial Summary"]
-        self.assertEqual(log_sheet["A4"].value, "Date")
-        self.assertEqual(log_sheet["B4"].value, "Amount Collected")
-        self.assertEqual(log_sheet["C4"].value, "Method")
-        self.assertEqual(log_sheet["C5"].value, "Mobile Money")
+        self.assertEqual(log_sheet["A4"].value, "Week Range")
+        self.assertEqual(log_sheet["B4"].value, "Entry Type")
+        self.assertEqual(log_sheet["D4"].value, "Amount")
+        self.assertEqual(log_sheet["E5"].value, "Mobile Money")
         self.assertEqual(summary_sheet["A4"].value, "Period")
         self.assertEqual(summary_sheet["B5"].value, 180)
         self.assertEqual(summary_sheet["C5"].value, 40)

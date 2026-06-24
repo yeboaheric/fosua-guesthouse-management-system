@@ -134,7 +134,7 @@ def completed_pos_sales_queryset(start_date, end_date):
 
 def owner_withdrawals_queryset(start_date, end_date):
     return filter_queryset_for_local_datetime_range(
-        OwnerWithdrawal.objects.all(),
+        OwnerWithdrawal.objects.filter(entry_type=OwnerWithdrawal.EntryType.VISIT),
         "created_at",
         start_date,
         end_date,

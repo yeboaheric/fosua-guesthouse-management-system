@@ -734,18 +734,28 @@ class UserAccessProfile(models.Model):
 
 
 class OwnerWithdrawal(models.Model):
+    class EntryType(models.TextChoices):
+        VISIT = "visit", "Owner Visit"
+        LEFTOVER = "leftover", "Leftover"
+
     class CollectionMethod(models.TextChoices):
         CASH = "cash", "Cash"
         MOBILE_MONEY = "mobile_money", "Mobile Money"
+        BOTH = "both", "Cash & Mobile Money"
 
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     reason = models.CharField(max_length=255, blank=True)
+    entry_type = models.CharField(
+        max_length=20,
+        choices=EntryType.choices,
+        default=EntryType.VISIT,
+    )
     collection_method = models.CharField(
         max_length=20,
         choices=CollectionMethod.choices,
         default=CollectionMethod.CASH,
     )
-    collected_by = models.CharField(max_length=160)
+    collected_by = models.CharField(max_length=160, blank=True)
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -757,13 +767,17 @@ class OwnerWithdrawal(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = "owner_collections"
+        verbose_name = "Owner Collection"
+        verbose_name_plural = "Owner Collections"
         ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["created_at"]),
+            models.Index(fields=["entry_type", "created_at"]),
         ]
 
     def __str__(self):
-        return f"Owner withdrawal {self.amount} on {timezone.localtime(self.created_at):%d/%m/%Y %H:%M}"
+        return f"{self.get_entry_type_display()} {self.amount} on {timezone.localtime(self.created_at):%d/%m/%Y %H:%M}"
 
     @property
     def recorded_by_name(self):

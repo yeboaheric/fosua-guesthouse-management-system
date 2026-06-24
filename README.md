@@ -1,212 +1,197 @@
 # Fosua Guesthouse Management System
 
-This is the software system for **Fosua Guesthouse - Aduman** (12 rooms).
+A practical hotel management system built for **Fosua Guesthouse - Aduman**.
 
-Goal: a secure, beginner-friendly hotel management system with:
-- room availability tracking
-- guest booking and guest records
-- receptionist and admin logins (role-based access)
-- printable booking receipts
+This project helps the team run daily guesthouse operations from one place: reservations, rooms, guests, staff, housekeeping, POS sales, payments, finance, reports, analytics, and role-based access control.
 
-## 1) Recommended Stack (Beginner-Friendly + Secure)
+It is intentionally built with Django templates instead of a heavy frontend stack, so it stays easy to host, easy to maintain, and friendly for a small hotel team.
 
-As of **May 23, 2026**, we should use currently supported versions:
-- **Backend + Frontend:** Django 5.2 (LTS)
-- **Database:** PostgreSQL 16+
-- **UI:** Django templates + Bootstrap 5
-- **Authentication:** Django auth + groups (Admin, Receptionist)
-- **Receipt PDF:** ReportLab
-- **Server (production):** Nginx + Gunicorn + Ubuntu LTS
+## What It Does
 
-Why this stack:
-- One language (Python) across the whole app.
-- Django includes strong security defaults.
-- Easy to learn and maintain for a single business.
-- Scales comfortably for a 12-room guesthouse and beyond.
+- Manage room reservations, check-ins, check-outs, cancellations, and guest records
+- Track room status, maintenance, cleaning, availability, and occupancy
+- Run POS sales, receipts, payment tracking, and sales reports
+- Manage staff records, leave, attendance, duty roster, users, roles, and permissions
+- Log housekeeping item usage, stock levels, and low-stock alerts
+- Generate Excel reports across bookings, revenue, rooms, housekeeping, POS, staff, and finance
+- Track expenses and produce finance summaries such as revenue, expenses, and profit/loss
+- Protect sensitive actions with admin/receptionist role permissions
 
-## 2) Security-First Rules from Day 1
+## Tech Stack
 
-1. Never store plain passwords.
-2. Use role-based permissions for every page/action.
-3. Use environment variables for secrets (`.env`), never hardcode keys.
-4. Use PostgreSQL in production, not SQLite.
-5. Use HTTPS in production.
-6. Log critical actions (check-in, check-out, booking edits, cancellations).
-7. Keep dependencies updated.
-8. Daily database backup.
+- **Backend:** Django 5.2
+- **Frontend:** Django Templates, Bootstrap, custom CSS
+- **Database:** SQLite for local development, PostgreSQL for production
+- **Auth:** Django authentication, groups, permissions, django-axes lockout protection
+- **Exports:** openpyxl for Excel reports
+- **Receipts/PDF:** ReportLab
+- **Deployment:** Render, Gunicorn, WhiteNoise
 
-## 3) Local Setup (Mac) - Step by Step
+## Project Structure
 
-### A. Install Python 3.12 and PostgreSQL
-
-If Homebrew is not installed:
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```text
+accounts/      Users, roles, staff, finance, reports, analytics, permissions
+bookings/      Room bookings, event reservations, payments
+guests/        Guest records and guest history
+inventory/     POS, inventory items, sales, stock, sales reports
+rooms/         Rooms, housekeeping, maintenance, operations overview
+shifts/        Duty roster and staff scheduling
+templates/     Django HTML templates
+static/        CSS, JavaScript, images, and UI assets
+scripts/       Deployment/startup scripts
+config/        Django settings and project URLs
 ```
 
-Install Python and PostgreSQL:
+## Local Setup
+
+Clone the project and move into the folder:
+
 ```bash
-brew install python@3.12 postgresql@16
-brew services start postgresql@16
+cd "Fosua Guesthouse Management System"
 ```
 
-Confirm:
-```bash
-python3.12 --version
-psql --version
-```
+Create and activate a virtual environment:
 
-If you do not have Administrator (`sudo`) access on your Mac, use a local Python install:
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-UV_CACHE_DIR=/private/tmp/uv-cache UV_PYTHON_INSTALL_DIR="$PWD/.uv-python" /Users/work/.local/bin/uv python install 3.12
-```
-
-Then use this Python path:
-```bash
-./.uv-python/cpython-3.12.13-macos-aarch64-none/bin/python3.12 --version
-```
-
-### B. Create project virtual environment
-
-From this project folder:
-```bash
-python3.12 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 ```
 
-If you used local `uv` Python above:
+Install dependencies:
+
 ```bash
-./.uv-python/cpython-3.12.13-macos-aarch64-none/bin/python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-### C. Install core dependencies
+If an `.env.example` file exists, use it as your starting point:
+
 ```bash
-pip install "Django>=5.2,<5.3" psycopg[binary] django-environ reportlab
+cp .env.example .env
 ```
 
-### D. Start Django project
+If there is no `.env.example`, create `.env` manually and add the values you need. For local development, SQLite works out of the box if `DATABASE_URL` is not set, so you can also run the app locally without a database URL.
+
+Run migrations:
+
 ```bash
-django-admin startproject config .
-python manage.py startapp accounts
-python manage.py startapp rooms
-python manage.py startapp bookings
-python manage.py startapp guests
-python manage.py startapp receipts
-```
-
-If this repository is already scaffolded, skip this step.
-
-### E. Create PostgreSQL database
-```bash
-createdb fosua_guesthouse
-```
-
-Then configure `.env` with DB credentials and Django secrets.
-
-If PostgreSQL is not yet available locally, use SQLite temporarily for local development and switch to PostgreSQL before production.
-
-### F. Run migrations and seed roles
-```bash
-python manage.py makemigrations
 python manage.py migrate
-python manage.py seed_roles
-python manage.py seed_rooms
 ```
 
-### G. Create the first admin user
+Create an admin user:
+
 ```bash
 python manage.py createsuperuser
 ```
 
-Assign a role to any user:
-```bash
-python manage.py assign_role <username> Admin
-python manage.py assign_role <username> Receptionist
-```
+Start the app:
 
-### H. Run the development server
 ```bash
 python manage.py runserver 127.0.0.1:8000
 ```
 
-## 4) System Modules
+Then open:
 
-- `accounts`: login/logout, user roles, permissions
-- `rooms`: room types, room status, nightly rates
-- `guests`: guest personal details and history
-- `bookings`: reservation, check-in, check-out, payments
-- `receipts`: printable invoice/receipt PDF
-
-## 5) Development Phases
-
-### Phase 1 - Foundation
-- Project setup
-- User authentication
-- Role-based dashboards
-
-### Phase 2 - Core Operations
-- Room management
-- Booking flow
-- Check-in/check-out
-
-### Phase 3 - Business Features
-- Receipt printing
-- Reporting (occupancy, revenue, unpaid balances)
-- Activity logs
-
-### Phase 4 - Hardening
-- Security review
-- Backups
-- Deployment
-
-See full roadmap in:
-- [`docs/PROJECT_ROADMAP.md`](/Users/work/Documents/Fosua%20Guesthouse%20Management%20System/docs/PROJECT_ROADMAP.md)
-
-## 6) Current Progress
-
-Completed:
-1) secure auth entry points (login/logout)
-2) role-based dashboards (Admin + Receptionist)
-3) core data models (`Room`, `Guest`, `Booking`)
-4) booking overlap validation and initial tests
-
-Next:
-1) booking create/check-in/check-out screens
-2) room availability calendar/search
-3) printable booking receipt PDF
-
-## 7) Current Working Features
-
-- Role-based login and dashboard routing
-- Room management pages (list, create, edit)
-- Guest management pages (list, create, edit)
-- Booking management pages:
-  - create and edit booking
-  - confirm booking
-  - check-in
-  - check-out
-  - cancel
-- Room availability search by date range
-
-## 8) Daily Startup Commands
-
-```bash
-cd "/Users/work/Documents/Fosua Guesthouse Management System"
-source .venv/bin/activate
-python manage.py runserver 127.0.0.1:8000
+```text
+http://127.0.0.1:8000/
 ```
 
-## 9) Cloud-Ready Setup
+## Useful Commands
 
-Cloud deployment files added:
-- [`Dockerfile`](/Users/work/Documents/Fosua Guesthouse Management System/Dockerfile)
-- [`docker-compose.yml`](/Users/work/Documents/Fosua Guesthouse Management System/docker-compose.yml)
-- [`Procfile`](/Users/work/Documents/Fosua Guesthouse Management System/Procfile)
-- [`scripts/start-cloud.sh`](/Users/work/Documents/Fosua Guesthouse Management System/scripts/start-cloud.sh)
+Run system checks:
 
-Detailed cloud guide:
-- [`docs/CLOUD_DEPLOYMENT.md`](/Users/work/Documents/Fosua Guesthouse Management System/docs/CLOUD_DEPLOYMENT.md)
+```bash
+python manage.py check
+```
+
+Create new migrations:
+
+```bash
+python manage.py makemigrations
+```
+
+Apply migrations:
+
+```bash
+python manage.py migrate
+```
+
+Run tests:
+
+```bash
+python manage.py test
+```
+
+Collect static files:
+
+```bash
+python manage.py collectstatic
+```
+
+## Environment Variables
+
+Common production variables:
+
+```text
+DJANGO_ENV=production
+DJANGO_DEBUG=False
+DJANGO_SECRET_KEY=your-secure-secret-key
+DATABASE_URL=your-postgres-database-url
+DB_SSL_REQUIRE=True
+DJANGO_ALLOWED_HOSTS=your-domain.onrender.com,yourdomain.com
+DJANGO_CSRF_TRUSTED_ORIGINS=https://your-domain.onrender.com,https://yourdomain.com
+```
+
+Important note: `DJANGO_CSRF_TRUSTED_ORIGINS` must include `https://` or `http://`.
+
+## Deployment
+
+This project is ready for Render.
+
+Render uses:
+
+```text
+Build command: pip install -r requirements.txt
+Start command: ./scripts/start-cloud.sh
+```
+
+The startup script runs migrations, collects static files, and starts Gunicorn:
+
+```bash
+./scripts/start-cloud.sh
+```
+
+Make sure your Render service has a PostgreSQL database connected through `DATABASE_URL`.
+
+## Security Notes
+
+The system includes several production-minded safeguards:
+
+- Argon2 password hashing
+- Strong password validation
+- Login lockout protection with django-axes
+- CSRF protection on forms
+- Role-based access checks for sensitive pages and actions
+- Secure HTTP headers middleware
+- Audit logging for important activity
+- Environment-based secrets instead of hardcoded credentials
+
+Still, before going live, always double-check production environment variables, database backups, HTTPS, and user permissions.
+
+## Reports and Exports
+
+Many parts of the system export Excel files, including:
+
+- Bookings and reservations
+- Revenue and payments
+- POS sales
+- Inventory stock
+- Housekeeping usage
+- Duty roster
+- Staff and leave records
+- Finance reports
+
+Exports are designed for day-to-day hotel operations, management review, and accounting support.
+
+## A Small Note
+
+This system was built around the real workflow of a guesthouse, not as a generic demo app. The goal is simple: make daily operations calmer, clearer, and easier for the team using it.

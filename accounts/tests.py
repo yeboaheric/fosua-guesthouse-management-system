@@ -455,7 +455,7 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(log_sheet["D4"].value, "Amount")
         self.assertEqual(log_sheet["E5"].value, "Mobile Money")
         self.assertEqual(summary_sheet["A4"].value, "Week Range")
-        self.assertEqual(summary_sheet["B4"].value, "Owner Visit Collections")
+        self.assertEqual(summary_sheet["B4"].value, "Collections")
         self.assertEqual(summary_sheet["B5"].value, 40)
 
     def test_sales_deposit_filter_normalizes_inverted_dates(self):

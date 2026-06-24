@@ -735,7 +735,7 @@ class UserAccessProfile(models.Model):
 
 class OwnerWithdrawal(models.Model):
     class EntryType(models.TextChoices):
-        VISIT = "visit", "Owner Visit"
+        VISIT = "visit", "Visit"
         LEFTOVER = "leftover", "Leftover"
 
     class CollectionMethod(models.TextChoices):
@@ -768,8 +768,8 @@ class OwnerWithdrawal(models.Model):
 
     class Meta:
         db_table = "owner_collections"
-        verbose_name = "Owner Collection"
-        verbose_name_plural = "Owner Collections"
+        verbose_name = "Sales Deposit"
+        verbose_name_plural = "Sales Deposits"
         ordering = ["-created_at", "-id"]
         indexes = [
             models.Index(fields=["created_at"]),

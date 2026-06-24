@@ -5283,7 +5283,7 @@ def _write_owner_collections_log_sheet(worksheet, withdrawals, start_date, end_d
     summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
     leftover_fill = PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid")
 
-    worksheet["A1"] = "Owner Collections Weekly Log"
+    worksheet["A1"] = "Sales Deposits Weekly Log"
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
@@ -5296,7 +5296,7 @@ def _write_owner_collections_log_sheet(worksheet, withdrawals, start_date, end_d
             "Method",
             "Collected By",
             "Recorded By",
-            "Weekly Owner Collections",
+            "Weekly Collections",
             "Weekly Leftover",
             "Leftover Balance",
             "Weekly Total",
@@ -5398,11 +5398,11 @@ def _write_owner_collections_summary_sheet(worksheet, withdrawals, start_date, e
     header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
     summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
 
-    worksheet["A1"] = "Owner Collections Weekly Summary"
+    worksheet["A1"] = "Sales Deposits Weekly Summary"
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
-    worksheet.append(["Week Range", "Owner Visit Collections", "Leftover Logged", "Leftover Balance", "Total for Week", "Status"])
+    worksheet.append(["Week Range", "Collections", "Leftover Logged", "Leftover Balance", "Total for Week", "Status"])
 
     for cell in worksheet[4]:
         cell.font = header_font

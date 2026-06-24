@@ -293,7 +293,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
             "entry_type": forms.Select(attrs={"class": "form-select"}),
             "collection_method": forms.Select(attrs={"class": "form-select"}),
             "collected_by": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Required for owner visits"}
+                attrs={"class": "form-control", "placeholder": "Required for visits"}
             ),
         }
 
@@ -327,7 +327,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
         value = self.cleaned_data.get("collected_by", "").strip()
         entry_type = self.cleaned_data.get("entry_type")
         if entry_type == OwnerWithdrawal.EntryType.VISIT and not value:
-            raise ValidationError("Collected by is required.")
+            raise ValidationError("Collected by is required for visits.")
         return value
 
 

@@ -9,8 +9,6 @@ from django.utils import timezone
 
 from accounts.models import (
     AttendanceRecord,
-    DepositCollection,
-    DepositTarget,
     DisciplinaryRecord,
     Employee,
     EmployeeDocument,
@@ -307,94 +305,6 @@ class OwnerWithdrawalForm(forms.ModelForm):
 
     def clean_created_at(self):
         value = self.cleaned_data["created_at"]
-        if timezone.is_naive(value):
-            value = timezone.make_aware(value, timezone.get_current_timezone())
-        return value
-
-    def clean_amount(self):
-        amount = self.cleaned_data["amount"]
-        if amount <= 0:
-            raise ValidationError("Amount collected must be greater than zero.")
-        return amount
-
-    def clean_collected_by(self):
-        value = self.cleaned_data.get("collected_by", "").strip()
-        if not value:
-            raise ValidationError("Collected by is required.")
-        return value
-
-
-class DepositTargetForm(forms.ModelForm):
-    class Meta:
-        model = DepositTarget
-        fields = ["target_amount", "week_start", "week_end"]
-        widgets = {
-            "target_amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0.01"}),
-            "week_start": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-            "week_end": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
-            if self.instance.week_start:
-                self.initial["week_start"] = self.instance.week_start.isoformat()
-            if self.instance.week_end:
-                self.initial["week_end"] = self.instance.week_end.isoformat()
-
-    def clean_target_amount(self):
-        amount = self.cleaned_data["target_amount"]
-        if amount <= 0:
-            raise ValidationError("Target amount must be greater than zero.")
-        return amount
-
-    def clean(self):
-        cleaned = super().clean()
-        week_start = cleaned.get("week_start")
-        week_end = cleaned.get("week_end")
-        if not week_start or not week_end:
-            return cleaned
-        if week_start.weekday() != 0:
-            self.add_error("week_start", "Week range must start on a Monday.")
-        if week_end.weekday() != 6:
-            self.add_error("week_end", "Week range must end on a Sunday.")
-        if week_end < week_start:
-            self.add_error("week_end", "Week end must be after week start.")
-        if week_start and week_end and (week_end - week_start).days != 6:
-            self.add_error("week_end", "Week range must cover exactly Monday to Sunday.")
-        if week_start and week_end:
-            existing = DepositTarget.objects.filter(week_start=week_start, week_end=week_end)
-            if self.instance and self.instance.pk:
-                existing = existing.exclude(pk=self.instance.pk)
-            if existing.exists():
-                raise ValidationError("A deposit target already exists for this week.")
-        return cleaned
-
-
-class DepositCollectionForm(forms.ModelForm):
-    class Meta:
-        model = DepositCollection
-        fields = ["date_collected", "amount", "collection_method", "collected_by", "note"]
-        widgets = {
-            "date_collected": forms.DateTimeInput(attrs={"type": "datetime-local", "class": "form-control"}),
-            "amount": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0.01"}),
-            "collection_method": forms.Select(attrs={"class": "form-select"}),
-            "collected_by": forms.TextInput(attrs={"class": "form-control"}),
-            "note": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        collected_at = None
-        if self.instance and self.instance.pk and self.instance.date_collected:
-            collected_at = timezone.localtime(self.instance.date_collected)
-        elif not self.is_bound:
-            collected_at = timezone.localtime(timezone.now())
-        if collected_at is not None:
-            self.initial["date_collected"] = collected_at.strftime("%Y-%m-%dT%H:%M")
-
-    def clean_date_collected(self):
-        value = self.cleaned_data["date_collected"]
         if timezone.is_naive(value):
             value = timezone.make_aware(value, timezone.get_current_timezone())
         return value

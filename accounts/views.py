@@ -31,8 +31,6 @@ from accounts.decorators import group_required
 from accounts.formatting import format_quantity
 from accounts.forms import (
     AttendanceRecordForm,
-    DepositCollectionForm,
-    DepositTargetForm,
     DisciplinaryRecordForm,
     EmployeeDocumentForm,
     EmployeeForm,
@@ -53,8 +51,6 @@ from accounts.forms import (
 from accounts.models import (
     AttendanceRecord,
     AuditLog,
-    DepositCollection,
-    DepositTarget,
     DisciplinaryRecord,
     Employee,
     EmployeeDocument,
@@ -791,63 +787,6 @@ def _sales_deposit_export_querystring(start_date, end_date):
     return query.urlencode()
 
 
-def _deposit_week_status(target, total_collected=None):
-    total = Decimal(str(total_collected if total_collected is not None else target.total_collected or 0))
-    remaining = Decimal(str(target.target_amount or 0)) - total
-    if remaining <= 0:
-        return "completed", "Completed", remaining
-    if target.week_end < timezone.localdate():
-        return "overdue", "Overdue", remaining
-    return "on_track", "On Track", remaining
-
-
-def _deposit_target_rows():
-    total_value = Value(Decimal("0.00"), output_field=DecimalField(max_digits=12, decimal_places=2))
-    targets = (
-        DepositTarget.objects.select_related("created_by")
-        .annotate(total_collected_value=Coalesce(Sum("collections__amount"), total_value))
-        .order_by("-week_start", "-pk")
-    )
-    rows = []
-    for target in targets:
-        total_collected = Decimal(str(target.total_collected_value or 0))
-        status, status_label, remaining = _deposit_week_status(target, total_collected)
-        rows.append(
-            {
-                "target": target,
-                "total_collected": total_collected,
-                "remaining_balance": remaining,
-                "status": status,
-                "status_label": status_label,
-            }
-        )
-    return rows
-
-
-def _deposit_target_export_range(request):
-    start_date = _sales_deposit_date_value(request.GET.get("target_start_date"))
-    end_date = _sales_deposit_date_value(request.GET.get("target_end_date"))
-    if start_date and end_date:
-        return normalize_date_range(start_date, end_date)
-    if start_date:
-        return start_date, start_date + timedelta(days=6)
-    if end_date:
-        return end_date - timedelta(days=6), end_date
-    latest = DepositTarget.objects.order_by("-week_start").first()
-    if latest:
-        return latest.week_start, latest.week_end
-    today = timezone.localdate()
-    week_start, week_end = shared_report_window_for_period("weekly", today)
-    return week_start, week_end
-
-
-def _deposit_target_export_querystring(start_date, end_date):
-    query = QueryDict("", mutable=True)
-    query["target_start_date"] = start_date.isoformat()
-    query["target_end_date"] = end_date.isoformat()
-    return query.urlencode()
-
-
 def _sales_deposits_page_context(
     request,
     *,
@@ -855,29 +794,9 @@ def _sales_deposits_page_context(
     form_title,
     is_editing=False,
     editing_withdrawal=None,
-    target_form=None,
-    collection_form=None,
-    selected_target=None,
-    editing_target=None,
-    editing_collection=None,
 ):
     filtered = _sales_deposit_filtered_queryset(request)
     export_start_date, export_end_date = _sales_deposit_export_range(request)
-    target_export_start, target_export_end = _deposit_target_export_range(request)
-    target_rows = _deposit_target_rows()
-    selected_target_data = None
-    if selected_target is not None:
-        total_collected = Decimal(str(selected_target.total_collected or 0))
-        status, status_label, remaining = _deposit_week_status(selected_target, total_collected)
-        selected_target_data = {
-            "target": selected_target,
-            "collections": selected_target.collections.select_related("recorded_by").order_by("-date_collected", "-pk"),
-            "total_collected": total_collected,
-            "remaining_balance": remaining,
-            "status": status,
-            "status_label": status_label,
-        }
-
     return {
         "form": form,
         "form_title": form_title,
@@ -900,19 +819,6 @@ def _sales_deposits_page_context(
         "export_start_date": export_start_date.isoformat(),
         "export_end_date": export_end_date.isoformat(),
         "is_editing": is_editing,
-        "target_form": target_form or DepositTargetForm(),
-        "collection_form": collection_form or DepositCollectionForm(),
-        "editing_target": editing_target,
-        "editing_collection": editing_collection,
-        "target_rows": target_rows,
-        "selected_target_data": selected_target_data,
-        "target_export_start_date": target_export_start.isoformat(),
-        "target_export_end_date": target_export_end.isoformat(),
-        "target_export_url": (
-            f"{reverse('sales-deposit-targets-export-xlsx')}?"
-            f"{_deposit_target_export_querystring(target_export_start, target_export_end)}"
-        ),
-        "active_tab": request.GET.get("tab", "log"),
     }
 
 
@@ -921,37 +827,10 @@ def _sales_deposit_admin_redirect(request):
     return redirect("sales-deposits-center")
 
 
-def _collection_date_belongs_to_target(collection, target):
-    collection_date = timezone.localtime(collection.date_collected).date()
-    return target.week_start <= collection_date <= target.week_end
-
-
 @group_required("Admin", "Receptionist", module="payments", action={"GET": "view", "POST": "create"})
 def sales_deposits_center(request):
     form = OwnerWithdrawalForm(request.POST or None)
-    target_form = DepositTargetForm(request.POST or None) if request.POST.get("deposit_action") == "target" else DepositTargetForm()
-    if request.method == "POST" and request.POST.get("deposit_action") == "target":
-        if target_form.is_valid():
-            target = target_form.save(commit=False)
-            target.created_by = request.user
-            target.save()
-            log_audit_event(
-                request=request,
-                user=request.user,
-                action=AuditLog.ActionType.CREATE,
-                module="payments",
-                object_repr=f"Deposit target {target.pk}",
-                object_id=target.pk,
-                details={
-                    "event": "deposit_target_created",
-                    "target_amount": str(target.target_amount),
-                    "week_start": target.week_start.isoformat(),
-                    "week_end": target.week_end.isoformat(),
-                },
-            )
-            messages.success(request, "Weekly sales deposit target created successfully.")
-            return redirect(f"{reverse('sales-deposit-target-detail', args=[target.pk])}?tab=weekly")
-    elif request.method == "POST" and form.is_valid():
+    if request.method == "POST" and form.is_valid():
         withdrawal = form.save(commit=False)
         withdrawal.recorded_by = request.user
         withdrawal.save()
@@ -980,7 +859,6 @@ def sales_deposits_center(request):
             form=form,
             form_title="Log collection",
             is_editing=False,
-            target_form=target_form,
         ),
     )
 
@@ -1053,217 +931,6 @@ def sales_deposit_delete(request, pk):
     return redirect("sales-deposits-center")
 
 
-@group_required("Admin", "Receptionist", module="payments", action="view")
-def sales_deposit_target_detail(request, pk):
-    target = get_object_or_404(DepositTarget.objects.select_related("created_by"), pk=pk)
-    return render(
-        request,
-        "accounts/sales_deposits_center.html",
-        _sales_deposits_page_context(
-            request,
-            form=OwnerWithdrawalForm(),
-            form_title="Log collection",
-            selected_target=target,
-        ),
-    )
-
-
-@group_required("Admin", "Receptionist", module="payments", action="view")
-def sales_deposit_target_update(request, pk):
-    if not user_is_admin_role(request.user):
-        return _sales_deposit_admin_redirect(request)
-
-    target = get_object_or_404(DepositTarget.objects.select_related("created_by"), pk=pk)
-    target_form = DepositTargetForm(request.POST or None, instance=target)
-    if request.method == "POST" and target_form.is_valid():
-        updated_target = target_form.save()
-        log_audit_event(
-            request=request,
-            user=request.user,
-            action=AuditLog.ActionType.UPDATE,
-            module="payments",
-            object_repr=f"Deposit target {updated_target.pk}",
-            object_id=updated_target.pk,
-            details={
-                "event": "deposit_target_updated",
-                "target_amount": str(updated_target.target_amount),
-                "week_start": updated_target.week_start.isoformat(),
-                "week_end": updated_target.week_end.isoformat(),
-            },
-        )
-        messages.success(request, "Weekly sales deposit target updated successfully.")
-        return redirect(f"{reverse('sales-deposit-target-detail', args=[updated_target.pk])}?tab=weekly")
-
-    return render(
-        request,
-        "accounts/sales_deposits_center.html",
-        _sales_deposits_page_context(
-            request,
-            form=OwnerWithdrawalForm(),
-            form_title="Log collection",
-            selected_target=target,
-            target_form=target_form,
-            editing_target=target,
-        ),
-    )
-
-
-@require_POST
-@group_required("Admin", "Receptionist", module="payments", action="view")
-def sales_deposit_target_delete(request, pk):
-    if not user_is_admin_role(request.user):
-        return _sales_deposit_admin_redirect(request)
-
-    target = get_object_or_404(DepositTarget, pk=pk)
-    target_id = target.pk
-    week_label = target.week_range_label
-    target.delete()
-    log_audit_event(
-        request=request,
-        user=request.user,
-        action=AuditLog.ActionType.DELETE,
-        module="payments",
-        object_repr=f"Deposit target {target_id}",
-        object_id=target_id,
-        details={
-            "event": "deposit_target_deleted",
-            "week_range": week_label,
-        },
-    )
-    messages.success(request, "Weekly sales deposit target deleted successfully.")
-    return redirect(f"{reverse('sales-deposits-center')}?tab=weekly")
-
-
-@require_POST
-@group_required("Admin", "Receptionist", module="payments", action="create")
-def sales_deposit_collection_create(request, pk):
-    target = get_object_or_404(DepositTarget.objects.select_related("created_by"), pk=pk)
-    collection_form = DepositCollectionForm(request.POST)
-    if collection_form.is_valid():
-        collection = collection_form.save(commit=False)
-        if not _collection_date_belongs_to_target(collection, target):
-            collection_form.add_error(
-                "date_collected",
-                "Collection date must fall within this target's Monday to Sunday week range.",
-            )
-        else:
-            collection.deposit_target = target
-            collection.recorded_by = request.user
-            collection.save()
-            log_audit_event(
-                request=request,
-                user=request.user,
-                action=AuditLog.ActionType.CREATE,
-                module="payments",
-                object_repr=f"Deposit collection {collection.pk}",
-                object_id=collection.pk,
-                details={
-                    "event": "deposit_collection_created",
-                    "deposit_target": target.pk,
-                    "amount": str(collection.amount),
-                    "collection_method": collection.collection_method,
-                    "collected_by": collection.collected_by,
-                },
-            )
-            messages.success(request, "Sales deposit collection logged against the weekly target.")
-            return redirect(f"{reverse('sales-deposit-target-detail', args=[target.pk])}?tab=weekly")
-
-    return render(
-        request,
-        "accounts/sales_deposits_center.html",
-        _sales_deposits_page_context(
-            request,
-            form=OwnerWithdrawalForm(),
-            form_title="Log collection",
-            selected_target=target,
-            collection_form=collection_form,
-        ),
-    )
-
-
-@group_required("Admin", "Receptionist", module="payments", action="view")
-def sales_deposit_collection_update(request, pk):
-    if not user_is_admin_role(request.user):
-        return _sales_deposit_admin_redirect(request)
-
-    collection = get_object_or_404(
-        DepositCollection.objects.select_related("deposit_target", "recorded_by"),
-        pk=pk,
-    )
-    target = collection.deposit_target
-    collection_form = DepositCollectionForm(request.POST or None, instance=collection)
-    if request.method == "POST" and collection_form.is_valid():
-        updated_collection = collection_form.save(commit=False)
-        if not _collection_date_belongs_to_target(updated_collection, target):
-            collection_form.add_error(
-                "date_collected",
-                "Collection date must fall within this target's Monday to Sunday week range.",
-            )
-        else:
-            if not updated_collection.recorded_by_id:
-                updated_collection.recorded_by = request.user
-            updated_collection.deposit_target = target
-            updated_collection.save()
-            log_audit_event(
-                request=request,
-                user=request.user,
-                action=AuditLog.ActionType.UPDATE,
-                module="payments",
-                object_repr=f"Deposit collection {updated_collection.pk}",
-                object_id=updated_collection.pk,
-                details={
-                    "event": "deposit_collection_updated",
-                    "deposit_target": target.pk,
-                    "amount": str(updated_collection.amount),
-                    "collection_method": updated_collection.collection_method,
-                    "collected_by": updated_collection.collected_by,
-                },
-            )
-            messages.success(request, "Weekly sales deposit collection updated successfully.")
-            return redirect(f"{reverse('sales-deposit-target-detail', args=[target.pk])}?tab=weekly")
-
-    return render(
-        request,
-        "accounts/sales_deposits_center.html",
-        _sales_deposits_page_context(
-            request,
-            form=OwnerWithdrawalForm(),
-            form_title="Log collection",
-            selected_target=target,
-            collection_form=collection_form,
-            editing_collection=collection,
-        ),
-    )
-
-
-@require_POST
-@group_required("Admin", "Receptionist", module="payments", action="view")
-def sales_deposit_collection_delete(request, pk):
-    if not user_is_admin_role(request.user):
-        return _sales_deposit_admin_redirect(request)
-
-    collection = get_object_or_404(DepositCollection.objects.select_related("deposit_target"), pk=pk)
-    target = collection.deposit_target
-    collection_id = collection.pk
-    collection_amount = collection.amount
-    collection.delete()
-    log_audit_event(
-        request=request,
-        user=request.user,
-        action=AuditLog.ActionType.DELETE,
-        module="payments",
-        object_repr=f"Deposit collection {collection_id}",
-        object_id=collection_id,
-        details={
-            "event": "deposit_collection_deleted",
-            "deposit_target": target.pk,
-            "amount": str(collection_amount),
-        },
-    )
-    messages.success(request, "Weekly sales deposit collection deleted successfully.")
-    return redirect(f"{reverse('sales-deposit-target-detail', args=[target.pk])}?tab=weekly")
-
-
 @group_required("Admin", "Receptionist", module="payments", action="export")
 def sales_deposits_export_xlsx(request):
     workbook = _create_reports_workbook_or_none(request)
@@ -1300,43 +967,6 @@ def sales_deposits_export_xlsx(request):
     return _xlsx_response(
         workbook,
         f"owner-withdrawals-report-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
-    )
-
-
-@group_required("Admin", "Receptionist", module="payments", action="export")
-def sales_deposit_targets_export_xlsx(request):
-    workbook = _create_reports_workbook_or_none(request)
-    if workbook is None:
-        return redirect("sales-deposits-center")
-
-    start_date, end_date = _deposit_target_export_range(request)
-    targets = list(
-        DepositTarget.objects.select_related("created_by")
-        .prefetch_related("collections__recorded_by")
-        .filter(week_start__gte=start_date, week_end__lte=end_date)
-        .order_by("-week_start", "-pk")
-    )
-
-    sheet = workbook.active
-    sheet.title = "Weekly Deposits"
-    _write_deposit_targets_sheet(sheet, targets, start_date, end_date)
-
-    log_audit_event(
-        request=request,
-        user=request.user,
-        action=AuditLog.ActionType.EXPORT,
-        module="payments",
-        object_repr="Weekly sales deposits export",
-        details={
-            "event": "deposit_targets_exported",
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-        },
-    )
-
-    return _xlsx_response(
-        workbook,
-        f"sales-deposits-{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}.xlsx",
     )
 
 
@@ -5643,118 +5273,6 @@ def _write_owner_withdrawals_summary_sheet(worksheet, start_date, end_date):
             max_length = max(max_length, len(str(cell.value or "")))
             cell.alignment = Alignment(vertical="top", wrap_text=True)
         worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 28)
-
-
-def _write_deposit_targets_sheet(worksheet, targets, start_date, end_date):
-    from openpyxl.styles import Alignment, Font, PatternFill
-
-    title_font = Font(bold=True, size=14)
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
-    summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
-    overdue_fill = PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid")
-
-    worksheet["A1"] = "Weekly Sales Deposits"
-    worksheet["A1"].font = title_font
-    worksheet["A2"] = f"Target weeks: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
-    worksheet.append([])
-    worksheet.append(
-        [
-            "Week Range",
-            "Target Amount",
-            "Collection Date",
-            "Amount Collected",
-            "Method",
-            "Collected By",
-            "Recorded By",
-            "Note",
-            "Week Total Collected",
-            "Remaining Balance",
-            "Status",
-        ]
-    )
-    for cell in worksheet[4]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center")
-
-    grand_target = Decimal("0.00")
-    grand_collected = Decimal("0.00")
-    grand_remaining = Decimal("0.00")
-
-    for target in targets:
-        collections = list(target.collections.all().order_by("date_collected", "pk"))
-        total_collected = sum((Decimal(str(collection.amount or 0)) for collection in collections), Decimal("0.00"))
-        status, status_label, remaining = _deposit_week_status(target, total_collected)
-        grand_target += Decimal(str(target.target_amount or 0))
-        grand_collected += total_collected
-        grand_remaining += remaining
-        week_label = target.week_range_label
-
-        if not collections:
-            worksheet.append(
-                [
-                    week_label,
-                    float(target.target_amount or 0),
-                    "-",
-                    0,
-                    "-",
-                    "-",
-                    "-",
-                    "No collections logged",
-                    float(total_collected),
-                    float(remaining),
-                    status_label,
-                ]
-            )
-        else:
-            for collection in collections:
-                worksheet.append(
-                    [
-                        week_label,
-                        float(target.target_amount or 0),
-                        timezone.localtime(collection.date_collected).strftime("%d/%m/%Y %H:%M"),
-                        float(collection.amount or 0),
-                        collection.get_collection_method_display(),
-                        collection.collected_by,
-                        collection.recorded_by_name,
-                        collection.note,
-                        float(total_collected),
-                        float(remaining),
-                        status_label,
-                    ]
-                )
-
-        if status == "overdue":
-            for cell in worksheet[worksheet.max_row]:
-                cell.fill = overdue_fill
-
-    worksheet.append(
-        [
-            "TOTALS",
-            float(grand_target),
-            "",
-            float(grand_collected),
-            "",
-            "",
-            "",
-            f"{len(targets)} week(s)",
-            float(grand_collected),
-            float(grand_remaining),
-            "",
-        ]
-    )
-    for cell in worksheet[worksheet.max_row]:
-        cell.font = Font(bold=True)
-        cell.fill = summary_fill
-
-    for column in worksheet.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            max_length = max(max_length, len(str(cell.value or "")))
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
-        worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 34)
 
 
 def _write_finance_revenue_sheet(worksheet, revenue_breakdown, daily_rows, start_date, end_date):

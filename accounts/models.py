@@ -1,5 +1,4 @@
 from datetime import timedelta
-from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth.models import Group
@@ -765,107 +764,6 @@ class OwnerWithdrawal(models.Model):
 
     def __str__(self):
         return f"Owner withdrawal {self.amount} on {timezone.localtime(self.created_at):%d/%m/%Y %H:%M}"
-
-    @property
-    def recorded_by_name(self):
-        if not self.recorded_by:
-            return "-"
-        full_name = self.recorded_by.get_full_name().strip()
-        return full_name or self.recorded_by.username
-
-
-class DepositTarget(models.Model):
-    week_start = models.DateField()
-    week_end = models.DateField()
-    target_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="deposit_targets_created",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-week_start", "-id"]
-        constraints = [
-            models.UniqueConstraint(fields=["week_start", "week_end"], name="unique_deposit_target_week_range"),
-        ]
-        indexes = [
-            models.Index(fields=["week_start", "week_end"]),
-        ]
-
-    def __str__(self):
-        return f"Deposit target {self.week_start:%d/%m/%Y} - {self.week_end:%d/%m/%Y}"
-
-    @property
-    def total_collected(self):
-        return self.collections.aggregate(total=Sum("amount"))["total"] or 0
-
-    @property
-    def remaining_balance(self):
-        return Decimal(str(self.target_amount or 0)) - Decimal(str(self.total_collected or 0))
-
-    @property
-    def status(self):
-        if self.remaining_balance <= 0:
-            return "completed"
-        if self.week_end < timezone.localdate():
-            return "overdue"
-        return "on_track"
-
-    @property
-    def status_label(self):
-        return {
-            "completed": "Completed",
-            "overdue": "Overdue",
-            "on_track": "On Track",
-        }.get(self.status, "On Track")
-
-    @property
-    def week_range_label(self):
-        return f"{self.week_start:%a %d %b} - {self.week_end:%a %d %b %Y}"
-
-
-class DepositCollection(models.Model):
-    class CollectionMethod(models.TextChoices):
-        CASH = "cash", "Cash"
-        MOBILE_MONEY = "mobile_money", "Mobile Money"
-
-    deposit_target = models.ForeignKey(
-        DepositTarget,
-        on_delete=models.CASCADE,
-        related_name="collections",
-    )
-    date_collected = models.DateTimeField(default=timezone.now)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    collection_method = models.CharField(
-        max_length=20,
-        choices=CollectionMethod.choices,
-        default=CollectionMethod.CASH,
-    )
-    collected_by = models.CharField(max_length=160)
-    note = models.TextField(blank=True)
-    recorded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="deposit_collections_recorded",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-date_collected", "-id"]
-        indexes = [
-            models.Index(fields=["date_collected"]),
-            models.Index(fields=["deposit_target", "date_collected"]),
-        ]
-
-    def __str__(self):
-        return f"Deposit collection {self.amount} for {self.deposit_target}"
 
     @property
     def recorded_by_name(self):

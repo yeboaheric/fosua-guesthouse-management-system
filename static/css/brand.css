@@ -1659,6 +1659,57 @@ body {
   gap: 1rem;
 }
 
+.app-page-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: rgba(246, 242, 239, 0.86);
+  border: 1px solid rgba(32, 36, 40, 0.06);
+}
+
+.app-page-nav-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--fg-brand-primary);
+  font-size: 1.05rem;
+  line-height: 1;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
+
+.app-page-nav-btn:hover:not(:disabled),
+.app-page-nav-btn:focus-visible:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(207, 174, 132, 0.4);
+  background: rgba(207, 174, 132, 0.14);
+  color: #142e34;
+}
+
+.app-page-nav-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  filter: grayscale(0.15);
+}
+
+.app-page-nav-label {
+  max-width: clamp(8rem, 18vw, 15rem);
+  padding: 0 0.45rem;
+  color: var(--fg-text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .topbar-context {
   min-width: 260px;
   display: flex;
@@ -2972,6 +3023,17 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
   .topbar-left {
     flex: 1;
     justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .app-page-nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .app-page-nav-label {
+    max-width: min(58vw, 18rem);
   }
 
   .dashboard-grid-main,
@@ -3346,10 +3408,28 @@ html[data-theme="dark"] .module-empty {
 html[data-theme="dark"] .password-visibility-toggle,
 html[data-theme="dark"] .topbar-icon,
 html[data-theme="dark"] .topbar-profile,
+html[data-theme="dark"] .app-page-nav,
 html[data-theme="dark"] .global-search {
   color: var(--fg-text);
   background: rgba(17, 32, 37, 0.9);
   border-color: var(--fg-border);
+}
+
+html[data-theme="dark"] .app-page-nav-btn {
+  color: var(--fg-text);
+  background: rgba(12, 25, 29, 0.92);
+  border-color: rgba(218, 232, 234, 0.08);
+}
+
+html[data-theme="dark"] .app-page-nav-btn:hover:not(:disabled),
+html[data-theme="dark"] .app-page-nav-btn:focus-visible:not(:disabled) {
+  color: var(--fg-brand-accent);
+  background: rgba(207, 174, 132, 0.12);
+  border-color: rgba(207, 174, 132, 0.38);
+}
+
+html[data-theme="dark"] .app-page-nav-label {
+  color: var(--fg-text);
 }
 
 html[data-theme="dark"] img,

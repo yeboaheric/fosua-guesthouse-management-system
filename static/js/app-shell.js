@@ -15,6 +15,7 @@
     [/^\/dashboard\/payments\/?$/, "Payments"],
     [/^\/dashboard\/finance\/expenses\/\d+\/edit\/?$/, "Edit Expense"],
     [/^\/dashboard\/finance\/?$/, "Finance"],
+    [/^\/dashboard\/owner-withdrawals\/?$/, "Owner Withdrawals"],
     [/^\/dashboard\/sales-deposits\/\d+\/edit\/?$/, "Edit Sales Deposit"],
     [/^\/dashboard\/sales-deposits\/?$/, "Sales Deposits"],
     [/^\/dashboard\/services\/?$/, "Event Reservations"],
@@ -30,6 +31,11 @@
     [/^\/dashboard\/admin\/hr\/rotas\/?$/, "Duty Roster"],
     [/^\/dashboard\/admin\/hr\/\d+\/edit\/?$/, "Edit Employee"],
     [/^\/dashboard\/admin\/hr\/\d+\/delete\/?$/, "Delete Employee"],
+    [/^\/dashboard\/admin\/hr\/\d+\/annual-leave\/?$/, "Annual Leave"],
+    [/^\/dashboard\/admin\/hr\/\d+\/attendance-history\/?$/, "Attendance History"],
+    [/^\/dashboard\/admin\/hr\/\d+\/documents\/?$/, "Employee Documents"],
+    [/^\/dashboard\/admin\/hr\/\d+\/training\/?$/, "Staff Training"],
+    [/^\/dashboard\/admin\/hr\/\d+\/payroll\/?$/, "Payroll"],
     [/^\/dashboard\/admin\/hr\/\d+\/[^/]+\/?$/, "Employee Profile"],
     [/^\/dashboard\/admin\/hr\/\d+\/?$/, "Employee Profile"],
     [/^\/dashboard\/admin\/hr\/?$/, "Staff Management"],
@@ -175,6 +181,10 @@
 
   function loadPageHistory() {
     try {
+      const navigationEntry = performance.getEntriesByType("navigation")[0];
+      if (navigationEntry && navigationEntry.type === "reload") {
+        sessionStorage.removeItem(pageHistoryStorageKey);
+      }
       const stored = JSON.parse(sessionStorage.getItem(pageHistoryStorageKey) || "null");
       if (!stored || !Array.isArray(stored.entries)) {
         return { entries: [], index: -1 };
@@ -200,11 +210,9 @@
   }
 
   function bindPageHistoryNavigation() {
-    const nav = document.getElementById("fgPageNav");
-    const backButton = document.getElementById("fgPageNavBack");
-    const forwardButton = document.getElementById("fgPageNavForward");
-    const label = document.getElementById("fgPageNavLabel");
-    if (!nav || !backButton || !forwardButton || !label) {
+    const nav = document.getElementById("fgPathBar");
+    const trail = document.getElementById("fgPathTrail");
+    if (!nav || !trail) {
       return;
     }
 
@@ -225,13 +233,42 @@
     savePageHistory(state);
 
     function render() {
-      const activeEntry = state.entries[state.index] || { name: currentName };
-      label.textContent = activeEntry.name || currentName;
-      backButton.disabled = state.index <= 0;
-      forwardButton.disabled = state.index >= state.entries.length - 1;
+      trail.replaceChildren();
+      const entries = state.entries.slice(0, state.index + 1);
+      if (!entries.length) {
+        nav.hidden = true;
+        return;
+      }
+
+      nav.hidden = false;
+      entries.forEach(function (entry, index) {
+        const item = document.createElement("li");
+        item.className = "app-pathbar-item";
+
+        if (index === entries.length - 1) {
+          const current = document.createElement("span");
+          current.className = "app-pathbar-current";
+          current.setAttribute("aria-current", "page");
+          current.textContent = entry.name || currentName;
+          item.appendChild(current);
+        } else {
+          const link = document.createElement("a");
+          link.className = "app-pathbar-link";
+          link.href = normalizeHistoryUrl(entry.url) || "#";
+          link.dataset.pathIndex = String(index);
+          link.textContent = entry.name || "Page";
+          item.appendChild(link);
+        }
+
+        trail.appendChild(item);
+      });
+
+      requestAnimationFrame(function () {
+        nav.scrollLeft = nav.scrollWidth;
+      });
     }
 
-    function goToIndex(nextIndex) {
+    function trimAndGoToIndex(nextIndex) {
       if (nextIndex < 0 || nextIndex >= state.entries.length || nextIndex === state.index) {
         return;
       }
@@ -240,16 +277,18 @@
         return;
       }
       state.index = nextIndex;
+      state.entries = state.entries.slice(0, nextIndex + 1);
       savePageHistory(state);
       window.location.href = targetUrl;
     }
 
-    backButton.addEventListener("click", function () {
-      goToIndex(state.index - 1);
-    });
-
-    forwardButton.addEventListener("click", function () {
-      goToIndex(state.index + 1);
+    trail.addEventListener("click", function (event) {
+      const link = event.target.closest(".app-pathbar-link");
+      if (!link) {
+        return;
+      }
+      event.preventDefault();
+      trimAndGoToIndex(Number(link.dataset.pathIndex));
     });
 
     render();

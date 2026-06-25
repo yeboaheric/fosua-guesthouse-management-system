@@ -155,15 +155,6 @@
                   <div class="topbar-subheading">Manage guest service, rooms, staff, payments, and daily hotel operations.</div>
                 {% endblock %}
               </div>
-              <div class="app-page-nav" id="fgPageNav" aria-label="Page history navigation">
-                <button class="app-page-nav-btn" type="button" id="fgPageNavBack" aria-label="Go to previous HMS page" disabled>
-                  <span aria-hidden="true">&larr;</span>
-                </button>
-                <span class="app-page-nav-label" id="fgPageNavLabel">Current page</span>
-                <button class="app-page-nav-btn" type="button" id="fgPageNavForward" aria-label="Go to next HMS page" disabled>
-                  <span aria-hidden="true">&rarr;</span>
-                </button>
-              </div>
               <button class="icon-btn d-lg-none" type="button" aria-label="Toggle sidebar" data-bs-toggle="offcanvas" data-bs-target="#mobileNavPanel">
                 <i data-lucide="menu"></i>
               </button>
@@ -208,6 +199,9 @@
           </header>
 
           <main class="app-content">
+            <nav class="app-pathbar" id="fgPathBar" aria-label="Visited page path">
+              <ol class="app-pathbar-list" id="fgPathTrail"></ol>
+            </nav>
             <div class="page-content-shell" id="fgPageContentShell">
               <div class="page-skeleton-layer" id="fgPageSkeleton" aria-hidden="true"></div>
               <div class="page-content-body" id="fgPageContent" aria-live="polite">
@@ -292,6 +286,6 @@
     <script src="{% static 'js/app-loading.js' %}?v=20260617"></script>
     <script src="{% static 'js/fg-charts.js' %}?v=20260625-chart-modal2"></script>
     <script src="{% static 'js/password-toggle.js' %}?v=20260621"></script>
-    <script src="{% static 'js/app-shell.js' %}?v=20260625-page-history"></script>
+    <script src="{% static 'js/app-shell.js' %}?v=20260625-pathbar"></script>
   </body>
 </html>

@@ -374,7 +374,7 @@ class SalesDepositsModuleTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Owner collection visit logged successfully.")
+        self.assertContains(response, "Sales deposit logged successfully.")
         withdrawal = OwnerWithdrawal.objects.get()
         self.assertEqual(str(withdrawal.amount), "45.00")
         self.assertEqual(withdrawal.entry_type, OwnerWithdrawal.EntryType.VISIT)
@@ -382,7 +382,7 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(withdrawal.recorded_by, self.reception_user)
         self.assertEqual(withdrawal.collected_by, "Owner")
 
-    def test_staff_can_log_leftover_for_week(self):
+    def test_staff_can_log_leftover_as_sales_deposit_entry(self):
         self.client.force_login(self.reception_user)
         response = self.client.post(
             reverse("sales-deposits-center"),
@@ -397,8 +397,8 @@ class SalesDepositsModuleTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Leftover amount logged successfully.")
-        self.assertContains(response, "Leftover Logged")
+        self.assertContains(response, "Sales deposit logged successfully.")
+        self.assertContains(response, "Leftover")
         withdrawal = OwnerWithdrawal.objects.get()
         self.assertEqual(withdrawal.entry_type, OwnerWithdrawal.EntryType.LEFTOVER)
         self.assertEqual(withdrawal.collection_method, OwnerWithdrawal.CollectionMethod.BOTH)
@@ -422,7 +422,7 @@ class SalesDepositsModuleTests(TestCase):
         self.assertContains(delete_response, "Access Denied")
         self.assertTrue(OwnerWithdrawal.objects.filter(pk=withdrawal.pk).exists())
 
-    def test_admin_can_export_sales_deposits_with_weekly_summary(self):
+    def test_admin_can_export_sales_deposits_with_summary(self):
         now = timezone.localtime(timezone.now()).replace(hour=10, minute=0, second=0, microsecond=0)
         OwnerWithdrawal.objects.create(
             amount="40.00",
@@ -447,15 +447,15 @@ class SalesDepositsModuleTests(TestCase):
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         workbook = load_workbook(BytesIO(response.content))
-        self.assertEqual(workbook.sheetnames, ["Weekly Collections", "Weekly Summary"])
-        log_sheet = workbook["Weekly Collections"]
-        summary_sheet = workbook["Weekly Summary"]
-        self.assertEqual(log_sheet["A4"].value, "Week Range")
-        self.assertEqual(log_sheet["B4"].value, "Entry Type")
-        self.assertEqual(log_sheet["D4"].value, "Amount")
-        self.assertEqual(log_sheet["E5"].value, "Mobile Money")
-        self.assertEqual(summary_sheet["A4"].value, "Week Range")
-        self.assertEqual(summary_sheet["B4"].value, "Collections")
+        self.assertEqual(workbook.sheetnames, ["Sales Deposits Log", "Summary"])
+        log_sheet = workbook["Sales Deposits Log"]
+        summary_sheet = workbook["Summary"]
+        self.assertEqual(log_sheet["A4"].value, "Entry Type")
+        self.assertEqual(log_sheet["B4"].value, "Date")
+        self.assertEqual(log_sheet["C4"].value, "Amount Collected")
+        self.assertEqual(log_sheet["D5"].value, "Mobile Money")
+        self.assertEqual(summary_sheet["A4"].value, "Category")
+        self.assertEqual(summary_sheet["B4"].value, "Total Amount")
         self.assertEqual(summary_sheet["B5"].value, 40)
 
     def test_sales_deposit_filter_normalizes_inverted_dates(self):

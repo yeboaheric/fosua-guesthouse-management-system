@@ -283,6 +283,13 @@ class OwnerWithdrawalForm(forms.ModelForm):
             "collection_method",
             "collected_by",
         ]
+        labels = {
+            "created_at": "Date & time",
+            "entry_type": "Entry type",
+            "amount": "Amount collected",
+            "collection_method": "Method of collection",
+            "collected_by": "Collected by",
+        }
         widgets = {
             "created_at": forms.DateTimeInput(
                 attrs={"type": "datetime-local", "class": "form-control"}
@@ -293,7 +300,7 @@ class OwnerWithdrawalForm(forms.ModelForm):
             "entry_type": forms.Select(attrs={"class": "form-select"}),
             "collection_method": forms.Select(attrs={"class": "form-select"}),
             "collected_by": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Required for visits"}
+                attrs={"class": "form-control", "placeholder": "Person who collected the money"}
             ),
         }
 

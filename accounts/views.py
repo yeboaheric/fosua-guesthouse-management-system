@@ -696,103 +696,13 @@ def _sales_deposit_date_value(raw_value):
         return None
 
 
-def _owner_collection_week_start(value):
-    if isinstance(value, datetime):
-        local_date = timezone.localtime(value).date()
-    else:
-        local_date = value
-    return local_date - timedelta(days=local_date.weekday())
+def _sales_deposit_queryset():
+    return OwnerWithdrawal.objects.select_related("recorded_by").order_by("-created_at", "-pk")
 
 
-def _owner_collection_week_label(week_start):
-    week_end = week_start + timedelta(days=6)
-    return f"{week_start.strftime('%a %d %b')} - {week_end.strftime('%a %d %b %Y')}"
-
-
-def _owner_collection_week_status(week_end, leftover_total, leftover_balance):
-    today = timezone.localdate()
-    if leftover_total > 0 and leftover_balance <= 0:
-        return "fully_collected", "Fully Collected"
-    if leftover_balance > 0:
-        return "leftover", "Leftover Logged"
-    if week_end < today:
-        return "no_leftover", "No Leftover"
-    return "in_progress", "In Progress"
-
-
-def _owner_collection_week_rows(entries):
-    grouped = {}
-    for entry in entries:
-        week_start = _owner_collection_week_start(entry.created_at)
-        week_end = week_start + timedelta(days=6)
-        row = grouped.setdefault(
-            week_start,
-            {
-                "week_start": week_start,
-                "week_end": week_end,
-                "week_range": _owner_collection_week_label(week_start),
-                "entries": [],
-                "visit_entries": [],
-                "leftover_entries": [],
-                "total_collected": Decimal("0.00"),
-                "leftover_logged": Decimal("0.00"),
-                "total_for_week": Decimal("0.00"),
-            },
-        )
-        amount = Decimal(str(entry.amount or 0))
-        row["entries"].append(entry)
-        if entry.entry_type == OwnerWithdrawal.EntryType.LEFTOVER:
-            row["leftover_entries"].append(entry)
-            row["leftover_logged"] += amount
-        else:
-            row["visit_entries"].append(entry)
-            row["total_collected"] += amount
-        row["total_for_week"] += amount
-
-    rows = []
-    for row in grouped.values():
-        row["visit_entries"].sort(key=lambda entry: (entry.created_at, entry.pk), reverse=True)
-        row["leftover_entries"].sort(key=lambda entry: (entry.created_at, entry.pk), reverse=True)
-        row["entries"].sort(key=lambda entry: (entry.created_at, entry.pk), reverse=True)
-        if row["leftover_entries"]:
-            latest_leftover_at = max(entry.created_at for entry in row["leftover_entries"])
-            collected_after_leftover = sum(
-                (
-                    Decimal(str(entry.amount or 0))
-                    for entry in row["visit_entries"]
-                    if entry.created_at > latest_leftover_at
-                ),
-                Decimal("0.00"),
-            )
-        else:
-            collected_after_leftover = Decimal("0.00")
-        row["leftover_collected_after_log"] = collected_after_leftover
-        row["leftover_balance"] = max(row["leftover_logged"] - collected_after_leftover, Decimal("0.00"))
-        status, status_label = _owner_collection_week_status(
-            row["week_end"],
-            row["leftover_logged"],
-            row["leftover_balance"],
-        )
-        row["status"] = status
-        row["status_label"] = status_label
-        rows.append(row)
-    return sorted(rows, key=lambda row: row["week_start"], reverse=True)
-
-
-def _selected_owner_collection_week(request, week_rows):
-    week_start = _sales_deposit_date_value(request.GET.get("week_start"))
-    if not week_start:
-        return week_rows[0] if week_rows else None
-    week_start = _owner_collection_week_start(week_start)
-    for row in week_rows:
-        if row["week_start"] == week_start:
-            return row
-    return None
-
-
-def _owner_collection_visit_queryset(start_date, end_date):
+def _sales_deposit_range_queryset(start_date, end_date):
     return filter_queryset_for_local_datetime_bounds(
-        OwnerWithdrawal.objects.filter(entry_type=OwnerWithdrawal.EntryType.VISIT),
+        OwnerWithdrawal.objects.all(),
         "created_at",
         start_date,
         end_date,
@@ -805,10 +715,10 @@ def _sales_deposit_summary_cards(filtered_queryset=None, start_date=None, end_da
     month_start, month_end = shared_report_window_for_period("monthly", today)
     year_start, year_end = shared_report_window_for_period("yearly", today)
     cards = [
-        {"label": "Collected today", "value": _display_money(_money_total(_owner_collection_visit_queryset(today, today), "amount"))},
-        {"label": "This week", "value": _display_money(_money_total(_owner_collection_visit_queryset(week_start, week_end), "amount"))},
-        {"label": "This month", "value": _display_money(_money_total(_owner_collection_visit_queryset(month_start, month_end), "amount"))},
-        {"label": "This year", "value": _display_money(_money_total(_owner_collection_visit_queryset(year_start, year_end), "amount"))},
+        {"label": "Collected today", "value": _display_money(_money_total(_sales_deposit_range_queryset(today, today), "amount"))},
+        {"label": "This week", "value": _display_money(_money_total(_sales_deposit_range_queryset(week_start, week_end), "amount"))},
+        {"label": "This month", "value": _display_money(_money_total(_sales_deposit_range_queryset(month_start, month_end), "amount"))},
+        {"label": "This year", "value": _display_money(_money_total(_sales_deposit_range_queryset(year_start, year_end), "amount"))},
     ]
     if filtered_queryset is not None and (start_date or end_date):
         if start_date and end_date:
@@ -836,10 +746,10 @@ def _sales_deposit_filtered_queryset(request):
     end_date = _sales_deposit_date_value(request.GET.get("end_date"))
     if start_date and end_date:
         start_date, end_date = normalize_date_range(start_date, end_date)
-    withdrawals = OwnerWithdrawal.objects.select_related("recorded_by").order_by("-created_at", "-pk")
+    deposits = _sales_deposit_queryset()
 
     if query:
-        withdrawals = withdrawals.filter(
+        deposits = deposits.filter(
             Q(collection_method__icontains=query)
             | Q(entry_type__icontains=query)
             | Q(collected_by__icontains=query)
@@ -848,15 +758,15 @@ def _sales_deposit_filtered_queryset(request):
             | Q(recorded_by__last_name__icontains=query)
         )
 
-    withdrawals = filter_queryset_for_local_datetime_bounds(
-        withdrawals,
+    deposits = filter_queryset_for_local_datetime_bounds(
+        deposits,
         "created_at",
         start_date,
         end_date,
     )
 
     return {
-        "withdrawals": withdrawals,
+        "deposits": deposits,
         "query": query,
         "start_date": start_date.isoformat() if start_date else "",
         "end_date": end_date.isoformat() if end_date else "",
@@ -897,22 +807,19 @@ def _sales_deposits_page_context(
     editing_withdrawal=None,
 ):
     filtered = _sales_deposit_filtered_queryset(request)
-    entries = list(filtered["withdrawals"])
-    week_rows = _owner_collection_week_rows(entries)
-    selected_week = _selected_owner_collection_week(request, week_rows)
+    entries = list(filtered["deposits"])
     export_start_date, export_end_date = _sales_deposit_export_range(request)
     return {
         "form": form,
         "form_title": form_title,
         "editing_withdrawal": editing_withdrawal,
         "summary_cards": _sales_deposit_summary_cards(
-            filtered["withdrawals"],
+            filtered["deposits"],
             _sales_deposit_date_value(filtered["start_date"]),
             _sales_deposit_date_value(filtered["end_date"]),
         ),
+        "deposits": entries,
         "withdrawals": entries,
-        "week_rows": week_rows,
-        "selected_week": selected_week,
         "query": filtered["query"],
         "start_date": filtered["start_date"],
         "end_date": filtered["end_date"],
@@ -955,10 +862,7 @@ def sales_deposits_center(request):
                 "collected_by": withdrawal.collected_by,
             },
         )
-        if withdrawal.entry_type == OwnerWithdrawal.EntryType.LEFTOVER:
-            messages.success(request, "Leftover amount logged successfully.")
-        else:
-            messages.success(request, "Owner collection visit logged successfully.")
+        messages.success(request, "Sales deposit logged successfully.")
         return redirect("sales-deposits-center")
 
     return render(
@@ -1000,7 +904,7 @@ def sales_deposit_update(request, pk):
                 "collected_by": updated_withdrawal.collected_by,
             },
         )
-        messages.success(request, "Owner collection entry updated successfully.")
+        messages.success(request, "Sales deposit updated successfully.")
         return redirect("sales-deposits-center")
 
     return render(
@@ -1038,7 +942,7 @@ def sales_deposit_delete(request, pk):
             "amount": str(withdrawal_amount),
         },
     )
-    messages.success(request, "Owner collection entry deleted successfully.")
+    messages.success(request, "Sales deposit deleted successfully.")
     return redirect("sales-deposits-center")
 
 
@@ -1049,7 +953,7 @@ def sales_deposits_export_xlsx(request):
         return redirect("sales-deposits-center")
 
     start_date, end_date = _sales_deposit_export_range(request)
-    withdrawals = list(
+    deposits = list(
         filter_queryset_for_local_datetime_bounds(
             OwnerWithdrawal.objects.select_related("recorded_by"),
             "created_at",
@@ -1061,11 +965,11 @@ def sales_deposits_export_xlsx(request):
     )
 
     sheet = workbook.active
-    sheet.title = "Weekly Collections"
-    _write_owner_collections_log_sheet(sheet, withdrawals, start_date, end_date)
+    sheet.title = "Sales Deposits Log"
+    _write_owner_collections_log_sheet(sheet, deposits, start_date, end_date)
 
-    summary_sheet = workbook.create_sheet(title="Weekly Summary")
-    _write_owner_collections_summary_sheet(summary_sheet, withdrawals, start_date, end_date)
+    summary_sheet = workbook.create_sheet(title="Summary")
+    _write_owner_collections_summary_sheet(summary_sheet, deposits, start_date, end_date)
 
     log_audit_event(
         request=request,
@@ -5274,33 +5178,26 @@ def _write_report_overview_sheet(worksheet, sections, display_range):
             cell.alignment = Alignment(vertical="top", wrap_text=True)
 
 
-def _write_owner_collections_log_sheet(worksheet, withdrawals, start_date, end_date):
+def _write_owner_collections_log_sheet(worksheet, deposits, start_date, end_date):
     from openpyxl.styles import Alignment, Font, PatternFill
 
     title_font = Font(bold=True, size=14)
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
     summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
-    leftover_fill = PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid")
 
-    worksheet["A1"] = "Sales Deposits Weekly Log"
+    worksheet["A1"] = "Sales Deposits Log"
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
     worksheet.append(
         [
-            "Week Range",
             "Entry Type",
             "Date",
-            "Amount",
+            "Amount Collected",
             "Method",
             "Collected By",
             "Recorded By",
-            "Weekly Collections",
-            "Weekly Leftover",
-            "Leftover Balance",
-            "Weekly Total",
-            "Status",
         ]
     )
 
@@ -5309,72 +5206,28 @@ def _write_owner_collections_log_sheet(worksheet, withdrawals, start_date, end_d
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
 
-    week_rows = _owner_collection_week_rows(withdrawals)
-    grand_collected = Decimal("0.00")
-    grand_leftover = Decimal("0.00")
-    grand_total = Decimal("0.00")
-    entry_count = 0
-
-    for row in week_rows:
-        week_entries = row["entries"] or []
-        grand_collected += row["total_collected"]
-        grand_leftover += row["leftover_logged"]
-        grand_total += row["total_for_week"]
-        for entry in week_entries:
-            entry_count += 1
-            worksheet.append(
-                [
-                    row["week_range"],
-                    entry.get_entry_type_display(),
-                    timezone.localtime(entry.created_at).strftime("%d/%m/%Y %H:%M"),
-                    float(entry.amount or 0),
-                    entry.get_collection_method_display(),
-                    entry.collected_by or "-",
-                    entry.recorded_by_name,
-                    float(row["total_collected"]),
-                    float(row["leftover_logged"]),
-                    float(row["leftover_balance"]),
-                    float(row["total_for_week"]),
-                    row["status_label"],
-                ]
-            )
-            if entry.entry_type == OwnerWithdrawal.EntryType.LEFTOVER:
-                for cell in worksheet[worksheet.max_row]:
-                    cell.fill = leftover_fill
+    total_collected = Decimal("0.00")
+    for entry in deposits:
+        total_collected += Decimal(str(entry.amount or 0))
         worksheet.append(
             [
-                row["week_range"],
-                "WEEK TOTAL",
-                "",
-                "",
-                "",
-                "",
-                "",
-                float(row["total_collected"]),
-                float(row["leftover_logged"]),
-                float(row["leftover_balance"]),
-                float(row["total_for_week"]),
-                row["status_label"],
+                entry.get_entry_type_display(),
+                timezone.localtime(entry.created_at).strftime("%d/%m/%Y %H:%M"),
+                float(entry.amount or 0),
+                entry.get_collection_method_display(),
+                entry.collected_by or "-",
+                entry.recorded_by_name,
             ]
         )
-        for cell in worksheet[worksheet.max_row]:
-            cell.font = Font(bold=True)
-            cell.fill = summary_fill
 
     worksheet.append(
         [
             "TOTALS",
-            f"{len(week_rows)} week(s)",
             "",
-            f"{entry_count} entries",
-            "",
+            float(total_collected),
             "",
             "",
-            float(grand_collected),
-            float(grand_leftover),
-            "",
-            float(grand_total),
-            "",
+            f"{len(deposits)} entries",
         ]
     )
     for cell in worksheet[worksheet.max_row]:
@@ -5390,7 +5243,7 @@ def _write_owner_collections_log_sheet(worksheet, withdrawals, start_date, end_d
         worksheet.column_dimensions[column_letter].width = min(max(max_length + 2, 14), 30)
 
 
-def _write_owner_collections_summary_sheet(worksheet, withdrawals, start_date, end_date):
+def _write_owner_collections_summary_sheet(worksheet, deposits, start_date, end_date):
     from openpyxl.styles import Alignment, Font, PatternFill
 
     title_font = Font(bold=True, size=14)
@@ -5398,40 +5251,38 @@ def _write_owner_collections_summary_sheet(worksheet, withdrawals, start_date, e
     header_fill = PatternFill(start_color="23444B", end_color="23444B", fill_type="solid")
     summary_fill = PatternFill(start_color="E8F1F2", end_color="E8F1F2", fill_type="solid")
 
-    worksheet["A1"] = "Sales Deposits Weekly Summary"
+    worksheet["A1"] = "Sales Deposits Summary"
     worksheet["A1"].font = title_font
     worksheet["A2"] = f"Range: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
     worksheet.append([])
-    worksheet.append(["Week Range", "Collections", "Leftover Logged", "Leftover Balance", "Total for Week", "Status"])
+    worksheet.append(["Category", "Total Amount", "Entries"])
 
     for cell in worksheet[4]:
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
 
-    week_rows = _owner_collection_week_rows(withdrawals)
-    collected_total = Decimal("0.00")
-    leftover_total = Decimal("0.00")
-    leftover_balance_total = Decimal("0.00")
-    weekly_total = Decimal("0.00")
+    method_totals = {}
+    entry_count = 0
+    grand_total = Decimal("0.00")
+    for entry in deposits:
+        label = entry.get_collection_method_display()
+        amount = Decimal(str(entry.amount or 0))
+        current_amount, current_count = method_totals.get(label, (Decimal("0.00"), 0))
+        method_totals[label] = (current_amount + amount, current_count + 1)
+        grand_total += amount
+        entry_count += 1
 
-    for row in week_rows:
-        collected_total += row["total_collected"]
-        leftover_total += row["leftover_logged"]
-        leftover_balance_total += row["leftover_balance"]
-        weekly_total += row["total_for_week"]
+    for method, (amount, count) in sorted(method_totals.items()):
         worksheet.append(
             [
-                row["week_range"],
-                float(row["total_collected"]),
-                float(row["leftover_logged"]),
-                float(row["leftover_balance"]),
-                float(row["total_for_week"]),
-                row["status_label"],
+                method,
+                float(amount),
+                count,
             ]
         )
 
-    worksheet.append(["TOTALS", float(collected_total), float(leftover_total), float(leftover_balance_total), float(weekly_total), ""])
+    worksheet.append(["TOTALS", float(grand_total), entry_count])
     for cell in worksheet[worksheet.max_row]:
         cell.font = Font(bold=True)
         cell.fill = summary_fill

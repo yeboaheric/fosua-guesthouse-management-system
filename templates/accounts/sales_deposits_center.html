@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Finance control</div>
         <h1 class="module-title">Sales Deposits</h1>
-        <div class="module-subcopy">Log each collection visit and record any end-of-week leftover without mixing it into guest payments.</div>
+        <div class="module-subcopy">Log and review money collected from sales deposits without mixing it into guest payments or POS sales.</div>
       </div>
       <div class="module-action-row">
         {% if can_export_sales_deposits %}
@@ -44,36 +44,35 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">{{ form_title }}</h2>
-              <div class="module-card-copy">Record a visit as it happens, or log leftover money at week end.</div>
+              <div class="module-card-copy">Record each collection exactly as it happens. The logged-in staff member is saved automatically.</div>
             </div>
           </div>
           <div class="module-card-body">
             <form method="post" novalidate>
               {% csrf_token %}
               <div class="mb-3">
-                <label class="form-label" for="{{ form.created_at.id_for_label }}">Date & time</label>
+                <label class="form-label" for="{{ form.created_at.id_for_label }}">{{ form.created_at.label }}</label>
                 {{ form.created_at }}
                 {% for error in form.created_at.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
-                <label class="form-label" for="{{ form.entry_type.id_for_label }}">Entry type</label>
+                <label class="form-label" for="{{ form.entry_type.id_for_label }}">{{ form.entry_type.label }}</label>
                 {{ form.entry_type }}
                 {% for error in form.entry_type.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
-                <label class="form-label" for="{{ form.amount.id_for_label }}">Amount</label>
+                <label class="form-label" for="{{ form.amount.id_for_label }}">{{ form.amount.label }}</label>
                 {{ form.amount }}
                 {% for error in form.amount.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
-                <label class="form-label" for="{{ form.collection_method.id_for_label }}">Method of collection</label>
+                <label class="form-label" for="{{ form.collection_method.id_for_label }}">{{ form.collection_method.label }}</label>
                 {{ form.collection_method }}
                 {% for error in form.collection_method.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
-                <label class="form-label" for="{{ form.collected_by.id_for_label }}">Collected by</label>
+                <label class="form-label" for="{{ form.collected_by.id_for_label }}">{{ form.collected_by.label }}</label>
                 {{ form.collected_by }}
-                <div class="form-text">Required for visit entries. Leave blank for leftover entries if not applicable.</div>
                 {% for error in form.collected_by.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
@@ -86,7 +85,7 @@
                 </div>
               {% endif %}
               <div class="d-flex gap-2 flex-wrap">
-                <button class="btn btn-primary" type="submit">{% if is_editing %}Update entry{% else %}Save entry{% endif %}</button>
+                <button class="btn btn-primary" type="submit">{% if is_editing %}Update deposit{% else %}Save deposit{% endif %}</button>
                 {% if is_editing %}
                   <a class="btn btn-outline-secondary" href="{% url 'sales-deposits-center' %}">Cancel</a>
                 {% endif %}
@@ -100,15 +99,15 @@
         <section class="module-card h-100">
           <div class="module-card-header">
             <div>
-              <h2 class="module-card-title">Collections log</h2>
-              <div class="module-card-copy">Entries are grouped automatically by their Monday-Sunday week. Use search and dates before exporting.</div>
+              <h2 class="module-card-title">Sales deposits log</h2>
+              <div class="module-card-copy">Search, filter, edit, delete, or export recorded sales deposit collections.</div>
             </div>
           </div>
           <div class="module-card-body">
-            <form method="get" class="row g-3 align-items-end mb-3">
+            <form method="get" class="row g-3 align-items-end">
               <div class="col-lg-4">
                 <label class="form-label" for="q">Search</label>
-                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Visit, leftover, method, collector, or recorder">
+                <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Type, method, collector, or recorder">
               </div>
               <div class="col-lg-3">
                 <label class="form-label" for="start_date">Start date</label>
@@ -126,7 +125,7 @@
               </div>
               {% if can_export_sales_deposits %}
                 <div class="col-lg-4 d-grid">
-                  <a class="btn btn-outline-success" href="{{ export_url }}">Export weekly range</a>
+                  <a class="btn btn-outline-success" href="{{ export_url }}">Export selected range</a>
                 </div>
               {% endif %}
             </form>
@@ -137,33 +136,39 @@
                 <table class="table table-hover align-middle mb-0">
                   <thead class="table-light">
                     <tr>
-                      <th>Week Range</th>
-                      <th>Total Collected</th>
-                      <th>Leftover Logged</th>
-                      <th>Total for the Week</th>
-                      <th>Status</th>
-                      <th>Action</th>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th>Amount Collected</th>
+                      <th>Method</th>
+                      <th>Collected By</th>
+                      <th>Recorded By</th>
+                      {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
                     </tr>
                   </thead>
                   <tbody>
-                    {% for row in week_rows %}
+                    {% for deposit in deposits %}
                       <tr>
-                        <td>{{ row.week_range }}</td>
-                        <td>GHS {{ row.total_collected }}</td>
-                        <td>GHS {{ row.leftover_logged }}</td>
-                        <td>GHS {{ row.total_for_week }}</td>
-                        <td>
-                          <span class="status-pill {% if row.status == 'leftover' %}warning{% elif row.status == 'no_leftover' or row.status == 'fully_collected' %}success{% else %}neutral{% endif %}">
-                            {{ row.status_label }}
-                          </span>
-                        </td>
-                        <td>
-                          <a class="status-pill neutral" href="{% url 'sales-deposits-center' %}?q={{ query|urlencode }}&start_date={{ start_date }}&end_date={{ end_date }}&week_start={{ row.week_start|date:'Y-m-d' }}#week-detail">View</a>
-                        </td>
+                        <td>{{ deposit.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>{{ deposit.get_entry_type_display }}</td>
+                        <td>GHS {{ deposit.amount }}</td>
+                        <td>{{ deposit.get_collection_method_display }}</td>
+                        <td>{{ deposit.collected_by|default:"-" }}</td>
+                        <td>{{ deposit.recorded_by_name }}</td>
+                        {% if can_manage_sales_deposits %}
+                          <td>
+                            <div class="module-table-actions">
+                              <a class="status-pill warning" href="{% url 'sales-deposit-update' deposit.pk %}">Edit</a>
+                              <form method="post" action="{% url 'sales-deposit-delete' deposit.pk %}" data-confirm="Are you sure you want to delete this sales deposit? This action cannot be undone.">
+                                {% csrf_token %}
+                                <button class="status-pill danger" type="submit">Delete</button>
+                              </form>
+                            </div>
+                          </td>
+                        {% endif %}
                       </tr>
                     {% empty %}
                       <tr>
-                        <td colspan="6" class="text-muted">No sales deposit entries found for the selected filter.</td>
+                        <td colspan="{% if can_manage_sales_deposits %}7{% else %}6{% endif %}" class="text-muted">No sales deposits found for the selected filter.</td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -174,126 +179,6 @@
         </section>
       </div>
     </div>
-
-    {% if selected_week %}
-      <section class="module-card mt-3" id="week-detail">
-        <div class="module-card-header">
-          <div>
-            <h2 class="module-card-title">Week Detail: {{ selected_week.week_range }}</h2>
-            <div class="module-card-copy">Review all visits and leftover entries attached to this week only.</div>
-          </div>
-          <span class="status-pill {% if selected_week.status == 'leftover' %}warning{% elif selected_week.status == 'no_leftover' or selected_week.status == 'fully_collected' %}success{% else %}neutral{% endif %}">
-            {{ selected_week.status_label }}
-          </span>
-        </div>
-        <div class="module-card-body">
-          <div class="module-summary-grid mb-3">
-            <div class="module-summary-block">
-              <span class="module-inline-label">Total Collected</span>
-              <strong>GHS {{ selected_week.total_collected }}</strong>
-            </div>
-            <div class="module-summary-block">
-              <span class="module-inline-label">Leftover Logged</span>
-              <strong>GHS {{ selected_week.leftover_logged }}</strong>
-            </div>
-            <div class="module-summary-block">
-              <span class="module-inline-label">Total for the Week</span>
-              <strong>GHS {{ selected_week.total_for_week }}</strong>
-            </div>
-            <div class="module-summary-block">
-              <span class="module-inline-label">Leftover Balance</span>
-              <strong class="{% if selected_week.leftover_balance > 0 %}text-warning{% endif %}">GHS {{ selected_week.leftover_balance }}</strong>
-            </div>
-          </div>
-
-          <h3 class="module-card-title mb-3">Visits</h3>
-          <div class="module-table-wrap mb-4">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Date</th>
-                    <th>Amount Collected</th>
-                    <th>Method</th>
-                    <th>Collected By</th>
-                    <th>Recorded By</th>
-                    {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for entry in selected_week.visit_entries %}
-                    <tr>
-                      <td>{{ entry.created_at|date:"d/m/Y H:i" }}</td>
-                      <td>GHS {{ entry.amount }}</td>
-                      <td>{{ entry.get_collection_method_display }}</td>
-                      <td>{{ entry.collected_by }}</td>
-                      <td>{{ entry.recorded_by_name }}</td>
-                      {% if can_manage_sales_deposits %}
-                        <td>
-                          <div class="module-table-actions">
-                            <a class="status-pill warning" href="{% url 'sales-deposit-update' entry.pk %}">Edit</a>
-                            <form method="post" action="{% url 'sales-deposit-delete' entry.pk %}" data-confirm="Are you sure you want to delete this sales deposit entry? This action cannot be undone.">
-                              {% csrf_token %}
-                              <button class="status-pill danger" type="submit">Delete</button>
-                            </form>
-                          </div>
-                        </td>
-                      {% endif %}
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="{% if can_manage_sales_deposits %}6{% else %}5{% endif %}" class="text-muted">No visits logged for this week.</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <h3 class="module-card-title mb-3">Leftover entries</h3>
-          <div class="module-table-wrap">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Leftover Amount</th>
-                    <th>Cash / Mobile Money / Both</th>
-                    <th>Date Logged</th>
-                    <th>Recorded By</th>
-                    {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for entry in selected_week.leftover_entries %}
-                    <tr>
-                      <td>GHS {{ entry.amount }}</td>
-                      <td>{{ entry.get_collection_method_display }}</td>
-                      <td>{{ entry.created_at|date:"d/m/Y H:i" }}</td>
-                      <td>{{ entry.recorded_by_name }}</td>
-                      {% if can_manage_sales_deposits %}
-                        <td>
-                          <div class="module-table-actions">
-                            <a class="status-pill warning" href="{% url 'sales-deposit-update' entry.pk %}">Edit</a>
-                            <form method="post" action="{% url 'sales-deposit-delete' entry.pk %}" data-confirm="Are you sure you want to delete this leftover entry? This action cannot be undone.">
-                              {% csrf_token %}
-                              <button class="status-pill danger" type="submit">Delete</button>
-                            </form>
-                          </div>
-                        </td>
-                      {% endif %}
-                    </tr>
-                  {% empty %}
-                    <tr>
-                      <td colspan="{% if can_manage_sales_deposits %}5{% else %}4{% endif %}" class="text-muted">No leftover has been logged for this week.</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-    {% endif %}
   </div>
 </div>
 {% endblock %}

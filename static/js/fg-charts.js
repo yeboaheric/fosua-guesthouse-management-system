@@ -355,6 +355,289 @@
     };
   }
 
+  function clonePlain(value) {
+    try {
+      return JSON.parse(JSON.stringify(value || {}));
+    } catch (error) {
+      return Object.assign({}, value || {});
+    }
+  }
+
+  function chartConfigForCanvas(canvas) {
+    if (!canvas) {
+      return null;
+    }
+    if (canvas._fgChartConfig) {
+      return canvas._fgChartConfig;
+    }
+    if (!canvas.dataset || !canvas.dataset.fgChartConfig) {
+      return null;
+    }
+    try {
+      return JSON.parse(canvas.dataset.fgChartConfig);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function chartTitleFor(canvas, config) {
+    const card = canvas.closest(".fg-chart-card, .dashboard-hero-card, .dashboard-ring-card, .dashboard-panel, .module-card");
+    const heading = card && card.querySelector("h1, h2, h3, h4, .module-card-title, .section-eyebrow");
+    if (heading && heading.textContent.trim()) {
+      return heading.textContent.trim();
+    }
+    if (canvas.getAttribute("aria-label")) {
+      return canvas.getAttribute("aria-label");
+    }
+    const firstDataset = (config.datasets || [])[0] || {};
+    return firstDataset.label || "Chart insight";
+  }
+
+  function escapeHtml(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function ensureChartModal() {
+    let modal = document.getElementById("fgChartModal");
+    if (modal) {
+      return modal;
+    }
+
+    modal = document.createElement("div");
+    modal.id = "fgChartModal";
+    modal.className = "fg-chart-modal";
+    modal.setAttribute("aria-hidden", "true");
+    modal.innerHTML = `
+      <div class="fg-chart-modal__backdrop" data-chart-modal-close="true"></div>
+      <div class="fg-chart-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="fgChartModalTitle">
+        <button class="fg-chart-modal__close" type="button" data-chart-modal-close="true" aria-label="Close expanded chart">&times;</button>
+        <div class="fg-chart-modal__header">
+          <div>
+            <div class="section-eyebrow mb-2">Expanded insight</div>
+            <h2 class="fg-chart-modal__title" id="fgChartModalTitle">Chart insight</h2>
+          </div>
+          <div class="fg-chart-modal__controls" data-chart-modal-controls></div>
+        </div>
+        <div class="fg-chart-modal__canvas-wrap">
+          <canvas id="fgChartModalCanvas" aria-label="Expanded chart"></canvas>
+        </div>
+        <div class="fg-chart-modal__details">
+          <div class="fg-chart-modal__legend" data-chart-modal-legend></div>
+          <div class="fg-chart-modal__table-wrap">
+            <table class="table align-middle mb-0">
+              <thead data-chart-modal-table-head></thead>
+              <tbody data-chart-modal-table-body></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.addEventListener("click", function (event) {
+      if (event.target.closest("[data-chart-modal-close]")) {
+        closeChartModal();
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && modal.classList.contains("is-open")) {
+        closeChartModal();
+      }
+    });
+
+    return modal;
+  }
+
+  function closeChartModal() {
+    const modal = document.getElementById("fgChartModal");
+    if (!modal) {
+      return;
+    }
+    modal.classList.remove("is-open");
+    modal.classList.add("is-closing");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("fg-chart-modal-open");
+
+    window.setTimeout(function () {
+      modal.classList.remove("is-closing");
+      if (modal._fgChart) {
+        modal._fgChart.destroy();
+        modal._fgChart = null;
+      }
+    }, 240);
+  }
+
+  function detailValueForDataset(dataset, index, config) {
+    const value = datasetValues(dataset)[index] || 0;
+    if (config.showPercentageTooltip && Array.isArray(dataset.rawValues)) {
+      const rawValue = dataset.rawValues[index] === undefined ? 0 : dataset.rawValues[index];
+      return `${Number(rawValue).toLocaleString()} (${formatTooltipValue(value, config)})`;
+    }
+    return formatTooltipValue(value, config);
+  }
+
+  function renderModalLegend(modal, config) {
+    const legend = modal.querySelector("[data-chart-modal-legend]");
+    const labels = Array.isArray(config.labels) ? config.labels : [];
+    const datasets = Array.isArray(config.datasets) ? config.datasets : [];
+    const radial = config.type === "doughnut" || config.type === "pie";
+
+    if (!legend) {
+      return;
+    }
+
+    if (radial) {
+      const dataset = datasets[0] || {};
+      legend.innerHTML = labels.map(function (label, index) {
+        const color = chartColorAt(dataset.backgroundColor, index);
+        return `<div class="fg-chart-modal__legend-item"><span class="fg-chart-modal__legend-dot" style="background:${escapeHtml(color)}"></span><span>${escapeHtml(label)}</span><strong>${escapeHtml(detailValueForDataset(dataset, index, config))}</strong></div>`;
+      }).join("");
+      return;
+    }
+
+    legend.innerHTML = datasets.map(function (dataset, index) {
+      const color = chartColorAt(dataset.borderColor || dataset.backgroundColor, index);
+      return `<div class="fg-chart-modal__legend-item"><span class="fg-chart-modal__legend-dot" style="background:${escapeHtml(color)}"></span><span>${escapeHtml(dataset.label || `Series ${index + 1}`)}</span></div>`;
+    }).join("");
+  }
+
+  function renderModalTable(modal, config) {
+    const head = modal.querySelector("[data-chart-modal-table-head]");
+    const body = modal.querySelector("[data-chart-modal-table-body]");
+    const labels = Array.isArray(config.labels) ? config.labels : [];
+    const datasets = Array.isArray(config.datasets) ? config.datasets : [];
+
+    if (!head || !body) {
+      return;
+    }
+
+    head.innerHTML = `
+      <tr>
+        <th>Label</th>
+        ${datasets.map(function (dataset, index) {
+          return `<th>${escapeHtml(dataset.label || `Series ${index + 1}`)}</th>`;
+        }).join("")}
+      </tr>
+    `;
+
+    if (!labels.length || !datasets.length) {
+      body.innerHTML = `<tr><td colspan="${Math.max(1, datasets.length + 1)}" class="text-muted text-center py-3">No data available for this period</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = labels.map(function (label, labelIndex) {
+      return `
+        <tr>
+          <td>${escapeHtml(label)}</td>
+          ${datasets.map(function (dataset) {
+            return `<td>${escapeHtml(detailValueForDataset(dataset, labelIndex, config))}</td>`;
+          }).join("")}
+        </tr>
+      `;
+    }).join("");
+  }
+
+  function renderModalControls(modal, canvas) {
+    const controls = modal.querySelector("[data-chart-modal-controls]");
+    const sourceCard = canvas.closest(".dashboard-hero-card, .fg-chart-card, .module-card, .dashboard-panel");
+    const sourceControls = sourceCard ? Array.from(sourceCard.querySelectorAll("[data-dashboard-period]")) : [];
+
+    if (!controls) {
+      return;
+    }
+
+    controls.innerHTML = "";
+    if (!sourceControls.length) {
+      controls.hidden = true;
+      return;
+    }
+
+    controls.hidden = false;
+    sourceControls.forEach(function (sourceButton) {
+      const clone = document.createElement("button");
+      clone.type = "button";
+      clone.className = sourceButton.className || "dashboard-chip";
+      clone.textContent = sourceButton.textContent;
+      clone.classList.toggle("is-active", sourceButton.classList.contains("is-active"));
+      clone.addEventListener("click", function () {
+        sourceButton.click();
+        window.setTimeout(function () {
+          openChartModal(canvas);
+        }, 80);
+      });
+      controls.appendChild(clone);
+    });
+  }
+
+  function openChartModal(canvas) {
+    const sourceConfig = chartConfigForCanvas(canvas);
+    if (!canvas || !sourceConfig) {
+      return;
+    }
+
+    const modal = ensureChartModal();
+    const modalCanvas = modal.querySelector("#fgChartModalCanvas");
+    const config = clonePlain(sourceConfig);
+
+    config.legend = true;
+    config.animationDuration = 450;
+
+    modal.querySelector(".fg-chart-modal__title").textContent = chartTitleFor(canvas, config);
+    renderModalControls(modal, canvas);
+    renderModalLegend(modal, config);
+    renderModalTable(modal, config);
+
+    if (modal._fgChart) {
+      modal._fgChart.destroy();
+      modal._fgChart = null;
+    }
+
+    if (window.Chart) {
+      modal._fgChart = new window.Chart(modalCanvas, buildChartConfig(config));
+    } else {
+      modal._fgChart = drawFallbackChart(modalCanvas, config);
+    }
+
+    modal.setAttribute("aria-hidden", "false");
+    modal.classList.remove("is-closing");
+    document.body.classList.add("fg-chart-modal-open");
+    requestAnimationFrame(function () {
+      modal.classList.add("is-open");
+    });
+  }
+
+  function bindChartExpansion(canvas) {
+    const shell = canvas.closest(".chart-shell") || canvas.parentElement;
+    if (!shell || shell.dataset.chartExpandBound === "true") {
+      return;
+    }
+    shell.dataset.chartExpandBound = "true";
+    shell.classList.add("fg-chart-expandable");
+    shell.setAttribute("role", "button");
+    shell.setAttribute("tabindex", "0");
+    shell.setAttribute("aria-label", "Open expanded chart view");
+
+    shell.addEventListener("click", function (event) {
+      if (event.target.closest("button, a, input, select, textarea")) {
+        return;
+      }
+      openChartModal(canvas);
+    });
+
+    shell.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openChartModal(canvas);
+      }
+    });
+  }
+
   function chartColorAt(color, index) {
     const normalized = normalizeColorInput(color);
     if (Array.isArray(normalized)) {
@@ -629,6 +912,12 @@
     const normalizedConfig = Object.assign({}, config || {});
     canvas._fgChartConfig = normalizedConfig;
     canvas.dataset.fgChart = "true";
+    try {
+      canvas.dataset.fgChartConfig = JSON.stringify(normalizedConfig);
+    } catch (error) {
+      canvas.dataset.fgChartConfig = "";
+    }
+    bindChartExpansion(canvas);
     normalizedConfig.labels = Array.isArray(normalizedConfig.labels) ? normalizedConfig.labels : [];
     normalizedConfig.datasets = Array.isArray(normalizedConfig.datasets) ? normalizedConfig.datasets : [];
 

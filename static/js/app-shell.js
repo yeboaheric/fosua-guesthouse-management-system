@@ -268,6 +268,40 @@
       })[0];
   }
 
+  function moduleLabelForPath(pathname) {
+    const path = pathname || window.location.pathname;
+    if (/^\/rooms\/housekeeping\/?/.test(path)) return "Housekeeping";
+    if (/^\/inventory\/pos\/?/.test(path)) return "POS";
+    if (/^\/inventory\/sales\/?/.test(path)) return "POS";
+    if (/^\/inventory\/(items|categories|subcategories|suppliers|transactions|reports)\/?/.test(path) || path === "/inventory/") return "Inventory";
+    if (/^\/dashboard\/services\/?/.test(path) || /^\/bookings\/events\/?/.test(path)) return "Services";
+    if (/^\/dashboard\/admin\/reports\/?/.test(path)) return "Reports";
+    if (/^\/dashboard\/analytics\/?/.test(path)) return "Analytics";
+    if (/^\/dashboard\/finance\/?/.test(path)) return "Finance";
+    if (/^\/dashboard\/admin\/hr\/?/.test(path)) return "Staff Management";
+    if (/^\/handovers\/?/.test(path)) return "Shift Handovers";
+    if (/^\/rooms\/?/.test(path)) return "Rooms";
+    if (/^\/bookings\/?/.test(path) && !/^\/bookings\/operations\/?/.test(path)) return "Reservations";
+    return null;
+  }
+
+  function moduleRootUrl(label) {
+    const roots = {
+      Reservations: "/bookings/",
+      Rooms: "/rooms/",
+      Finance: "/dashboard/finance/",
+      Services: "/dashboard/services/",
+      Housekeeping: "/rooms/housekeeping/",
+      "Shift Handovers": "/handovers/",
+      Inventory: "/inventory/",
+      POS: "/inventory/pos/",
+      "Staff Management": "/dashboard/admin/hr/",
+      Reports: "/dashboard/admin/reports/",
+      Analytics: "/dashboard/analytics/"
+    };
+    return roots[label] || null;
+  }
+
   function bindSidebarDropdowns() {
     function setGroupOpen(group, open) {
       group.classList.toggle("is-open", open);
@@ -387,24 +421,7 @@
 
   function activeModuleGroup() {
     const desktopGroups = Array.from(document.querySelectorAll(".app-sidebar .sidebar-nav-group"));
-
-    function explicitModuleLabel() {
-      const path = window.location.pathname;
-      if (/^\/rooms\/housekeeping\/?/.test(path)) return "Housekeeping";
-      if (/^\/inventory\/pos\/?/.test(path)) return "POS";
-      if (/^\/inventory\/(items|categories|subcategories|suppliers|transactions|reports)\/?/.test(path) || path === "/inventory/") return "Inventory";
-      if (/^\/dashboard\/services\/?/.test(path) || /^\/bookings\/events\/?/.test(path)) return "Services";
-      if (/^\/dashboard\/admin\/reports\/?/.test(path)) return "Reports";
-      if (/^\/dashboard\/analytics\/?/.test(path)) return "Analytics";
-      if (/^\/dashboard\/finance\/?/.test(path)) return "Finance";
-      if (/^\/dashboard\/admin\/hr\/?/.test(path)) return "Staff Management";
-      if (/^\/handovers\/?/.test(path)) return "Shift Handovers";
-      if (/^\/rooms\/?/.test(path)) return "Rooms";
-      if (/^\/bookings\/?/.test(path)) return "Reservations";
-      return null;
-    }
-
-    const preferredLabel = explicitModuleLabel();
+    const preferredLabel = moduleLabelForPath(window.location.pathname);
     if (preferredLabel) {
       const preferredGroup = desktopGroups.find(function (group) {
         return sidebarLinkLabel(group.querySelector(".sidebar-link")) === preferredLabel;
@@ -557,14 +574,14 @@
       if (parsed.origin !== window.location.origin) {
         return null;
       }
-      return `${parsed.pathname}${parsed.search}`;
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
     } catch (error) {
       return null;
     }
   }
 
   function currentHistoryUrl() {
-    return `${window.location.pathname}${window.location.search}`;
+    return `${window.location.pathname}${window.location.search}${window.location.hash}`;
   }
 
   function readablePageName(pathname) {
@@ -597,7 +614,7 @@
       }
       const stored = JSON.parse(sessionStorage.getItem(pageHistoryStorageKey) || "null");
       if (!stored || !Array.isArray(stored.entries)) {
-        return { entries: [], index: -1 };
+        return { entries: [], index: -1, scopeKey: null };
       }
       const entries = stored.entries
         .filter(function (entry) {
@@ -609,14 +626,59 @@
         index = entries.length - 1;
       }
       index = Math.min(Math.max(index, entries.length ? 0 : -1), entries.length - 1);
-      return { entries: entries, index: index };
+      return { entries: entries, index: index, scopeKey: typeof stored.scopeKey === "string" ? stored.scopeKey : null };
     } catch (error) {
-      return { entries: [], index: -1 };
+      return { entries: [], index: -1, scopeKey: null };
     }
   }
 
   function savePageHistory(state) {
     sessionStorage.setItem(pageHistoryStorageKey, JSON.stringify(state));
+  }
+
+  function equivalentTrailUrl(firstUrl, secondUrl) {
+    return normalizeHistoryUrl(firstUrl) === normalizeHistoryUrl(secondUrl);
+  }
+
+  function scopedPathItemName(url, scope, fallbackName) {
+    const normalizedUrl = normalizeHistoryUrl(url);
+    if (scope && equivalentTrailUrl(normalizedUrl, scope.rootUrl)) {
+      return scope.name;
+    }
+
+    const children = scope ? sidebarSubmenus[scope.name] || [] : [];
+    const matchingChild = children.find(function (item) {
+      return actionMatchesModuleItem(normalizedUrl, item.url);
+    });
+    if (matchingChild) {
+      return matchingChild.label;
+    }
+
+    try {
+      return readablePageName(new URL(url, window.location.origin).pathname);
+    } catch (error) {
+      return fallbackName || "Page";
+    }
+  }
+
+  function currentPathScope(currentUrl, currentName) {
+    const label = moduleLabelForPath(window.location.pathname);
+    const rootUrl = label ? moduleRootUrl(label) : null;
+    if (label && rootUrl) {
+      return {
+        key: label,
+        name: label,
+        rootUrl: rootUrl,
+        standalone: false
+      };
+    }
+
+    return {
+      key: currentUrl,
+      name: currentName,
+      rootUrl: currentUrl,
+      standalone: true
+    };
   }
 
   function bindPageHistoryNavigation() {
@@ -628,17 +690,50 @@
 
     const currentUrl = currentHistoryUrl();
     const currentName = readablePageName(window.location.pathname);
+    const currentScope = currentPathScope(currentUrl, currentName);
+    const currentEntryName = scopedPathItemName(currentUrl, currentScope, currentName);
     let state = loadPageHistory();
+
+    if (state.scopeKey !== currentScope.key) {
+      state = { entries: [], index: -1, scopeKey: currentScope.key };
+    }
+
+    if (!currentScope.standalone && !state.entries.length) {
+      state.entries.push({
+        url: currentScope.rootUrl,
+        name: currentScope.name
+      });
+      state.index = 0;
+    }
+
     const currentEntry = state.entries[state.index];
 
-    if (!currentEntry || currentEntry.url !== currentUrl) {
+    if (currentScope.standalone) {
+      state.entries = [{ url: currentUrl, name: currentEntryName }];
+      state.index = 0;
+      state.scopeKey = currentScope.key;
+    } else if (equivalentTrailUrl(currentUrl, currentScope.rootUrl)) {
+      state.entries = [{ url: currentScope.rootUrl, name: currentScope.name }];
+      state.index = 0;
+      state.scopeKey = currentScope.key;
+    } else if (!currentEntry || !equivalentTrailUrl(currentEntry.url, currentUrl)) {
       state.entries = state.entries.slice(0, state.index + 1);
-      state.entries.push({ url: currentUrl, name: currentName });
+      const existingIndex = state.entries.findIndex(function (entry) {
+        return equivalentTrailUrl(entry.url, currentUrl);
+      });
+      if (existingIndex >= 0) {
+        state.entries = state.entries.slice(0, existingIndex + 1);
+        state.index = existingIndex;
+      } else {
+        state.entries.push({ url: currentUrl, name: currentEntryName });
+        state.index = state.entries.length - 1;
+      }
       state.entries = state.entries.slice(-60);
-      state.index = state.entries.length - 1;
-    } else if (currentEntry.name !== currentName) {
-      currentEntry.name = currentName;
+    } else if (currentEntry.name !== currentEntryName) {
+      currentEntry.name = currentEntryName;
     }
+
+    state.scopeKey = currentScope.key;
 
     savePageHistory(state);
 

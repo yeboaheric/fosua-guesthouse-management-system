@@ -3,6 +3,77 @@
   const themeStorageKey = "fg-theme";
   const sidebarStorageKey = "fg-sidebar-state";
   const pageHistoryStorageKey = "fg-page-history";
+  const sidebarSubmenus = {
+    Reservations: [
+      { label: "All Reservations", url: "/bookings/" },
+      { label: "New Reservation", url: "/bookings/new/" },
+      { label: "Event Reservations", url: "/bookings/events/" },
+      { label: "Operations Overview", url: "/bookings/operations/" }
+    ],
+    Rooms: [
+      { label: "Rooms List", url: "/rooms/" },
+      { label: "Add Room", url: "/rooms/new/" },
+      { label: "Availability", url: "/rooms/availability/" }
+    ],
+    Payments: [
+      { label: "Payments Center", url: "/dashboard/payments/" },
+      { label: "Sales Deposits", url: "/dashboard/sales-deposits/" }
+    ],
+    Finance: [
+      { label: "Finance Overview", url: "/dashboard/finance/" },
+      { label: "Expenses", url: "/dashboard/finance/#expenses" },
+      { label: "Profit & Loss", url: "/dashboard/finance/#profit-loss" },
+      { label: "Balance Sheet", url: "/dashboard/finance/#balance-sheet" }
+    ],
+    Services: [
+      { label: "Event Reservations", url: "/dashboard/services/" },
+      { label: "Event Ledger", url: "/bookings/events/" },
+      { label: "New Event", url: "/bookings/events/new/" }
+    ],
+    Housekeeping: [
+      { label: "Add Item", url: "/rooms/housekeeping/?mode=item" },
+      { label: "Add Log Entry", url: "/rooms/housekeeping/?mode=log" },
+      { label: "Daily Report", url: "/rooms/housekeeping/?report=daily" },
+      { label: "Monthly Report", url: "/rooms/housekeeping/?report=monthly" }
+    ],
+    "Shift Handovers": [
+      { label: "Handovers", url: "/handovers/" },
+      { label: "New Handover", url: "/handovers/new/" },
+      { label: "Duty Roster", url: "/handovers/roster/" }
+    ],
+    Inventory: [
+      { label: "Inventory Dashboard", url: "/inventory/" },
+      { label: "Items", url: "/inventory/items/" },
+      { label: "Categories", url: "/inventory/categories/" },
+      { label: "Subcategories", url: "/inventory/subcategories/" },
+      { label: "Suppliers", url: "/inventory/suppliers/" },
+      { label: "Transactions", url: "/inventory/transactions/" },
+      { label: "POS Sales", url: "/inventory/sales/" },
+      { label: "Reports", url: "/inventory/reports/" }
+    ],
+    POS: [
+      { label: "POS Terminal", url: "/inventory/pos/" },
+      { label: "Sales History", url: "/inventory/sales/" },
+      { label: "POS Reports", url: "/inventory/reports/" }
+    ],
+    "Staff Management": [
+      { label: "Employees", url: "/dashboard/admin/hr/" },
+      { label: "Add Employee", url: "/dashboard/admin/hr/new/" },
+      { label: "Duty Roster", url: "/dashboard/admin/hr/rotas/" }
+    ],
+    Reports: [
+      { label: "Daily", url: "/dashboard/admin/reports/?period=daily" },
+      { label: "Weekly", url: "/dashboard/admin/reports/?period=weekly" },
+      { label: "Monthly", url: "/dashboard/admin/reports/?period=monthly" },
+      { label: "Yearly", url: "/dashboard/admin/reports/?period=yearly" }
+    ],
+    Analytics: [
+      { label: "Daily", url: "/dashboard/analytics/?period=daily" },
+      { label: "Weekly", url: "/dashboard/analytics/?period=weekly" },
+      { label: "Monthly", url: "/dashboard/analytics/?period=monthly" },
+      { label: "Yearly", url: "/dashboard/analytics/?period=yearly" }
+    ]
+  };
 
   const pageNameRules = [
     [/^\/$/, "Dashboard"],
@@ -138,6 +209,111 @@
     toggle.addEventListener("click", function () {
       const nextState = currentSidebarState() === "collapsed" ? "expanded" : "collapsed";
       applySidebarState(nextState);
+    });
+  }
+
+  function sidebarLinkLabel(link) {
+    const label = link.querySelector("span");
+    return (label ? label.textContent : link.textContent).trim();
+  }
+
+  function sidebarItemMatchesCurrent(item) {
+    try {
+      const target = new URL(item.url, window.location.origin);
+      if (target.pathname !== window.location.pathname) {
+        return false;
+      }
+      for (const key of target.searchParams.keys()) {
+        if (window.location.search) {
+          const currentParams = new URLSearchParams(window.location.search);
+          if (currentParams.get(key) !== target.searchParams.get(key)) {
+            return false;
+          }
+        } else if (target.searchParams.get(key)) {
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function bindSidebarDropdowns() {
+    document.querySelectorAll(".sidebar-nav").forEach(function (nav) {
+      if (nav.dataset.dropdownsEnhanced === "true") {
+        return;
+      }
+      nav.dataset.dropdownsEnhanced = "true";
+
+      Array.from(nav.children).forEach(function (child) {
+        if (!child.matches || !child.matches("a.sidebar-link")) {
+          return;
+        }
+
+        const label = sidebarLinkLabel(child);
+        const children = sidebarSubmenus[label];
+        if (!children || !children.length) {
+          return;
+        }
+
+        const group = document.createElement("div");
+        group.className = "sidebar-nav-group";
+        const childIsActive = children.some(sidebarItemMatchesCurrent);
+        if (child.classList.contains("active") || childIsActive) {
+          group.classList.add("active", "is-open");
+        }
+
+        const parent = document.createElement("div");
+        parent.className = "sidebar-nav-parent";
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "sidebar-submenu-toggle";
+        toggle.setAttribute("aria-label", `Toggle ${label} submenu`);
+        toggle.setAttribute("aria-expanded", group.classList.contains("is-open") ? "true" : "false");
+        toggle.innerHTML = "<span aria-hidden=\"true\">›</span>";
+
+        const submenu = document.createElement("div");
+        submenu.className = "sidebar-submenu";
+
+        children.forEach(function (item) {
+          const link = document.createElement("a");
+          link.className = "sidebar-submenu-link";
+          link.href = item.url;
+          link.textContent = item.label;
+          if (sidebarItemMatchesCurrent(item)) {
+            link.classList.add("active");
+          }
+          submenu.appendChild(link);
+        });
+
+        child.insertAdjacentElement("beforebegin", group);
+        parent.appendChild(child);
+        parent.appendChild(toggle);
+        group.appendChild(parent);
+        group.appendChild(submenu);
+
+        toggle.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          const isOpen = group.classList.toggle("is-open");
+          toggle.setAttribute("aria-expanded", String(isOpen));
+        });
+      });
+    });
+
+    document.addEventListener("click", function (event) {
+      if (event.target.closest(".sidebar-nav-group")) {
+        return;
+      }
+      document.querySelectorAll(".sidebar-nav-group.is-open:not(.active)").forEach(function (group) {
+        group.classList.remove("is-open");
+        const toggle = group.querySelector(".sidebar-submenu-toggle");
+        if (toggle) {
+          toggle.setAttribute("aria-expanded", "false");
+        }
+      });
     });
   }
 
@@ -395,6 +571,7 @@
   function boot() {
     bindThemeToggle();
     bindSidebarToggle();
+    bindSidebarDropdowns();
     bindPageHistoryNavigation();
     bindShowMoreLists();
 

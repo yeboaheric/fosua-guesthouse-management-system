@@ -1638,6 +1638,99 @@ body {
   opacity: 1;
 }
 
+.sidebar-nav-group {
+  position: relative;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.sidebar-nav-parent {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+}
+
+.sidebar-nav-parent .sidebar-link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-submenu-toggle {
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  margin: 0.25rem 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(237, 245, 243, 0.72);
+  font-size: 1.3rem;
+  line-height: 1;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.sidebar-submenu-toggle span {
+  display: inline-block;
+  transform-origin: center;
+  transition: transform 180ms ease;
+}
+
+.sidebar-nav-group:hover .sidebar-submenu-toggle,
+.sidebar-nav-group.is-open .sidebar-submenu-toggle,
+.sidebar-nav-group.active .sidebar-submenu-toggle {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-nav-group:hover .sidebar-submenu-toggle span,
+.sidebar-nav-group.is-open .sidebar-submenu-toggle span,
+.sidebar-nav-group.active .sidebar-submenu-toggle span {
+  transform: rotate(90deg);
+}
+
+.sidebar-submenu {
+  display: grid;
+  gap: 0.18rem;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  padding-left: 2.55rem;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: max-height 240ms ease-in-out, opacity 180ms ease, transform 220ms ease;
+}
+
+.sidebar-nav-group:hover .sidebar-submenu,
+.sidebar-nav-group.is-open .sidebar-submenu,
+.sidebar-nav-group.active .sidebar-submenu {
+  max-height: 420px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.sidebar-submenu-link {
+  display: block;
+  padding: 0.52rem 0.8rem;
+  border-radius: 12px;
+  color: rgba(237, 245, 243, 0.66);
+  font-size: 0.88rem;
+  line-height: 1.2;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.sidebar-submenu-link:hover,
+.sidebar-submenu-link.active {
+  color: #ffffff;
+  background: rgba(47, 138, 87, 0.18);
+  transform: translateX(3px);
+}
+
+.sidebar-submenu-link.active {
+  color: #f7ead7;
+  font-weight: 700;
+}
+
 .sidebar-footer {
   padding: 0.6rem 0.35rem 0.1rem;
 }
@@ -3021,6 +3114,68 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
     gap: 0;
     padding-left: 0.85rem;
     padding-right: 0.85rem;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav {
+    overflow: visible;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group {
+    display: block;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav-parent {
+    position: relative;
+    justify-content: center;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav-parent .sidebar-link {
+    flex: 1 1 auto;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-submenu-toggle {
+    position: absolute;
+    right: -0.2rem;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    margin: 0;
+    padding: 0;
+    transform: translateY(-50%);
+    background: rgba(207, 174, 132, 0.16);
+    color: rgba(237, 245, 243, 0.78);
+    font-size: 0.9rem;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-submenu {
+    position: absolute;
+    left: calc(100% + 0.8rem);
+    top: 0;
+    width: 236px;
+    max-height: none;
+    padding: 0.7rem;
+    border: 1px solid rgba(207, 174, 132, 0.22);
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(32, 63, 70, 0.98), rgba(20, 46, 52, 0.98));
+    box-shadow: 0 22px 50px rgba(10, 20, 23, 0.26);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-8px);
+    z-index: 1080;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group:hover .sidebar-submenu,
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group.is-open .sidebar-submenu,
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group.active:hover .sidebar-submenu {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group.active .sidebar-submenu:not(:hover) {
+    opacity: 0;
+    pointer-events: none;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-link span,

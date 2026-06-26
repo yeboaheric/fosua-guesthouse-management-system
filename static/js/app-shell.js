@@ -570,11 +570,15 @@
     if (!children || !children.length) {
       return;
     }
-    const moduleItems = label === "Inventory" && window.location.pathname === "/inventory/"
-      ? children.filter(function (item) {
-          return item.url !== "/inventory/sales/" && item.url !== "/inventory/pos/";
-        })
-      : children;
+    const isInventoryDashboard = label === "Inventory" && window.location.pathname === "/inventory/";
+    const isPosReceiptPage = label === "POS" && /^\/inventory\/sales\/\d+\/?$/.test(window.location.pathname);
+    const moduleItems = isPosReceiptPage
+      ? []
+      : isInventoryDashboard
+        ? children.filter(function (item) {
+            return item.url !== "/inventory/sales/" && item.url !== "/inventory/pos/";
+          })
+        : children;
     const activeChild = bestSidebarItemMatch(children);
 
     const hero = content.querySelector(".module-hero");

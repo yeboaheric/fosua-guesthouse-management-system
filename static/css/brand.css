@@ -624,23 +624,48 @@ textarea.form-control {
   display: contents;
 }
 
+.module-action-row .fg-action-control {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 0.95rem !important;
+  border-radius: 18px !important;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.module-action-row .fg-action-control svg,
+.module-action-row .fg-action-control i[data-lucide] {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  color: currentColor;
+  stroke-width: 2;
+}
+
 .module-page-tab {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 44px;
-  padding: 0.68rem 0.95rem;
-  border: 1px solid rgba(32, 63, 70, 0.1);
-  border-radius: 999px;
+  height: 56px;
+  padding: 0 0.95rem;
+  border: 1px solid rgba(32, 36, 40, 0.06);
+  border-radius: 18px;
   color: var(--fg-text);
-  background: rgba(255, 255, 255, 0.78);
-  font-size: 0.9rem;
-  font-weight: 700;
+  background: rgba(255, 255, 255, 0.94);
+  font-size: inherit;
+  font-weight: inherit;
   line-height: 1.1;
   white-space: nowrap;
-  box-shadow: 0 10px 24px rgba(16, 33, 38, 0.06);
+  box-shadow: none;
   transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
 
@@ -653,17 +678,17 @@ textarea.form-control {
 
 .module-page-tab:hover,
 .module-page-tab:focus-visible {
-  color: var(--fg-brand-primary);
-  background: rgba(207, 174, 132, 0.14);
-  border-color: rgba(207, 174, 132, 0.62);
+  color: var(--fg-text);
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(207, 174, 132, 0.24);
   transform: translateY(-1px);
 }
 
 .module-page-tab.active {
-  color: #ffffff;
-  background: linear-gradient(135deg, var(--fg-brand-primary), var(--fg-brand-primary-strong));
-  border-color: transparent;
-  box-shadow: 0 10px 24px rgba(32, 63, 70, 0.18);
+  color: var(--fg-brand-primary) !important;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(32, 36, 40, 0.06);
+  box-shadow: none;
 }
 
 .module-hero {
@@ -3481,22 +3506,24 @@ html[data-theme="dark"] .module-page-tabs {
 }
 
 html[data-theme="dark"] .module-page-tab {
-  color: var(--fg-muted);
+  color: var(--fg-text);
   border-color: var(--fg-border);
-  background: rgba(18, 35, 40, 0.84);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(180deg, rgba(17, 31, 36, 0.96), rgba(11, 22, 26, 0.94));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
 }
 
 html[data-theme="dark"] .module-page-tab:hover,
 html[data-theme="dark"] .module-page-tab:focus-visible {
-  color: var(--fg-brand-accent);
-  background: rgba(207, 174, 132, 0.12);
+  color: var(--fg-text);
+  border-color: rgba(207, 174, 132, 0.42);
+  background: linear-gradient(180deg, rgba(21, 38, 44, 0.98), rgba(13, 27, 31, 0.96));
 }
 
 html[data-theme="dark"] .module-page-tab.active {
-  color: #142e34;
-  background: linear-gradient(135deg, #f4eadc, var(--fg-brand-accent));
-  box-shadow: 0 12px 26px rgba(207, 174, 132, 0.16);
+  color: var(--fg-brand-accent) !important;
+  border-color: var(--fg-border);
+  background: linear-gradient(180deg, rgba(17, 31, 36, 0.96), rgba(11, 22, 26, 0.94));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24);
 }
 
 html[data-theme="dark"] h1,

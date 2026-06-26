@@ -545,7 +545,7 @@
       }
 
       const link = document.createElement("a");
-      link.className = "module-page-tab";
+      link.className = "topbar-pill module-page-tab";
       link.href = item.url;
       if (item.icon) {
         const icon = document.createElement("i");
@@ -897,11 +897,83 @@
     });
   }
 
+  function actionIconForLabel(label) {
+    const text = (label || "").toLowerCase();
+    const iconRules = [
+      [/export all/, "files"],
+      [/export|excel|csv|spreadsheet/, "file-spreadsheet"],
+      [/add employee|new employee/, "user-plus"],
+      [/add guest|new guest/, "user-plus"],
+      [/add room|new room/, "plus-circle"],
+      [/add item|new item/, "package-plus"],
+      [/add log|log entry/, "clipboard-plus"],
+      [/new event|event/, "calendar-plus"],
+      [/new reservation|reservation/, "calendar-plus"],
+      [/new handover|handover/, "clipboard-plus"],
+      [/save|submit|apply/, "check-circle"],
+      [/update|edit/, "pencil"],
+      [/delete|remove/, "trash-2"],
+      [/reset|clear/, "rotate-ccw"],
+      [/back|previous/, "arrow-left"],
+      [/next|forward/, "arrow-right"],
+      [/payment|paid/, "credit-card"],
+      [/sales|pos|receipt/, "receipt-text"],
+      [/report|analytics/, "bar-chart-3"],
+      [/daily|today/, "calendar-days"],
+      [/weekly|week/, "calendar-range"],
+      [/monthly|month/, "calendar"],
+      [/yearly|year/, "calendar-clock"],
+      [/inventory|item|stock/, "package"],
+      [/categor/, "folder"],
+      [/supplier/, "truck"],
+      [/transaction/, "repeat-2"],
+      [/room/, "bed-double"],
+      [/availability/, "door-open"],
+      [/employee|staff/, "users"],
+      [/finance|expense|revenue/, "badge-dollar-sign"],
+      [/notification|alert/, "bell"],
+      [/search|filter/, "search"],
+      [/print/, "printer"]
+    ];
+
+    const match = iconRules.find(function (rule) {
+      return rule[0].test(text);
+    });
+    return match ? match[1] : "arrow-right-circle";
+  }
+
+  function actionHasIcon(control) {
+    return Boolean(control.querySelector("svg, img, i[data-lucide], .spinner-border, .spinner-grow"));
+  }
+
+  function ensureActionIcon(control) {
+    if (actionHasIcon(control)) {
+      return;
+    }
+
+    const icon = document.createElement("i");
+    icon.setAttribute("data-lucide", actionIconForLabel(control.textContent));
+    icon.setAttribute("aria-hidden", "true");
+    icon.className = "fg-action-icon";
+    control.prepend(icon);
+  }
+
+  function bindActionRowControls() {
+    document.querySelectorAll(".module-action-row a, .module-action-row button").forEach(function (control) {
+      if (control.classList.contains("sidebar-link") || control.classList.contains("dropdown-item")) {
+        return;
+      }
+      control.classList.add("fg-action-control");
+      ensureActionIcon(control);
+    });
+  }
+
   function boot() {
     bindThemeToggle();
     bindSidebarToggle();
     bindSidebarDropdowns();
     bindModuleTabs();
+    bindActionRowControls();
     bindPageHistoryNavigation();
     bindShowMoreLists();
 

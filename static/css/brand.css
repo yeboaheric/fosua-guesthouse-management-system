@@ -27,7 +27,8 @@
   --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-heading: "Archivo", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  --sidebar-width: 300px;
+  --sidebar-width: 276px;
+  --sidebar-collapsed-width: 72px;
   --topbar-height: 84px;
   --radius-lg: 22px;
   --radius-md: 16px;
@@ -1548,8 +1549,8 @@ body {
   top: 8px;
   left: 8px;
   bottom: 8px;
-  width: 292px;
-  padding: 1.35rem 1rem 1.1rem;
+  width: var(--sidebar-width);
+  padding: 1.15rem 0.75rem 0.95rem;
   background: linear-gradient(180deg, rgba(32, 63, 70, 0.98) 0%, rgba(20, 46, 52, 0.99) 100%);
   color: #edf5f3;
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -1563,13 +1564,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.85rem;
-  padding: 0.45rem 0.35rem 1.1rem;
+  gap: 0.75rem;
+  padding: 0.45rem 0.25rem 1rem;
   border-radius: 0;
   background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   backdrop-filter: none;
-  min-height: 122px;
+  min-height: 104px;
 }
 
 .sidebar-brand-copy {
@@ -1584,7 +1585,7 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
   width: 100%;
   opacity: 1;
   transform: translateY(0);
@@ -1595,11 +1596,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 72px;
   width: 100%;
   min-width: 0;
   max-width: none;
-  padding: 0.95rem 1rem;
-  border-radius: 26px;
+  padding: 0.62rem 0.75rem;
+  border-radius: 22px;
   background: linear-gradient(180deg, rgba(40, 72, 81, 0.98) 0%, rgba(34, 63, 71, 0.98) 100%);
   box-shadow: 0 14px 30px rgba(10, 23, 27, 0.28);
   transition:
@@ -1613,10 +1615,11 @@ body {
 
 .sidebar-brand-home .sidebar-logo {
   width: 100%;
-  max-width: 188px;
+  max-width: 150px;
+  max-height: 54px;
   height: auto;
   flex-shrink: 0;
-  border-radius: 18px;
+  border-radius: 14px;
   border: 0;
   background: transparent;
   object-fit: contain;
@@ -1625,12 +1628,12 @@ body {
 }
 
 .sidebar-logo--full {
-  filter: drop-shadow(0 10px 20px rgba(8, 18, 21, 0.22));
+  filter: drop-shadow(0 8px 16px rgba(8, 18, 21, 0.2));
 }
 
 .sidebar-brand-toggle {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border: 1px solid rgba(207, 174, 132, 0.22);
   border-radius: 14px;
   display: inline-flex;
@@ -1660,15 +1663,14 @@ body {
 }
 
 .sidebar-nav {
-  gap: 0.55rem;
-  padding-top: 1rem;
-  padding-right: 0.1rem;
+  gap: 0.42rem;
+  padding: 0.9rem 0.05rem 0;
 }
 
 .sidebar-link {
   position: relative;
-  min-height: 62px;
-  padding: 1.16rem 1.14rem 1.16rem 1.22rem;
+  min-height: 54px;
+  padding: 0.88rem 0.86rem;
   border-radius: 18px;
   color: rgba(237, 245, 243, 0.82);
   background: transparent;
@@ -1679,7 +1681,7 @@ body {
 .sidebar-link::before {
   content: "";
   position: absolute;
-  left: 0.3rem;
+  left: 0.22rem;
   top: 50%;
   width: 4px;
   height: 0;
@@ -1690,14 +1692,19 @@ body {
 }
 
 .sidebar-link svg {
-  width: 25px;
-  height: 25px;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
   color: rgba(237, 245, 243, 0.82);
   opacity: 1;
 }
 
 .sidebar-link span {
-  font-size: 1.1rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
   line-height: 1.2;
   transition: opacity 200ms ease-in-out, width 200ms ease-in-out;
 }
@@ -1733,7 +1740,7 @@ body {
 .sidebar-nav-parent {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .sidebar-nav-parent .sidebar-link {
@@ -1742,12 +1749,12 @@ body {
 }
 
 .sidebar-submenu-toggle {
-  flex: 0 0 32px;
+  flex: 0 0 30px;
   align-self: center;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 36px;
+  width: 30px;
+  height: 34px;
   margin: 0;
   border: 0;
   border-radius: 12px;
@@ -1779,12 +1786,12 @@ body {
 
 .sidebar-submenu {
   display: grid;
-  gap: 0.08rem;
+  gap: 0.06rem;
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  margin: 0 0.15rem 0 1.18rem;
-  padding: 0 0.32rem 0 0.9rem;
+  margin: 0.05rem 0.12rem 0.05rem 1.35rem;
+  padding: 0 0.24rem 0 0.72rem;
   border-left: 2px solid rgba(47, 138, 87, 0.62);
   border-radius: 0 14px 14px 0;
   background: rgba(255, 255, 255, 0.045);
@@ -1807,9 +1814,9 @@ body {
 .sidebar-submenu-link {
   display: flex;
   align-items: center;
-  gap: 0.62rem;
-  min-height: 34px;
-  padding: 0.42rem 0.72rem;
+  gap: 0.52rem;
+  min-height: 36px;
+  padding: 0.46rem 0.6rem;
   border-radius: 12px;
   color: rgba(237, 245, 243, 0.66);
   font-size: 0.88rem;
@@ -1818,9 +1825,9 @@ body {
 }
 
 .sidebar-submenu-link svg {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 15px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   color: currentColor;
   opacity: 0.82;
 }
@@ -1845,17 +1852,17 @@ body {
 }
 
 .sidebar-footer {
-  padding: 0.6rem 0.35rem 0.1rem;
+  padding: 0.55rem 0.05rem 0.1rem;
 }
 
 .sidebar-footer-links {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.42rem;
 }
 
 .sidebar-footer-link {
-  min-height: 62px;
-  padding: 1.16rem 1.14rem 1.16rem 1.22rem;
+  min-height: 54px;
+  padding: 0.88rem 0.86rem;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
@@ -1868,13 +1875,18 @@ body {
 }
 
 .sidebar-footer-link svg {
-  width: 25px;
-  height: 25px;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
   color: rgba(237, 245, 243, 0.86);
 }
 
 .sidebar-footer-link span {
-  font-size: 1.1rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
   line-height: 1.2;
 }
 
@@ -1890,7 +1902,7 @@ body {
 }
 
 .app-main {
-  margin-left: 300px;
+  margin-left: calc(var(--sidebar-width) + 8px);
   min-height: calc(100vh - 16px);
   padding: 0 18px 22px 18px;
   transition: margin-left 200ms ease-in-out, padding 200ms ease-in-out;
@@ -3176,21 +3188,20 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
 
 @media (min-width: 992px) {
   html[data-sidebar-state="collapsed"] .app-sidebar {
-    width: 96px;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    width: var(--sidebar-collapsed-width);
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
   }
 
   html[data-sidebar-state="collapsed"] .app-main {
-    margin-left: 104px;
+    margin-left: calc(var(--sidebar-collapsed-width) + 8px);
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-brand {
-    min-height: 72px;
+    min-height: 64px;
     align-items: center;
     justify-content: center;
-    padding-top: 0.55rem;
-    padding-bottom: 0.55rem;
+    padding: 0.4rem 0 0.75rem;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-brand-lockup {
@@ -3227,14 +3238,16 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
   html[data-sidebar-state="collapsed"] .sidebar-brand-toggle {
     position: static;
     margin: 0 auto;
+    width: 38px;
+    height: 38px;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-link,
   html[data-sidebar-state="collapsed"] .sidebar-footer-link {
     justify-content: center;
     gap: 0;
-    padding-left: 0.85rem;
-    padding-right: 0.85rem;
+    min-height: 48px;
+    padding: 0.72rem 0;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-nav {
@@ -3243,6 +3256,17 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
 
   html[data-sidebar-state="collapsed"] .sidebar-nav-group {
     display: block;
+    position: relative;
+  }
+
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -0.8rem;
+    width: 0.95rem;
+    height: 100%;
+    pointer-events: auto;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-nav-parent {
@@ -3252,15 +3276,16 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
 
   html[data-sidebar-state="collapsed"] .sidebar-nav-parent .sidebar-link {
     flex: 1 1 auto;
+    width: 48px;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-submenu-toggle {
     position: absolute;
-    right: -0.2rem;
+    right: -0.18rem;
     top: 50%;
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
+    width: 17px;
+    height: 17px;
+    min-width: 17px;
     margin: 0;
     padding: 0;
     transform: translateY(-50%);
@@ -3271,9 +3296,9 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
 
   html[data-sidebar-state="collapsed"] .sidebar-submenu {
     position: absolute;
-    left: calc(100% + 0.8rem);
+    left: calc(100% + 0.2rem);
     top: 0;
-    width: 236px;
+    width: 232px;
     max-height: none;
     padding: 0.7rem;
     border: 1px solid rgba(207, 174, 132, 0.22);
@@ -3288,7 +3313,8 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-submenu-link {
-    padding: 0.52rem 0.72rem;
+    min-height: 38px;
+    padding: 0.52rem 0.68rem;
   }
 
   html[data-sidebar-state="collapsed"] .sidebar-nav-group:hover .sidebar-submenu,
@@ -3299,7 +3325,7 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
     transform: translateX(0);
   }
 
-  html[data-sidebar-state="collapsed"] .sidebar-nav-group.active .sidebar-submenu:not(:hover) {
+  html[data-sidebar-state="collapsed"] .sidebar-nav-group.active:not(.is-open) .sidebar-submenu:not(:hover) {
     opacity: 0;
     pointer-events: none;
   }
@@ -3324,7 +3350,7 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
 
   html[data-sidebar-state="collapsed"] .sidebar-link.active::before,
   html[data-sidebar-state="collapsed"] .sidebar-link:hover::before {
-    width: 34px;
+    width: 30px;
     height: 4px;
   }
 

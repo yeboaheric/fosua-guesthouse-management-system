@@ -86,7 +86,7 @@
             {% if user|can_access_module:'users_roles' %}
               <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
             {% endif %}
-            {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
+            {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports admin-report-detail' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
             {% if user|can_access_module:'analytics' %}<a class="sidebar-link {{ request|nav_active:'analytics-center' }}" href="{% url 'analytics-center' %}"><i data-lucide="chart-column"></i><span>Analytics</span></a>{% endif %}
             {% if user|can_access_module:'notifications' %}<a class="sidebar-link {{ request|nav_active:'notifications-center' }}" href="{% url 'notifications-center' %}"><i data-lucide="bell-ring"></i><span>Notifications</span></a>{% endif %}
           </nav>
@@ -137,7 +137,7 @@
               {% if user|can_access_module:'users_roles' %}
                 <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
               {% endif %}
-              {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
+              {% if user|can_access_module:'reports' %}<a class="sidebar-link {{ request|nav_active:'admin-reports admin-report-detail' }}" href="{% url 'admin-reports' %}"><i data-lucide="file-bar-chart"></i><span>Reports</span></a>{% endif %}
               {% if user|can_access_module:'analytics' %}<a class="sidebar-link {{ request|nav_active:'analytics-center' }}" href="{% url 'analytics-center' %}"><i data-lucide="chart-column"></i><span>Analytics</span></a>{% endif %}
               {% if user|can_access_module:'notifications' %}<a class="sidebar-link {{ request|nav_active:'notifications-center' }}" href="{% url 'notifications-center' %}"><i data-lucide="bell-ring"></i><span>Notifications</span></a>{% endif %}
               {% if user|can_access_module:'settings' %}<a class="sidebar-link {{ request|nav_active:'settings-center' }}" href="{% url 'settings-center' %}"><i data-lucide="settings-2"></i><span>Settings</span></a>{% endif %}
@@ -264,7 +264,7 @@
               <a href="{% url 'users-roles-center' %}" class="mobile-bottom-item {{ request|nav_active:'users-roles-center' }}"><i data-lucide="shield-user"></i><span>Users</span></a>
             {% endif %}
             {% if user|can_access_module:'reports' %}
-              <a href="{% url 'admin-reports' %}" class="mobile-bottom-item {{ request|nav_active:'admin-reports analytics-center' }}"><i data-lucide="bar-chart-3"></i><span>Reports</span></a>
+              <a href="{% url 'admin-reports' %}" class="mobile-bottom-item {{ request|nav_active:'admin-reports admin-report-detail analytics-center' }}"><i data-lucide="bar-chart-3"></i><span>Reports</span></a>
             {% endif %}
             {% if user|can_access_module:'analytics' %}
               <a href="{% url 'analytics-center' %}" class="mobile-bottom-item {{ request|nav_active:'analytics-center' }}"><i data-lucide="chart-column"></i><span>Analytics</span></a>

@@ -110,9 +110,14 @@
           <h2 class="module-card-title">{{ section.title }}</h2>
           <div class="module-card-copy">{{ section.subtitle }}</div>
         </div>
-        <a class="btn btn-outline-success" href="{% url 'admin-reports-export-section' section.key %}?start_date={{ start_date }}&end_date={{ end_date }}">
-          Export {{ section.title }}
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-primary btn-sm" href="{% url 'admin-report-detail' section.key %}?{{ report_query_string }}">
+            <i data-lucide="eye"></i> View
+          </a>
+          <a class="btn btn-outline-success btn-sm" href="{% url 'admin-reports-export-section' section.key %}?start_date={{ start_date }}&end_date={{ end_date }}">
+            Export {{ section.title }}
+          </a>
+        </div>
       </div>
     </div>
 

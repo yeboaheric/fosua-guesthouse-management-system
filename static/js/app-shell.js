@@ -78,6 +78,7 @@
     [/^\/dashboard\/admin\/?$/, "Dashboard"],
     [/^\/dashboard\/reception\/?$/, "Dashboard"],
     [/^\/dashboard\/admin\/activity-feed\/?$/, "Activity Feed"],
+    [/^\/dashboard\/admin\/reports\/(?!export\/)[^/]+\/?$/, "Report Detail"],
     [/^\/dashboard\/admin\/reports\/?$/, "Reports"],
     [/^\/dashboard\/search\/?$/, "Search Results"],
     [/^\/dashboard\/payments\/?$/, "Payments"],

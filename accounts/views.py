@@ -2818,6 +2818,7 @@ def hr_rota_detail(request, pk):
 @group_required("Admin")
 def admin_reports(request):
     report_window = _report_window_from_request(request)
+    report_query_string = _admin_report_window_query_string(report_window)
     sections = _build_admin_report_sections(
         report_window["start_date"],
         report_window["end_date"],
@@ -2840,6 +2841,7 @@ def admin_reports(request):
         "display_range": report_window["display_range"],
         "start_date": report_window["start_date"].isoformat(),
         "end_date": report_window["end_date"].isoformat(),
+        "report_query_string": report_query_string,
         "sections": sections,
         "summary_metrics": _build_admin_report_summary_metrics(sections),
         "chart_labels_json": json.dumps([row["date"] for row in occupancy_rows]),
@@ -2847,6 +2849,38 @@ def admin_reports(request):
         "occupancy_data_json": json.dumps([row["occupied_rooms"] for row in occupancy_rows]),
     }
     return render(request, "accounts/admin_reports.html", context)
+
+
+@group_required("Admin")
+def admin_report_detail(request, section):
+    report_window = _report_window_from_request(request)
+    sections = _build_admin_report_sections(
+        report_window["start_date"],
+        report_window["end_date"],
+    )
+    section_map = {section_data["key"]: section_data for section_data in sections}
+    section_data = section_map.get(section)
+    if section_data is None:
+        messages.error(request, "That report section could not be found.")
+        return redirect("admin-reports")
+
+    report_query_string = _admin_report_window_query_string(report_window)
+    chart_data = _report_section_chart_data(section_data)
+    context = {
+        "today": timezone.localdate(),
+        "section": section_data,
+        "report_window": report_window,
+        "report_period": report_window["period"],
+        "report_label": report_window["label"],
+        "display_range": report_window["display_range"],
+        "start_date": report_window["start_date"].isoformat(),
+        "end_date": report_window["end_date"].isoformat(),
+        "report_query_string": report_query_string,
+        "chart_title": chart_data["title"],
+        "chart_labels_json": json.dumps(chart_data["labels"]),
+        "chart_values_json": json.dumps(chart_data["values"]),
+    }
+    return render(request, "accounts/admin_report_detail.html", context)
 
 
 @group_required("Admin")
@@ -3020,6 +3054,14 @@ def _report_window_from_request(request):
         "label": label,
         "filename_range": f"{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}",
     }
+
+
+def _admin_report_window_query_string(report_window):
+    query = QueryDict("", mutable=True)
+    query["period"] = report_window["period"]
+    query["start_date"] = report_window["start_date"].isoformat()
+    query["end_date"] = report_window["end_date"].isoformat()
+    return query.urlencode()
 
 
 def _report_window_for_period(period, today):
@@ -5087,6 +5129,64 @@ def _build_staff_report_section(start_date, end_date):
                 "export_summary_row": ["TOTALS", attendance_records.count()],
             },
         ],
+    }
+
+
+def _report_section_chart_data(section):
+    for table in section.get("tables", []):
+        headers = table.get("headers", [])
+        export_rows = table.get("export_rows", [])
+        if len(headers) < 2 or not export_rows:
+            continue
+
+        value_index = None
+        for index, header in enumerate(headers[1:], start=1):
+            for row in export_rows:
+                if index >= len(row):
+                    continue
+                value = row[index]
+                if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+                    value_index = index
+                    break
+            if value_index is not None:
+                break
+
+        if value_index is None:
+            continue
+
+        labels = []
+        values = []
+        for row in export_rows[:24]:
+            if value_index >= len(row):
+                continue
+            value = row[value_index]
+            if not isinstance(value, (int, float, Decimal)) or isinstance(value, bool):
+                continue
+            label = row[0]
+            if isinstance(label, date):
+                label = _display_date(label)
+            labels.append(str(label))
+            values.append(float(value or 0))
+
+        if labels:
+            return {
+                "title": f"{table['title']} - {headers[value_index]}",
+                "labels": labels,
+                "values": values,
+            }
+
+    metric_labels = []
+    metric_values = []
+    for metric in section.get("metrics", []):
+        value = metric.get("export_value")
+        if isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+            metric_labels.append(metric["label"])
+            metric_values.append(float(value or 0))
+
+    return {
+        "title": "Report metrics",
+        "labels": metric_labels,
+        "values": metric_values,
     }
 
 

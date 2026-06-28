@@ -89,6 +89,7 @@ def module_from_url_name(url_name: str | None) -> str:
         "inventory-pos": "pos",
         "inventory-pos-checkout": "pos",
         "admin-reports": "reports",
+        "admin-report-detail": "reports",
         "admin-reports-export-all": "reports",
         "admin-reports-export-daily": "reports",
         "admin-reports-export-balances": "reports",

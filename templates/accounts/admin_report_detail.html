@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Report detail</div>
+        <h1 class="module-title">{{ section.title }} Report</h1>
+        <div class="module-subcopy">{{ section.subtitle }} {{ report_label }}</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'admin-reports' %}?{{ report_query_string }}"><i data-lucide="arrow-left"></i> Back to Reports</a>
+        <a class="topbar-pill" href="{% url 'admin-reports-export-section' section.key %}?{{ report_query_string }}"><i data-lucide="download"></i> Export Excel</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <a class="btn {% if report_period == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-report-detail' section.key %}?period=daily">Daily</a>
+          <a class="btn {% if report_period == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-report-detail' section.key %}?period=weekly">Weekly</a>
+          <a class="btn {% if report_period == 'monthly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-report-detail' section.key %}?period=monthly">Monthly</a>
+          <a class="btn {% if report_period == 'yearly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'admin-report-detail' section.key %}?period=yearly">Yearly</a>
+        </div>
+
+        <form method="get" class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label" for="start_date">Start date</label>
+            <input class="form-control" type="date" id="start_date" name="start_date" value="{{ start_date }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="end_date">End date</label>
+            <input class="form-control" type="date" id="end_date" name="end_date" value="{{ end_date }}">
+          </div>
+          <div class="col-md-4 d-flex gap-2">
+            <button class="btn btn-primary flex-grow-1" type="submit">Apply custom range</button>
+            <a class="btn btn-outline-secondary" href="{% url 'admin-report-detail' section.key %}?period=weekly">Reset</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="row g-3 mb-3">
+      {% for metric in section.metrics %}
+        <div class="col-md-4 col-xl-2">
+          <div class="mini-metric h-100">
+            <div class="text-muted small">{{ metric.label }}</div>
+            <div class="metric-value mt-1">{{ metric.value }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <section class="fg-chart-card module-card mb-3">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">{{ chart_title }}</h2>
+          <div class="module-card-copy">Expanded visual summary for {{ display_range }}.</div>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="chart-shell chart-shell--reports" style="min-height: 340px;">
+          <canvas id="reportDetailChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    {% for table in section.tables %}
+      <section class="module-card">
+        <div class="module-card-header">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 w-100">
+            <div>
+              <h2 class="module-card-title">{{ table.title }}</h2>
+              <div class="module-card-copy">{{ display_range }}</div>
+            </div>
+            <a class="btn btn-outline-success btn-sm" href="{% url 'admin-reports-export-section' section.key %}?{{ report_query_string }}">
+              <i data-lucide="download"></i> Export Excel
+            </a>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+          <div class="module-table-wrap">
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    {% for header in table.headers %}
+                      <th>{{ header }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in table.rows %}
+                    <tr>
+                      {% for cell in row %}
+                        <td>{{ cell }}</td>
+                      {% endfor %}
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="{{ table.headers|length }}" class="text-center text-muted py-4">
+                        No data available for this range.
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+                {% if table.summary_row %}
+                  <tfoot class="table-group-divider">
+                    <tr class="fw-semibold">
+                      {% for cell in table.summary_row %}
+                        <td>{{ cell }}</td>
+                      {% endfor %}
+                    </tr>
+                  </tfoot>
+                {% endif %}
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+</div>
+
+{{ chart_labels_json|json_script:"report-detail-labels" }}
+{{ chart_values_json|json_script:"report-detail-values" }}
+<script nonce="{{ request.csp_nonce }}">
+  window.addEventListener("load", function () {
+    if (!window.FGCharts) {
+      return;
+    }
+    const labels = window.FGParseJsonScript("report-detail-labels", []);
+    const values = window.FGParseJsonScript("report-detail-values", []);
+
+    window.FGCharts.upsert(document.getElementById("reportDetailChart"), {
+      type: "bar",
+      labels: labels,
+      xAxisTitle: "Report row",
+      yAxisTitle: "{{ chart_title|escapejs }}",
+      legend: false,
+      datasets: [{
+        label: "{{ chart_title|escapejs }}",
+        data: values,
+        backgroundColor: "#203F46",
+        borderRadius: 12,
+        maxBarThickness: 40,
+      }],
+    });
+  });
+</script>
+{% endblock %}

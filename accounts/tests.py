@@ -892,6 +892,20 @@ class AdminReportExportTests(TestCase):
         self.assertContains(response, "Duty Roster")
         self.assertContains(response, "Rooms")
         self.assertContains(response, "Staff &amp; HR")
+        self.assertContains(response, reverse("admin-report-detail", args=["bookings"]))
+        self.assertContains(response, reverse("admin-report-detail", args=["revenue-payments"]))
+
+    def test_admin_report_detail_page_renders_selected_section(self):
+        response = self.client.get(
+            reverse("admin-report-detail", args=["housekeeping"]),
+            {"start_date": self.start_date.isoformat(), "end_date": self.end_date.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Housekeeping Report")
+        self.assertContains(response, "Usage by item")
+        self.assertContains(response, "Back to Reports")
+        self.assertContains(response, "Export Excel")
+        self.assertEqual(response.context["section"]["key"], "housekeeping")
 
     def test_section_excel_export_returns_selected_section_workbook(self):
         response = self.client.get(

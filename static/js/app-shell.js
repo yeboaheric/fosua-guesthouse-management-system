@@ -364,6 +364,7 @@
         return;
       }
       nav.dataset.dropdownsEnhanced = "true";
+      const preferredLabel = moduleLabelForPath(window.location.pathname);
 
       Array.from(nav.children).forEach(function (child) {
         if (!child.matches || !child.matches("a.sidebar-link")) {
@@ -378,9 +379,13 @@
 
         const group = document.createElement("div");
         group.className = "sidebar-nav-group";
-        const activeChild = bestSidebarItemMatch(children);
+        const isPreferredGroup = !preferredLabel || label === preferredLabel;
+        const activeChild = isPreferredGroup ? bestSidebarItemMatch(children) : null;
         const childIsActive = Boolean(activeChild);
-        if (child.classList.contains("active") || childIsActive) {
+        if (!isPreferredGroup) {
+          child.classList.remove("active");
+        }
+        if (isPreferredGroup && (child.classList.contains("active") || childIsActive)) {
           group.classList.add("active", "is-open");
         }
 

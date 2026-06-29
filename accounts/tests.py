@@ -291,6 +291,125 @@ class DashboardRoutingTests(TestCase):
         self.assertContains(response, "Upcoming check-in")
         self.assertEqual(Notification.objects.filter(user=user).count(), 1)
 
+    def test_mark_all_as_read_only_updates_current_user_notifications(self):
+        admin_user = User.objects.create_user(username="notify-admin", password="pass123456")
+        admin_user.groups.add(self.admin_group)
+        receptionist_user = User.objects.create_user(username="notify-reception", password="pass123456")
+        receptionist_user.groups.add(self.receptionist_group)
+        UserAccessProfile.objects.create(
+            user=receptionist_user,
+            dashboard_access=True,
+            reservations_access=True,
+            rooms_access=True,
+            guests_access=True,
+            payments_access=True,
+            services_access=True,
+            housekeeping_access=False,
+            notifications_access=True,
+            analytics_access=False,
+            reports_access=False,
+            settings_access=False,
+            staff_management_access=False,
+            handovers_access=True,
+            users_roles_access=False,
+        )
+        Notification.objects.create(user=admin_user, title="Admin alert", message="For admin")
+        Notification.objects.create(user=admin_user, title="Admin alert 2", message="For admin")
+        receptionist_notification = Notification.objects.create(
+            user=receptionist_user,
+            title="Reception alert",
+            message="For reception",
+        )
+
+        self.client.force_login(admin_user)
+        response = self.client.post(reverse("notification-mark-all-read"), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Notification.objects.filter(user=admin_user, read_at__isnull=True).count(), 0)
+        receptionist_notification.refresh_from_db()
+        self.assertIsNone(receptionist_notification.read_at)
+
+    def test_receptionist_dashboard_shows_own_notification_badge_and_feed(self):
+        admin_user = User.objects.create_user(username="notify-admin-feed", password="pass123456")
+        admin_user.groups.add(self.admin_group)
+        receptionist_user = User.objects.create_user(username="notify-reception-feed", password="pass123456")
+        receptionist_user.groups.add(self.receptionist_group)
+        UserAccessProfile.objects.create(
+            user=receptionist_user,
+            dashboard_access=True,
+            reservations_access=True,
+            rooms_access=True,
+            guests_access=True,
+            payments_access=True,
+            services_access=True,
+            housekeeping_access=False,
+            notifications_access=True,
+            analytics_access=False,
+            reports_access=False,
+            settings_access=False,
+            staff_management_access=False,
+            handovers_access=True,
+            users_roles_access=False,
+        )
+        Notification.objects.create(
+            user=receptionist_user,
+            title="Reception desk alert",
+            message="Room 101 guest needs support.",
+        )
+        Notification.objects.create(
+            user=admin_user,
+            title="Owner withdrawals alert",
+            message="Admin-only finance item.",
+        )
+
+        self.client.force_login(receptionist_user)
+        response = self.client.get(reverse("reception-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["unread_notifications_count"], 1)
+        self.assertContains(response, "Reception desk alert")
+        self.assertNotContains(response, "Owner withdrawals alert")
+
+    def test_room_status_notifications_are_sent_to_permitted_receptionists(self):
+        admin_user = User.objects.create_user(username="notify-room-admin", password="pass123456")
+        admin_user.groups.add(self.admin_group)
+        receptionist_user = User.objects.create_user(username="notify-room-reception", password="pass123456")
+        receptionist_user.groups.add(self.receptionist_group)
+        UserAccessProfile.objects.create(
+            user=receptionist_user,
+            dashboard_access=True,
+            reservations_access=True,
+            rooms_access=True,
+            guests_access=True,
+            payments_access=True,
+            services_access=True,
+            housekeeping_access=False,
+            notifications_access=True,
+            analytics_access=False,
+            reports_access=False,
+            settings_access=False,
+            staff_management_access=False,
+            handovers_access=True,
+            users_roles_access=False,
+        )
+        room = Room.objects.create(
+            room_number="808",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=120,
+        )
+
+        room.status = Room.RoomStatus.CLEANING
+        room.save(changed_by=admin_user)
+
+        self.assertTrue(
+            Notification.objects.filter(
+                user=receptionist_user,
+                title__contains="Room 808",
+                read_at__isnull=True,
+            ).exists()
+        )
+
     def test_receptionist_cannot_see_or_access_housekeeping(self):
         receptionist_user = User.objects.create_user(
             username="reception-housekeeping", password="pass123456"

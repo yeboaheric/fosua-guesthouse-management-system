@@ -350,7 +350,7 @@ def _dashboard_snapshot(user=None):
         "upcoming_check_ins": upcoming_check_ins,
         "upcoming_check_outs": upcoming_check_outs,
         "room_status_breakdown": room_status_breakdown,
-        "recent_activity": _recent_activity_feed(),
+        "recent_activity": _recent_activity_feed(user=user),
         "recent_bookings": Booking.objects.select_related("guest", "room").order_by("-created_at")[:6],
         "recent_payments": Payment.objects.select_related("booking__guest", "booking__room", "received_by").order_by("-paid_at")[:6],
         "recent_event_bookings": EventBooking.objects.select_related("guest").order_by("-created_at")[:6],
@@ -521,7 +521,7 @@ def admin_dashboard(request):
 
 @group_required("Admin")
 def admin_dashboard_activity_feed(request):
-    return JsonResponse({"items": _recent_activity_feed(limit=12)})
+    return JsonResponse({"items": _recent_activity_feed(limit=12, user=request.user)})
 
 
 @group_required("Receptionist", "Admin", module="dashboard")
@@ -1685,6 +1685,18 @@ def notifications_center(request):
             "unread_count": unread_count,
         },
     )
+
+
+@require_POST
+@group_required("Admin", "Receptionist", module="notifications")
+def notification_mark_all_read(request):
+    updated_count = Notification.objects.filter(
+        user=request.user,
+        read_at__isnull=True,
+    ).update(read_at=timezone.now())
+    if updated_count:
+        messages.success(request, f"Marked {updated_count} notification(s) as read.")
+    return redirect("notifications-center")
 
 
 @require_POST
@@ -5811,46 +5823,99 @@ def _serialize_activity_feed(feed):
     return serialized
 
 
-def _recent_activity_feed(limit=20):
-    recent_bookings = Booking.objects.select_related("guest", "room").order_by("-created_at")[:6]
-    recent_payments = Payment.objects.select_related("booking__guest", "booking__room").order_by("-paid_at")[:6]
-    recent_event_bookings = EventBooking.objects.select_related("guest").order_by("-created_at")[:5]
-    recent_event_payments = EventPayment.objects.select_related("event_booking__guest").order_by("-paid_at")[:5]
-    recent_rooms = Room.objects.exclude(last_status_changed_at__isnull=True).order_by("-last_status_changed_at")[:6]
-    recent_status_changes = StatusHistory.objects.select_related("changed_by", "content_type").order_by("-changed_at")[:10]
-    recent_notifications = Notification.objects.order_by("-created_at")[:10]
-    recent_housekeeping = HousekeepingItemLog.objects.select_related("item", "room").order_by("-used_at", "-created_at")[:6]
-    recent_hires = Employee.objects.order_by("-created_at")[:5]
-    recent_terminations = Employee.objects.filter(
-        employment_status="terminated",
-        termination_date__isnull=False,
-    ).order_by("-updated_at")[:5]
-    recent_leave_approvals = LeaveRequest.objects.select_related("employee").filter(
-        approval_status=LeaveRequest.ApprovalStatus.APPROVED,
-        approved_at__isnull=False,
-    ).order_by("-approved_at")[:5]
+def _recent_activity_feed(limit=20, user=None):
+    def can_access(module):
+        return user is None or _user_can_access_module(user, module)
 
-    pending_booking_balances = Booking.objects.select_related("guest", "room").annotate(
-        paid_total=Coalesce(
-            Sum("payments__amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        ),
-        balance=ExpressionWrapper(
-            F("total_amount") - F("paid_total"),
-            output_field=DecimalField(max_digits=10, decimal_places=2),
-        ),
-    ).filter(balance__gt=0).order_by("-updated_at")[:5]
+    is_admin_view = user is None or _is_group_member(user, "Admin") or getattr(user, "is_superuser", False)
 
-    pending_event_balances = EventBooking.objects.select_related("guest").annotate(
-        paid_total=Coalesce(
-            Sum("payments__amount"),
-            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
-        ),
-        balance=ExpressionWrapper(
-            F("total_amount") - F("paid_total"),
-            output_field=DecimalField(max_digits=10, decimal_places=2),
-        ),
-    ).filter(balance__gt=0).order_by("-updated_at")[:5]
+    recent_bookings = (
+        Booking.objects.select_related("guest", "room").order_by("-created_at")[:6]
+        if can_access("reservations")
+        else []
+    )
+    recent_payments = (
+        Payment.objects.select_related("booking__guest", "booking__room").order_by("-paid_at")[:6]
+        if can_access("payments")
+        else []
+    )
+    recent_event_bookings = (
+        EventBooking.objects.select_related("guest").order_by("-created_at")[:5]
+        if can_access("services")
+        else []
+    )
+    recent_event_payments = (
+        EventPayment.objects.select_related("event_booking__guest").order_by("-paid_at")[:5]
+        if can_access("payments")
+        else []
+    )
+    recent_rooms = (
+        Room.objects.exclude(last_status_changed_at__isnull=True).order_by("-last_status_changed_at")[:6]
+        if can_access("rooms")
+        else []
+    )
+    recent_status_changes = (
+        StatusHistory.objects.select_related("changed_by", "content_type").order_by("-changed_at")[:10]
+        if is_admin_view
+        else []
+    )
+    recent_notifications = (
+        Notification.objects.filter(user=user).order_by("-created_at")[:10]
+        if user and can_access("notifications")
+        else []
+    )
+    recent_housekeeping = (
+        HousekeepingItemLog.objects.select_related("item", "room").order_by("-used_at", "-created_at")[:6]
+        if can_access("housekeeping")
+        else []
+    )
+    recent_hires = Employee.objects.order_by("-created_at")[:5] if can_access("staff_management") else []
+    recent_terminations = (
+        Employee.objects.filter(
+            employment_status="terminated",
+            termination_date__isnull=False,
+        ).order_by("-updated_at")[:5]
+        if can_access("staff_management")
+        else []
+    )
+    recent_leave_approvals = (
+        LeaveRequest.objects.select_related("employee").filter(
+            approval_status=LeaveRequest.ApprovalStatus.APPROVED,
+            approved_at__isnull=False,
+        ).order_by("-approved_at")[:5]
+        if can_access("staff_management")
+        else []
+    )
+
+    pending_booking_balances = (
+        Booking.objects.select_related("guest", "room").annotate(
+            paid_total=Coalesce(
+                Sum("payments__amount"),
+                Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+            ),
+            balance=ExpressionWrapper(
+                F("total_amount") - F("paid_total"),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            ),
+        ).filter(balance__gt=0).order_by("-updated_at")[:5]
+        if can_access("payments")
+        else []
+    )
+
+    pending_event_balances = (
+        EventBooking.objects.select_related("guest").annotate(
+            paid_total=Coalesce(
+                Sum("payments__amount"),
+                Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+            ),
+            balance=ExpressionWrapper(
+                F("total_amount") - F("paid_total"),
+                output_field=DecimalField(max_digits=10, decimal_places=2),
+            ),
+        ).filter(balance__gt=0).order_by("-updated_at")[:5]
+        if can_access("payments")
+        else []
+    )
 
     feed = []
     for item in recent_bookings:

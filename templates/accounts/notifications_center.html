@@ -20,6 +20,14 @@
           <h2 class="module-card-title">Recent notifications</h2>
           <div class="module-card-copy">Every unread and completed system alert is listed with its source and timestamp.</div>
         </div>
+        {% if unread_count|default:0 > 0 %}
+          <form method="post" action="{% url 'notification-mark-all-read' %}">
+            {% csrf_token %}
+            <button class="topbar-pill" type="submit">
+              <i data-lucide="check-check"></i> Mark All as Read
+            </button>
+          </form>
+        {% endif %}
       </div>
       <div class="module-card-body">
         <div class="timeline-list">

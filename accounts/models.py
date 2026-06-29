@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
@@ -109,16 +110,48 @@ class Notification(models.Model):
         return self.title
 
     @classmethod
+    def _module_for_status_history(cls, history):
+        model_key = f"{history.content_type.app_label}.{history.content_type.model}"
+        return {
+            "bookings.booking": "reservations",
+            "bookings.eventbooking": "services",
+            "rooms.room": "rooms",
+            "rooms.maintenancerequest": "rooms",
+            "guests.guest": "guests",
+            "inventory.inventoryitem": "inventory",
+            "accounts.employee": "staff_management",
+        }.get(model_key)
+
+    @classmethod
+    def _recipients_for_status_history(cls, history):
+        module_name = cls._module_for_status_history(history)
+        UserModel = get_user_model()
+        users = UserModel.objects.filter(is_active=True).prefetch_related("groups")
+        recipients = []
+        for user in users:
+            if not user_has_permission(user, "notifications", "view"):
+                continue
+            if module_name and not user_has_permission(user, module_name, "view"):
+                continue
+            recipients.append(user)
+        return recipients
+
+    @classmethod
     def create_from_status_history(cls, history):
         title = f"{history.object_repr} status updated"
         message = f"{history.previous_status or 'Unknown'} → {history.new_status}"
-        return cls.objects.create(
-            title=title,
-            message=message,
-            link="",
-            level=cls.Level.INFO,
-            user=history.changed_by,
-        )
+        notifications = [
+            cls(
+                title=title,
+                message=message,
+                link="",
+                level=cls.Level.INFO,
+                user=user,
+            )
+            for user in cls._recipients_for_status_history(history)
+        ]
+        created_notifications = cls.objects.bulk_create(notifications)
+        return created_notifications[0] if created_notifications else None
 
 
 class Employee(StatusTrackingMixin, models.Model):

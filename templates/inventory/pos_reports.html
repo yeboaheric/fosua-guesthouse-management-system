@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">POS reports</div>
+        <h1 class="module-title">POS Reports</h1>
+        <div class="module-subcopy">Generate daily, weekly, monthly, yearly, or custom POS sales reports for {{ display_range }}.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{{ detail_url }}"><i data-lucide="eye"></i> View Detailed Report</a>
+        <a class="topbar-pill" href="{{ export_url }}"><i data-lucide="download"></i> Export Excel</a>
+        <a class="topbar-pill" href="{% url 'inventory-pos-analytics' %}?{{ query_string }}"><i data-lucide="chart-column"></i> POS Analytics</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <a class="btn {% if period == 'daily' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'inventory-pos-reports' %}?period=daily">Daily</a>
+          <a class="btn {% if period == 'weekly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'inventory-pos-reports' %}?period=weekly">Weekly</a>
+          <a class="btn {% if period == 'monthly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'inventory-pos-reports' %}?period=monthly">Monthly</a>
+          <a class="btn {% if period == 'yearly' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'inventory-pos-reports' %}?period=yearly">Yearly</a>
+        </div>
+        <form method="get" class="row g-3 align-items-end">
+          <input type="hidden" name="period" value="custom">
+          <div class="col-md-4">
+            <label class="form-label" for="start_date">Start date</label>
+            <input class="form-control" type="date" name="start_date" id="start_date" value="{{ start_date_value }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="end_date">End date</label>
+            <input class="form-control" type="date" name="end_date" id="end_date" value="{{ end_date_value }}">
+          </div>
+          <div class="col-md-4 d-flex gap-2">
+            <button class="btn btn-primary flex-grow-1" type="submit">Apply custom range</button>
+            <a class="btn btn-outline-secondary" href="{% url 'inventory-pos-reports' %}">Reset</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Transactions</div><div class="metric-value">{{ transaction_count }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Total revenue</div><div class="metric-value">GHS {{ total_revenue }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Average sale</div><div class="metric-value">GHS {{ average_sale }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Items sold</div><div class="metric-value">{{ total_items|quantity }}</div></div></div>
+    </div>
+
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">{{ period_label }} POS sales summary</h2>
+          <div class="module-card-copy">Date, items sold, quantity, amount, payment method, staff, and status.</div>
+        </div>
+        <a class="btn btn-outline-primary btn-sm" href="{{ detail_url }}"><i data-lucide="eye"></i> View</a>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap"><div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Date</th><th>Items Sold</th><th>Quantity</th><th>Amount</th><th>Payment Method</th><th>Staff</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {% for row in sale_rows %}
+                <tr>
+                  <td>{{ row.date|date:"d/m/Y H:i" }}</td>
+                  <td>{{ row.items_sold }}</td>
+                  <td>{{ row.quantity|quantity }}</td>
+                  <td>GHS {{ row.amount }}</td>
+                  <td>{{ row.payment_method }}</td>
+                  <td>{{ row.staff }}</td>
+                  <td><span class="status-pill neutral">{{ row.status }}</span></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7" class="module-empty">No POS sales found for this period.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div></div>
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Payment methods</h2></div></div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap"><div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Method</th><th>Transactions</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {% for row in payment_rows %}
+                    <tr><td>{{ row.label }}</td><td>{{ row.transactions }}</td><td>GHS {{ row.total }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No payment method data available.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Best-selling items</h2></div></div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap"><div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Item</th><th>Qty Sold</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {% for row in quantity_rows %}
+                    <tr><td>{{ row.item__name }}</td><td>{{ row.quantity|quantity }}</td><td>GHS {{ row.revenue }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No best-selling item data available.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

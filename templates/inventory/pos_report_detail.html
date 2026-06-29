@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">POS report detail</div>
+        <h1 class="module-title">{{ period_label }} POS Report</h1>
+        <div class="module-subcopy">Full POS sales breakdown for {{ display_range }}.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'inventory-pos-reports' %}?{{ query_string }}"><i data-lucide="arrow-left"></i> Back to POS Reports</a>
+        <a class="topbar-pill" href="{{ export_url }}"><i data-lucide="download"></i> Export Excel</a>
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Transactions</div><div class="metric-value">{{ transaction_count }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Total revenue</div><div class="metric-value">GHS {{ total_revenue }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Average sale</div><div class="metric-value">GHS {{ average_sale }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Items sold</div><div class="metric-value">{{ total_items|quantity }}</div></div></div>
+    </div>
+
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Sales ledger</h2>
+          <div class="module-card-copy">Every completed POS sale included in this report period.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap"><div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Date</th><th>Receipt</th><th>Items Sold</th><th>Quantity</th><th>Amount</th><th>Payment Method</th><th>Staff</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {% for row in sale_rows %}
+                <tr>
+                  <td>{{ row.date|date:"d/m/Y H:i" }}</td>
+                  <td><a href="{% url 'inventory-sale-detail' row.sale.pk %}">{{ row.sale.receipt_number }}</a></td>
+                  <td>{{ row.items_sold }}</td>
+                  <td>{{ row.quantity|quantity }}</td>
+                  <td>GHS {{ row.amount }}</td>
+                  <td>{{ row.payment_method }}</td>
+                  <td>{{ row.staff }}</td>
+                  <td><span class="status-pill neutral">{{ row.status }}</span></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="8" class="module-empty">No POS sales found for this period.</td></tr>
+              {% endfor %}
+              <tr class="table-light fw-semibold">
+                <td colspan="3">Totals</td>
+                <td>{{ total_items|quantity }}</td>
+                <td>GHS {{ total_revenue }}</td>
+                <td colspan="3">Average Sale: GHS {{ average_sale }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div></div>
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-xl-4">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Peak days</h2></div></div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap"><div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Date</th><th>Transactions</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {% for row in day_rows %}
+                    <tr><td>{{ row.day|date:"d/m/Y" }}</td><td>{{ row.transactions }}</td><td>GHS {{ row.revenue }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No peak day data.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-4">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Staff processing</h2></div></div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap"><div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Staff</th><th>Transactions</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {% for row in staff_rows %}
+                    <tr><td>{{ row.cashier__username|default:"Unknown" }}</td><td>{{ row.transactions }}</td><td>GHS {{ row.revenue }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No staff data.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-4">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Correction activity</h2></div></div>
+          <div class="module-card-body">
+            <div class="d-grid gap-3">
+              <div class="mini-metric"><div class="metric-label">Edited sales</div><div class="metric-value">{{ edited_count }}</div></div>
+              <div class="mini-metric"><div class="metric-label">Voided sales</div><div class="metric-value">{{ void_count }}</div></div>
+              <div class="mini-metric"><div class="metric-label">Deleted sales</div><div class="metric-value">{{ deleted_count }}</div></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

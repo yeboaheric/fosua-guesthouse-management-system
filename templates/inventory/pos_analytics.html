@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% load accounts_extras %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">POS analytics</div>
+        <h1 class="module-title">POS Analytics</h1>
+        <div class="module-subcopy">Track sales performance, best-selling items, payment methods, staff activity, and peak sales periods for {{ display_range }}.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS Terminal</a>
+        <a class="topbar-pill" href="{% url 'inventory-pos-reports' %}?{{ query_string }}"><i data-lucide="file-bar-chart"></i> POS Reports</a>
+        <a class="topbar-pill" href="{{ export_url }}"><i data-lucide="download"></i> Export Excel</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
+          <div class="col-lg-2">
+            <label class="form-label" for="period">Period</label>
+            <select class="form-select" name="period" id="period">
+              <option value="daily" {% if period == "daily" %}selected{% endif %}>Daily</option>
+              <option value="weekly" {% if period == "weekly" %}selected{% endif %}>Weekly</option>
+              <option value="monthly" {% if period == "monthly" %}selected{% endif %}>Monthly</option>
+              <option value="yearly" {% if period == "yearly" %}selected{% endif %}>Yearly</option>
+              <option value="custom" {% if period == "custom" %}selected{% endif %}>Custom</option>
+            </select>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label" for="start_date">Start date</label>
+            <input class="form-control" type="date" name="start_date" id="start_date" value="{{ start_date_value }}">
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label" for="end_date">End date</label>
+            <input class="form-control" type="date" name="end_date" id="end_date" value="{{ end_date_value }}">
+          </div>
+          <div class="col-lg-2">
+            <button class="btn btn-primary w-100" type="submit">Apply filters</button>
+          </div>
+          <div class="col-lg-2">
+            <a class="btn btn-outline-secondary w-100" href="{% url 'inventory-pos-analytics' %}">Reset</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Total revenue</div><div class="metric-value">GHS {{ total_revenue }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Transactions</div><div class="metric-value">{{ transaction_count }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Average sale value</div><div class="metric-value">GHS {{ average_sale }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Items sold</div><div class="metric-value">{{ total_items|quantity }}</div></div></div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-7">
+        <section class="fg-chart-card module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">POS revenue over time</h2>
+              <div class="module-card-copy">{{ period_label }} revenue trend from completed POS sales.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="chart-shell chart-shell--analytics"><canvas id="posRevenueTrendChart"></canvas></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-5">
+        <section class="fg-chart-card module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Payment method breakdown</h2>
+              <div class="module-card-copy">Revenue grouped by cash, card, mobile money, bank transfer, and mixed payments.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="chart-shell chart-shell--donut mx-auto"><canvas id="posPaymentMethodChart"></canvas></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-6">
+        <section class="fg-chart-card module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Number of transactions</h2>
+              <div class="module-card-copy">Completed POS transaction count over the selected period.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="chart-shell chart-shell--analytics"><canvas id="posTransactionsTrendChart"></canvas></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-6">
+        <section class="fg-chart-card module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Best-selling items</h2>
+              <div class="module-card-copy">Top items by quantity sold.</div>
+            </div>
+          </div>
+          <div class="module-card-body">
+            <div class="chart-shell chart-shell--analytics"><canvas id="posTopItemsChart"></canvas></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Top items by revenue</h2><div class="module-card-copy">Best performers by money generated.</div></div></div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap"><div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Item</th><th>Qty Sold</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {% for row in revenue_rows %}
+                    <tr><td>{{ row.item__name }}</td><td>{{ row.quantity|quantity }}</td><td>GHS {{ row.revenue }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No POS item sales for this period.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-6">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Sales by staff</h2><div class="module-card-copy">Transactions and revenue by staff member who processed the sale.</div></div></div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap"><div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Staff</th><th>Transactions</th><th>Revenue</th></tr></thead>
+                <tbody>
+                  {% for row in staff_rows %}
+                    <tr><td>{{ row.cashier__username|default:"Unknown" }}</td><td>{{ row.transactions }}</td><td>GHS {{ row.revenue }}</td></tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No staff sales for this period.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-7">
+        <section class="fg-chart-card module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Peak sales hours</h2><div class="module-card-copy">Busiest hours by transaction count.</div></div></div>
+          <div class="module-card-body">
+            <div class="chart-shell chart-shell--analytics"><canvas id="posPeakHoursChart"></canvas></div>
+          </div>
+        </section>
+      </div>
+      <div class="col-xl-5">
+        <section class="module-card h-100">
+          <div class="module-card-header"><div><h2 class="module-card-title">Edited, voided, and deleted sales</h2><div class="module-card-copy">Admin correction activity for the selected period.</div></div></div>
+          <div class="module-card-body">
+            <div class="row g-3">
+              <div class="col-4"><div class="mini-metric h-100"><div class="metric-label">Edited</div><div class="metric-value">{{ edited_count }}</div></div></div>
+              <div class="col-4"><div class="mini-metric h-100"><div class="metric-label">Voided</div><div class="metric-value">{{ void_count }}</div></div></div>
+              <div class="col-4"><div class="mini-metric h-100"><div class="metric-label">Deleted</div><div class="metric-value">{{ deleted_count }}</div></div></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ charts_json|json_script:"pos-analytics-charts" }}
+<script nonce="{{ request.csp_nonce }}">
+  window.addEventListener("load", function () {
+    if (!window.FGCharts) {
+      return;
+    }
+    window.FGCharts.renderMany(window.FGParseJsonScript("pos-analytics-charts", []));
+  });
+</script>
+{% endblock %}

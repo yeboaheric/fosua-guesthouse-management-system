@@ -51,7 +51,8 @@
     POS: [
       { label: "POS Terminal", url: "/inventory/pos/", icon: "receipt" },
       { label: "Sales History", url: "/inventory/sales/", icon: "history" },
-      { label: "POS Reports", url: "/inventory/reports/", icon: "bar-chart-3" }
+      { label: "POS Analytics", url: "/inventory/pos/analytics/", icon: "chart-column" },
+      { label: "POS Reports", url: "/inventory/pos/reports/", icon: "file-bar-chart" }
     ],
     "Staff Management": [
       { label: "Employees", url: "/dashboard/admin/hr/", icon: "users" },
@@ -147,6 +148,9 @@
     [/^\/inventory\/items\/?$/, "Inventory Items"],
     [/^\/inventory\/transactions\/?$/, "Inventory Transactions"],
     [/^\/inventory\/pos\/checkout\/?$/, "POS Checkout"],
+    [/^\/inventory\/pos\/analytics\/?$/, "POS Analytics"],
+    [/^\/inventory\/pos\/reports\/detail\/?$/, "POS Report Detail"],
+    [/^\/inventory\/pos\/reports\/?$/, "POS Reports"],
     [/^\/inventory\/pos\/?$/, "POS"],
     [/^\/inventory\/sales\/\d+\/edit\/?$/, "Edit POS Sale"],
     [/^\/inventory\/sales\/\d+\/?$/, "POS Sale Receipt"],

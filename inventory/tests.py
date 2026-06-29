@@ -85,6 +85,20 @@ class InventoryPermissionTests(TestCase):
         self.assertNotContains(sale_detail_response, reverse("inventory-sale-update", args=[self.sale.pk]))
         self.assertNotContains(sale_detail_response, reverse("inventory-sale-delete", args=[self.sale.pk]))
 
+    def test_receptionist_can_open_pos_analytics_and_reports(self):
+        self.client.force_login(self.reception)
+        analytics_response = self.client.get(reverse("inventory-pos-analytics"))
+        self.assertEqual(analytics_response.status_code, 200)
+        self.assertContains(analytics_response, "POS Analytics")
+
+        reports_response = self.client.get(reverse("inventory-pos-reports"))
+        self.assertEqual(reports_response.status_code, 200)
+        self.assertContains(reports_response, "POS Reports")
+
+        detail_response = self.client.get(reverse("inventory-pos-report-detail"))
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "POS Report")
+
 
 class InventoryPosWorkflowTests(TestCase):
     def setUp(self):
@@ -552,6 +566,38 @@ class InventoryPosWorkflowTests(TestCase):
         reports = self.client.get(reverse("inventory-reports"))
         self.assertEqual(reports.status_code, 200)
         self.assertContains(reports, "Generate stock and sales reports for the selected date range.")
+
+    def test_pos_reports_export_xlsx_uses_real_sales_data(self):
+        sale = Sale.objects.create(
+            cashier=self.user,
+            customer_name="Report Guest",
+            payment_method=Sale.PaymentMethod.CARD,
+            subtotal="20.00",
+            grand_total="20.00",
+            amount_paid="20.00",
+        )
+        SaleItem.objects.create(
+            sale=sale,
+            item=self.item,
+            quantity="2.000",
+            unit_price="10.00",
+            line_total="20.00",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("inventory-pos-reports-export"), {"period": "monthly"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        workbook = load_workbook(BytesIO(response.content))
+        self.assertIn("POS Sales", workbook.sheetnames)
+        self.assertIn("Summary", workbook.sheetnames)
+        sales_sheet = workbook["POS Sales"]
+        self.assertEqual(sales_sheet["A1"].value, "POS Sales Report")
+        self.assertIn(sale.receipt_number, [cell.value for row in sales_sheet.iter_rows() for cell in row])
 
     def test_quantity_fields_render_without_trailing_zeroes(self):
         self.client.force_login(self.user)

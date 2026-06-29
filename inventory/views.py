@@ -14,7 +14,7 @@ from django.core.mail import EmailMessage
 from django.db import transaction
 from django.db.models import Count, DecimalField, F, Q, Sum, Value
 from django.db.models.deletion import ProtectedError
-from django.db.models.functions import Coalesce, TruncDate
+from django.db.models.functions import Coalesce, ExtractHour, TruncDate, TruncMonth
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -28,10 +28,13 @@ from reportlab.lib.utils import ImageReader
 
 from accounts.audit import log_audit_event
 from accounts.decorators import group_required
+from accounts.formatting import format_quantity
 from accounts.models import AuditLog
 from accounts.permissions import user_is_admin_role
 from accounts.reporting import (
     completed_pos_sales_queryset,
+    filter_queryset_for_local_datetime_range,
+    local_datetime_range,
     normalize_date_range,
     pos_sales_total,
     report_window_for_period as shared_report_window_for_period,
@@ -890,6 +893,70 @@ def pos_checkout(request):
     return redirect(f"{reverse('inventory-pos')}?sale_success=1&sale_id={sale.pk}")
 
 
+@group_required("Admin", "Receptionist", module="pos")
+def pos_analytics(request):
+    return render(
+        request,
+        "inventory/pos_analytics.html",
+        _pos_report_context(request),
+    )
+
+
+@group_required("Admin", "Receptionist", module="pos")
+def pos_reports(request):
+    return render(
+        request,
+        "inventory/pos_reports.html",
+        _pos_report_context(request),
+    )
+
+
+@group_required("Admin", "Receptionist", module="pos")
+def pos_report_detail(request):
+    return render(
+        request,
+        "inventory/pos_report_detail.html",
+        _pos_report_context(request, detail=True),
+    )
+
+
+@group_required("Admin", "Receptionist", module="pos", action="export")
+def pos_reports_export(request):
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        messages.error(request, "openpyxl is required for POS report exports.")
+        return redirect("inventory-pos-reports")
+
+    context = _pos_report_context(request, detail=True)
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "POS Sales"
+    _append_pos_report_sheet(worksheet, context)
+
+    summary_sheet = workbook.create_sheet(title="Summary")
+    summary_sheet.append(["Metric", "Value"])
+    summary_sheet.append(["Period", context["display_range"]])
+    summary_sheet.append(["Total Transactions", context["transaction_count"]])
+    summary_sheet.append(["Total Revenue", float(context["total_revenue"])])
+    summary_sheet.append(["Average Sale Value", float(context["average_sale"])])
+    summary_sheet.append(["Items Sold", float(context["total_items"])])
+    summary_sheet.append(["Edited Sales", context["edited_count"]])
+    summary_sheet.append(["Voided Sales", context["void_count"]])
+    summary_sheet.append(["Deleted Sales", context["deleted_count"]])
+    summary_sheet.append([])
+    summary_sheet.append(["Payment Method", "Transactions", "Revenue"])
+    for row in context["payment_rows"]:
+        summary_sheet.append([row["label"], row["transactions"], float(row["total"])])
+    for column in summary_sheet.columns:
+        letter = column[0].column_letter
+        max_length = max(len(str(cell.value or "")) for cell in column)
+        summary_sheet.column_dimensions[letter].width = min(max(max_length + 2, 14), 34)
+
+    filename = f"pos-report-{context['period']}-{context['window']['filename_range']}.xlsx"
+    return _inventory_xlsx_response(workbook, filename)
+
+
 @group_required("Admin", "Receptionist", module="pos", action=_view_or_export)
 def sale_list(request):
     query = request.GET.get("q", "").strip()
@@ -1125,6 +1192,8 @@ def sale_delete(request, pk):
     if not _user_can_edit_sale(request.user):
         raise PermissionDenied("You are not authorized to manage POS sales.")
 
+    sale_id = sale.pk
+    receipt_number = sale.receipt_number
     with transaction.atomic():
         for line in sale.items.select_related("item"):
             item = line.item
@@ -1132,6 +1201,16 @@ def sale_delete(request, pk):
             item.save()
         sale.transactions.all().delete()
         sale.delete()
+        log_audit_event(
+            request=request,
+            user=request.user,
+            action=AuditLog.ActionType.DELETE,
+            module="pos",
+            object_repr=receipt_number,
+            object_id=sale_id,
+            details={"receipt_number": receipt_number},
+            mark_request=False,
+        )
 
     messages.success(request, "Sale deleted successfully.")
     return redirect("inventory-sales")
@@ -1268,6 +1347,388 @@ def _resolve_period(period, start_date, end_date):
         return today - timedelta(days=29), today
     month_start, _ = shared_report_window_for_period("monthly", today)
     return month_start, today
+
+
+def _parse_iso_date_or_none(value):
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _pos_period_label(period):
+    return {
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "custom": "Custom",
+    }.get(period, "Monthly")
+
+
+def _pos_report_window_from_request(request):
+    today = timezone.localdate()
+    period = (request.GET.get("period") or "monthly").strip().lower()
+    if period not in {"daily", "weekly", "monthly", "yearly", "custom"}:
+        period = "monthly"
+
+    start_date = _parse_iso_date_or_none(request.GET.get("start_date"))
+    end_date = _parse_iso_date_or_none(request.GET.get("end_date"))
+    if start_date and end_date:
+        period = "custom"
+        start_date, end_date = normalize_date_range(start_date, end_date)
+    elif period == "custom":
+        start_date, end_date = today - timedelta(days=29), today
+    else:
+        start_date, end_date = shared_report_window_for_period(period, today)
+        if period in {"monthly", "yearly"}:
+            end_date = min(end_date, today)
+
+    query = f"period={period}&start_date={start_date.isoformat()}&end_date={end_date.isoformat()}"
+    filename_range = f"{start_date.strftime('%d-%m-%Y')}-to-{end_date.strftime('%d-%m-%Y')}"
+    return {
+        "period": period,
+        "period_label": _pos_period_label(period),
+        "start_date": start_date,
+        "end_date": end_date,
+        "start_date_value": start_date.isoformat(),
+        "end_date_value": end_date.isoformat(),
+        "display_range": f"{start_date.strftime('%d %b %Y')} to {end_date.strftime('%d %b %Y')}",
+        "filename_range": filename_range,
+        "query_string": query,
+    }
+
+
+def _pos_all_sales_queryset(start_date, end_date):
+    return filter_queryset_for_local_datetime_range(Sale.objects.all(), "created_at", start_date, end_date)
+
+
+def _pos_completed_sales_with_related(start_date, end_date):
+    return (
+        completed_pos_sales_queryset(start_date, end_date)
+        .select_related("cashier", "edited_by")
+        .prefetch_related("items__item")
+        .order_by("-created_at")
+    )
+
+
+def _pos_timeseries_rows(start_date, end_date, yearly=False):
+    sales = completed_pos_sales_queryset(start_date, end_date)
+    if yearly:
+        rows = (
+            sales.annotate(period_bucket=TruncMonth("created_at"))
+            .values("period_bucket")
+            .annotate(total=Coalesce(Sum("grand_total"), ZERO_MONEY), transactions=Count("id"))
+            .order_by("period_bucket")
+        )
+        values_by_month = {}
+        for row in rows:
+            bucket = row["period_bucket"]
+            if not bucket:
+                continue
+            bucket_date = timezone.localtime(bucket).date() if hasattr(bucket, "hour") else bucket
+            values_by_month[bucket_date.replace(day=1)] = row
+        current = start_date.replace(day=1)
+        chart_rows = []
+        while current <= end_date:
+            row = values_by_month.get(current, {})
+            chart_rows.append(
+                {
+                    "label": current.strftime("%b %Y"),
+                    "revenue": Decimal(str(row.get("total") or 0)),
+                    "transactions": row.get("transactions") or 0,
+                }
+            )
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
+            else:
+                current = current.replace(month=current.month + 1)
+        return chart_rows
+
+    rows = (
+        sales.annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(total=Coalesce(Sum("grand_total"), ZERO_MONEY), transactions=Count("id"))
+        .order_by("day")
+    )
+    values_by_day = {row["day"]: row for row in rows}
+    current = start_date
+    chart_rows = []
+    while current <= end_date:
+        row = values_by_day.get(current, {})
+        chart_rows.append(
+            {
+                "label": current.strftime("%b %d"),
+                "revenue": Decimal(str(row.get("total") or 0)),
+                "transactions": row.get("transactions") or 0,
+            }
+        )
+        current += timedelta(days=1)
+    return chart_rows
+
+
+def _pos_payment_method_rows(sales):
+    labels = dict(Sale.PaymentMethod.choices)
+    rows = (
+        sales.values("payment_method")
+        .annotate(transactions=Count("id"), total=Coalesce(Sum("grand_total"), ZERO_MONEY))
+        .order_by("-total")
+    )
+    return [
+        {
+            "label": labels.get(row["payment_method"], row["payment_method"] or "Other"),
+            "transactions": row["transactions"],
+            "total": Decimal(str(row["total"] or 0)),
+        }
+        for row in rows
+    ]
+
+
+def _pos_top_item_rows(sales, order_by="-quantity", limit=10):
+    return list(
+        SaleItem.objects.filter(sale__in=sales)
+        .values("item__name")
+        .annotate(
+            quantity=Coalesce(Sum("quantity"), ZERO_UNITS),
+            revenue=Coalesce(Sum("line_total"), ZERO_MONEY),
+        )
+        .order_by(order_by)[:limit]
+    )
+
+
+def _pos_staff_rows(sales):
+    return list(
+        sales.values("cashier__username")
+        .annotate(transactions=Count("id"), revenue=Coalesce(Sum("grand_total"), ZERO_MONEY))
+        .order_by("-revenue")
+    )
+
+
+def _pos_peak_hour_rows(sales):
+    return list(
+        sales.annotate(hour=ExtractHour("created_at"))
+        .values("hour")
+        .annotate(transactions=Count("id"), revenue=Coalesce(Sum("grand_total"), ZERO_MONEY))
+        .order_by("-transactions", "-revenue")[:12]
+    )
+
+
+def _pos_peak_day_rows(sales):
+    return list(
+        sales.annotate(day=TruncDate("created_at"))
+        .values("day")
+        .annotate(transactions=Count("id"), revenue=Coalesce(Sum("grand_total"), ZERO_MONEY))
+        .order_by("-transactions", "-revenue")[:10]
+    )
+
+
+def _pos_deleted_count(start_date, end_date):
+    start_at, end_at = local_datetime_range(start_date, end_date)
+    return AuditLog.objects.filter(
+        module="pos",
+        action=AuditLog.ActionType.DELETE,
+        created_at__gte=start_at,
+        created_at__lte=end_at,
+    ).count()
+
+
+def _pos_report_context(request, *, detail=False):
+    window = _pos_report_window_from_request(request)
+    sales = _pos_completed_sales_with_related(window["start_date"], window["end_date"])
+    all_sales = _pos_all_sales_queryset(window["start_date"], window["end_date"])
+    transaction_count = sales.count()
+    total_revenue = sales.aggregate(total=Coalesce(Sum("grand_total"), ZERO_MONEY))["total"]
+    average_sale = (total_revenue / transaction_count).quantize(MONEY_PLACES) if transaction_count else Decimal("0.00")
+    total_items = (
+        SaleItem.objects.filter(sale__in=sales).aggregate(total=Coalesce(Sum("quantity"), ZERO_UNITS))["total"]
+    )
+    edited_count = sales.exclude(edited_at__isnull=True).count()
+    void_count = all_sales.filter(status=Sale.SaleStatus.VOID).count()
+    deleted_count = _pos_deleted_count(window["start_date"], window["end_date"])
+    payment_rows = _pos_payment_method_rows(sales)
+    quantity_rows = _pos_top_item_rows(sales, order_by="-quantity", limit=10)
+    revenue_rows = _pos_top_item_rows(sales, order_by="-revenue", limit=10)
+    staff_rows = _pos_staff_rows(sales)
+    hour_rows = _pos_peak_hour_rows(sales)
+    day_rows = _pos_peak_day_rows(sales)
+    timeseries_rows = _pos_timeseries_rows(
+        window["start_date"],
+        window["end_date"],
+        yearly=window["period"] == "yearly",
+    )
+
+    sale_rows = []
+    for sale in sales[:250 if detail else 25]:
+        items = list(sale.items.all())
+        item_summary = ", ".join(f"{line.item.name} x {format_quantity(line.quantity)}" for line in items[:4])
+        if len(items) > 4:
+            item_summary = f"{item_summary}, +{len(items) - 4} more"
+        sale_rows.append(
+            {
+                "sale": sale,
+                "date": timezone.localtime(sale.created_at),
+                "items_sold": item_summary or "No line items",
+                "quantity": sum((line.quantity for line in items), Decimal("0")),
+                "amount": sale.grand_total,
+                "payment_method": sale.get_payment_method_display(),
+                "staff": sale.cashier.get_username() if sale.cashier_id else "-",
+                "status": sale.get_status_display(),
+            }
+        )
+
+    return {
+        "window": window,
+        "period": window["period"],
+        "period_label": window["period_label"],
+        "start_date": window["start_date"],
+        "end_date": window["end_date"],
+        "start_date_value": window["start_date_value"],
+        "end_date_value": window["end_date_value"],
+        "display_range": window["display_range"],
+        "query_string": window["query_string"],
+        "total_revenue": total_revenue,
+        "transaction_count": transaction_count,
+        "average_sale": average_sale,
+        "total_items": total_items,
+        "edited_count": edited_count,
+        "void_count": void_count,
+        "deleted_count": deleted_count,
+        "payment_rows": payment_rows,
+        "quantity_rows": quantity_rows,
+        "revenue_rows": revenue_rows,
+        "staff_rows": staff_rows,
+        "hour_rows": hour_rows,
+        "day_rows": day_rows,
+        "sale_rows": sale_rows,
+        "export_url": f"{reverse('inventory-pos-reports-export')}?{window['query_string']}",
+        "detail_url": f"{reverse('inventory-pos-report-detail')}?{window['query_string']}",
+        "charts_json": json.dumps(
+            [
+                {
+                    "id": "posRevenueTrendChart",
+                    "type": "line",
+                    "labels": [row["label"] for row in timeseries_rows],
+                    "xAxisTitle": "Period",
+                    "yAxisTitle": "Revenue (GHS)",
+                    "tooltipPrefix": "GHS ",
+                    "datasets": [
+                        {
+                            "label": "POS Revenue",
+                            "data": [float(row["revenue"]) for row in timeseries_rows],
+                            "borderColor": "#203F46",
+                            "backgroundColor": "#203F46",
+                            "gradientFill": True,
+                            "fill": True,
+                            "tension": 0.35,
+                        }
+                    ],
+                },
+                {
+                    "id": "posTransactionsTrendChart",
+                    "type": "bar",
+                    "labels": [row["label"] for row in timeseries_rows],
+                    "xAxisTitle": "Period",
+                    "yAxisTitle": "Transactions",
+                    "datasets": [
+                        {
+                            "label": "Transactions",
+                            "data": [row["transactions"] for row in timeseries_rows],
+                            "backgroundColor": "#CFAE84",
+                            "borderColor": "#CFAE84",
+                        }
+                    ],
+                },
+                {
+                    "id": "posPaymentMethodChart",
+                    "type": "doughnut",
+                    "labels": [row["label"] for row in payment_rows],
+                    "datasets": [
+                        {
+                            "label": "Payment Methods",
+                            "data": [float(row["total"]) for row in payment_rows],
+                            "backgroundColor": ["#203F46", "#CFAE84", "#2F8A57", "#8F6F4F", "#6E8790"],
+                        }
+                    ],
+                },
+                {
+                    "id": "posTopItemsChart",
+                    "type": "bar",
+                    "labels": [row["item__name"] for row in quantity_rows[:8]],
+                    "xAxisTitle": "Item",
+                    "yAxisTitle": "Quantity Sold",
+                    "datasets": [
+                        {
+                            "label": "Quantity sold",
+                            "data": [float(row["quantity"]) for row in quantity_rows[:8]],
+                            "backgroundColor": "#203F46",
+                            "borderColor": "#203F46",
+                        }
+                    ],
+                },
+                {
+                    "id": "posPeakHoursChart",
+                    "type": "bar",
+                    "labels": [f"{row['hour'] or 0:02d}:00" for row in hour_rows],
+                    "xAxisTitle": "Hour",
+                    "yAxisTitle": "Transactions",
+                    "datasets": [
+                        {
+                            "label": "Transactions",
+                            "data": [row["transactions"] for row in hour_rows],
+                            "backgroundColor": "#CFAE84",
+                            "borderColor": "#CFAE84",
+                        }
+                    ],
+                },
+            ]
+        ),
+    }
+
+
+def _append_pos_report_sheet(worksheet, context):
+    from openpyxl.styles import Font, PatternFill
+
+    header_fill = PatternFill(start_color="203F46", end_color="203F46", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    summary_font = Font(bold=True)
+
+    worksheet["A1"] = "POS Sales Report"
+    worksheet["A1"].font = Font(bold=True, size=14)
+    worksheet["A2"] = context["display_range"]
+    worksheet.append([])
+    worksheet.append(["Date", "Receipt", "Items Sold", "Quantity", "Amount", "Payment Method", "Staff", "Status"])
+    for cell in worksheet[4]:
+        cell.fill = header_fill
+        cell.font = header_font
+
+    for row in context["sale_rows"]:
+        worksheet.append(
+            [
+                row["date"].strftime("%d/%m/%Y %H:%M"),
+                row["sale"].receipt_number,
+                row["items_sold"],
+                float(row["quantity"]),
+                float(row["amount"]),
+                row["payment_method"],
+                row["staff"],
+                row["status"],
+            ]
+        )
+
+    worksheet.append([])
+    worksheet.append(["Totals", "", "", float(context["total_items"]), float(context["total_revenue"]), "", "", ""])
+    worksheet.append(["Transactions", context["transaction_count"], "Average Sale", float(context["average_sale"]), "Edited", context["edited_count"], "Deleted", context["deleted_count"]])
+    for cell in worksheet[worksheet.max_row - 1]:
+        cell.font = summary_font
+    for cell in worksheet[worksheet.max_row]:
+        cell.font = summary_font
+
+    for column in worksheet.columns:
+        letter = column[0].column_letter
+        max_length = max(len(str(cell.value or "")) for cell in column)
+        worksheet.column_dimensions[letter].width = min(max(max_length + 2, 12), 42)
 
 
 def _daily_sales_rows(start_date, end_date):

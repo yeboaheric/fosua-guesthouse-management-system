@@ -60,7 +60,7 @@
         </div>
       </div>
       <div class="module-card-body">
-        <div class="chart-shell chart-shell--reports" style="min-height: 340px;">
+        <div class="chart-shell chart-shell--reports chart-shell--reports-lg">
           <canvas id="reportDetailChart"></canvas>
         </div>
       </div>
@@ -99,7 +99,7 @@
                     </tr>
                   {% empty %}
                     <tr>
-                      <td colspan="{{ table.headers|length }}" class="text-center text-muted py-4">
+                      <td colspan="{{ table.headers|length }}" class="module-empty">
                         No data available for this range.
                       </td>
                     </tr>

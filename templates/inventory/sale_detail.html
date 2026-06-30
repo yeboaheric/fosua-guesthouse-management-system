@@ -27,14 +27,15 @@
       </div>
     </section>
 
-  <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Subtotal</div><div class="metric-value">GHS {{ sale.subtotal }}</div></div></div>
-    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Tax</div><div class="metric-value">GHS {{ sale.tax_amount }}</div></div></div>
-    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Paid</div><div class="metric-value">GHS {{ sale.amount_paid }}</div></div></div>
-    <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Change due</div><div class="metric-value">GHS {{ sale.change_due }}</div></div></div>
-  </div>
+  <div class="fg-print-receipt">
+    <div class="row g-3 mb-3">
+      <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Subtotal</div><div class="metric-value">GHS {{ sale.subtotal }}</div></div></div>
+      <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Tax</div><div class="metric-value">GHS {{ sale.tax_amount }}</div></div></div>
+      <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Paid</div><div class="metric-value">GHS {{ sale.amount_paid }}</div></div></div>
+      <div class="col-md-3"><div class="mini-metric h-100"><div class="metric-label">Change due</div><div class="metric-value">GHS {{ sale.change_due }}</div></div></div>
+    </div>
 
-  <div class="row g-3">
+    <div class="row g-3">
     <div class="col-xl-8">
       <section class="module-card h-100">
         <div class="module-card-header">
@@ -131,6 +132,8 @@
         </div>
       </section>
     </div>
+    </div>
   </div>
+</div>
 </div>
 {% endblock %}

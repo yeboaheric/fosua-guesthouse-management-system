@@ -4554,3 +4554,191 @@ html[data-theme="dark"] .dashboard-activity-item *,
 html[data-theme="dark"] .dashboard-list-table * {
   border-color: var(--fg-border);
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+
+  html,
+  body {
+    width: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .fg-print-receipt,
+  .fg-print-receipt * {
+    visibility: visible !important;
+  }
+
+  .fg-print-receipt {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #111 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .app-sidebar,
+  .offcanvas,
+  .app-topbar,
+  .app-pathbar,
+  .mobile-bottom-nav,
+  .module-hero,
+  .module-action-row,
+  .topbar-pill,
+  .btn,
+  .fg-top-progress,
+  .page-skeleton-layer,
+  .fg-action-toast-stack,
+  [data-print],
+  nav,
+  header {
+    display: none !important;
+  }
+
+  .app-shell-layout,
+  .app-main,
+  .app-content,
+  .page-content-shell,
+  .page-content-body,
+  .dashboard-background,
+  .module-shell {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .fg-print-receipt .module-card,
+  .fg-print-receipt.module-card,
+  .fg-print-receipt .mini-metric {
+    color: #111 !important;
+    background: #fff !important;
+    border-color: #ddd !important;
+    box-shadow: none !important;
+  }
+
+  .fg-print-receipt .module-card-body,
+  .fg-print-receipt.module-card .module-card-body {
+    padding: 0 !important;
+  }
+
+  .fg-print-receipt .module-card-header {
+    padding: 0 0 8mm !important;
+    border-bottom: 1px solid #ddd !important;
+  }
+
+  .fg-print-receipt .module-card-title,
+  .fg-print-receipt h1,
+  .fg-print-receipt h2,
+  .fg-print-receipt h3,
+  .fg-print-receipt h4,
+  .fg-print-receipt h5,
+  .fg-print-receipt h6,
+  .fg-print-receipt strong {
+    color: #111 !important;
+  }
+
+  .fg-print-receipt .text-muted,
+  .fg-print-receipt .module-card-copy,
+  .fg-print-receipt .metric-label,
+  .fg-print-receipt .module-form-total-label {
+    color: #555 !important;
+  }
+
+  .fg-print-receipt .row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+  }
+
+  .fg-print-receipt .col-md-3 {
+    width: 25% !important;
+  }
+
+  .fg-print-receipt .col-md-6,
+  .fg-print-receipt .col-xl-4,
+  .fg-print-receipt .col-xl-8 {
+    width: 50% !important;
+  }
+
+  .fg-print-receipt .table-responsive,
+  .fg-print-receipt .module-table-wrap {
+    overflow: visible !important;
+  }
+
+  .fg-print-receipt table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  .fg-print-receipt th,
+  .fg-print-receipt td {
+    padding: 6px 8px !important;
+    color: #111 !important;
+    background: #fff !important;
+    border: 1px solid #ddd !important;
+  }
+
+  .fg-print-receipt thead th,
+  .fg-print-receipt .table-light th {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .fg-print-receipt tr,
+  .fg-print-receipt .module-card,
+  .fg-print-receipt .mini-metric,
+  .fg-print-receipt .border {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .fg-print-receipt .brand-mark {
+    max-width: 64px !important;
+    max-height: 64px !important;
+  }
+
+  .fg-print-receipt .module-form-total {
+    background: #f8faf9 !important;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .fg-print-receipt .module-form-total-value,
+  .fg-print-receipt .metric-value {
+    color: #111 !important;
+  }
+
+  .fg-print-receipt a[href]::after {
+    content: "" !important;
+  }
+}

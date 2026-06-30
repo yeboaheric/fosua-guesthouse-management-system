@@ -87,6 +87,8 @@
     [/^\/dashboard\/finance\/?$/, "Finance"],
     [/^\/dashboard\/owner-withdrawals\/?$/, "Owner Withdrawals"],
     [/^\/dashboard\/sales-deposits\/\d+\/edit\/?$/, "Edit Sales Deposit"],
+    [/^\/dashboard\/sales-deposits\/\d+\/receipt\/pdf\/?$/, "Sales Deposit Receipt PDF"],
+    [/^\/dashboard\/sales-deposits\/\d+\/receipt\/?$/, "Sales Deposit Receipt"],
     [/^\/dashboard\/sales-deposits\/?$/, "Sales Deposits"],
     [/^\/dashboard\/services\/?$/, "Event Reservations"],
     [/^\/dashboard\/housekeeping\/?$/, "Housekeeping"],

@@ -990,6 +990,118 @@ def sales_deposits_export_xlsx(request):
     )
 
 
+def _sales_deposit_receipt_number(withdrawal):
+    return f"SD-{withdrawal.pk:05d}"
+
+
+def _sales_deposit_collector_name(withdrawal):
+    return withdrawal.collected_by or "Not collected / leftover"
+
+
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_receipt(request, pk):
+    withdrawal = get_object_or_404(OwnerWithdrawal.objects.select_related("recorded_by"), pk=pk)
+    return render(
+        request,
+        "accounts/sales_deposit_receipt.html",
+        {
+            "deposit": withdrawal,
+            "receipt_number": _sales_deposit_receipt_number(withdrawal),
+            "issuer_name": withdrawal.recorded_by_name,
+            "collector_name": _sales_deposit_collector_name(withdrawal),
+        },
+    )
+
+
+@group_required("Admin", "Receptionist", module="payments", action="view")
+def sales_deposit_pdf(request, pk):
+    withdrawal = get_object_or_404(OwnerWithdrawal.objects.select_related("recorded_by"), pk=pk)
+    pdf_data = _render_sales_deposit_receipt_pdf(withdrawal)
+    receipt_number = _sales_deposit_receipt_number(withdrawal)
+    response = HttpResponse(pdf_data, content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="{receipt_number}.pdf"'
+    return response
+
+
+def _render_sales_deposit_receipt_pdf(withdrawal):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    receipt_number = _sales_deposit_receipt_number(withdrawal)
+    issuer_name = withdrawal.recorded_by_name
+    collector_name = _sales_deposit_collector_name(withdrawal)
+    created_at = timezone.localtime(withdrawal.created_at)
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    pdf.setFillColor(colors.HexColor("#23444b"))
+    pdf.rect(0, height - 35 * mm, width, 35 * mm, stroke=0, fill=1)
+
+    pdf.setFillColor(colors.HexColor("#f7faf9"))
+    pdf.setFont("Helvetica-Bold", 16)
+    pdf.drawString(18 * mm, height - 18 * mm, "Fosua Guesthouse - Aduman")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(18 * mm, height - 25 * mm, "Official Sales Deposit Receipt")
+
+    y = height - 45 * mm
+    pdf.setFillColor(colors.black)
+    pdf.setFont("Helvetica-Bold", 11)
+    pdf.drawString(18 * mm, y, f"Receipt #: {receipt_number}")
+    pdf.drawRightString(width - 18 * mm, y, created_at.strftime("%Y-%m-%d %H:%M"))
+
+    y -= 12 * mm
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(18 * mm, y, "Collection Details")
+    y -= 7 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(18 * mm, y, f"Entry Type: {withdrawal.get_entry_type_display()}")
+    y -= 6 * mm
+    pdf.drawString(18 * mm, y, f"Method: {withdrawal.get_collection_method_display()}")
+    y -= 6 * mm
+    pdf.drawString(18 * mm, y, f"Issued By: {issuer_name}")
+    y -= 6 * mm
+    pdf.drawString(18 * mm, y, f"Collected By: {collector_name}")
+
+    y -= 12 * mm
+    pdf.setStrokeColor(colors.HexColor("#d9d9d9"))
+    pdf.line(18 * mm, y, width - 18 * mm, y)
+    y -= 10 * mm
+
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(18 * mm, y, "Amount Collected")
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawRightString(width - 18 * mm, y, f"GHS {withdrawal.amount}")
+
+    y -= 28 * mm
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(18 * mm, y, "Person issuing the money")
+    pdf.drawString((width / 2) + 8 * mm, y, "Person collecting the money")
+
+    y -= 12 * mm
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(18 * mm, y, f"Name: {issuer_name}")
+    pdf.drawString((width / 2) + 8 * mm, y, f"Name: {collector_name}")
+
+    y -= 24 * mm
+    pdf.setStrokeColor(colors.HexColor("#7f8f93"))
+    pdf.line(18 * mm, y, (width / 2) - 8 * mm, y)
+    pdf.line((width / 2) + 8 * mm, y, width - 18 * mm, y)
+    y -= 5 * mm
+    pdf.setFont("Helvetica", 8)
+    pdf.setFillColor(colors.HexColor("#555555"))
+    pdf.drawString(18 * mm, y, "Signature")
+    pdf.drawString((width / 2) + 8 * mm, y, "Signature")
+
+    pdf.showPage()
+    pdf.save()
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def _finance_filters_querystring(filters):
     query = QueryDict("", mutable=True)
     query["period"] = filters["report_window"]["period"]

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Receipt</div>
+        <h1 class="module-title">Sales Deposit Receipt</h1>
+        <div class="module-subcopy">{{ receipt_number }} · {{ deposit.created_at|date:"d/m/Y H:i" }}</div>
+      </div>
+      <div class="module-action-row">
+        <a class="btn btn-outline-secondary" href="{% url 'sales-deposits-center' %}">Back</a>
+        <a class="btn btn-outline-primary" href="{% url 'sales-deposit-pdf' deposit.pk %}">Download PDF</a>
+        <button class="btn btn-primary" type="button" data-print>Print</button>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body p-4 p-lg-5">
+        <div class="d-flex justify-content-between gap-4 flex-wrap mb-4">
+          <div>
+            <img src="{% static 'branding/fosua-logo.jpg' %}" alt="Fosua Guesthouse logo" class="brand-mark mb-2">
+            <h2 class="h5 mb-1">Fosua Guesthouse - Aduman</h2>
+            <div class="text-muted">Official sales deposit receipt</div>
+          </div>
+          <div class="text-end">
+            <div><strong>Receipt #:</strong> {{ receipt_number }}</div>
+            <div><strong>Date:</strong> {{ deposit.created_at|date:"d/m/Y H:i" }}</div>
+          </div>
+        </div>
+
+        <hr>
+
+        <div class="row g-4 mb-4">
+          <div class="col-md-6">
+            <h3 class="h6">Collection Details</h3>
+            <div><strong>Entry type:</strong> {{ deposit.get_entry_type_display }}</div>
+            <div><strong>Method:</strong> {{ deposit.get_collection_method_display }}</div>
+            <div><strong>Amount collected:</strong> GHS {{ deposit.amount }}</div>
+          </div>
+          <div class="col-md-6">
+            <h3 class="h6">People</h3>
+            <div><strong>Issued by:</strong> {{ issuer_name }}</div>
+            <div><strong>Collected by:</strong> {{ collector_name }}</div>
+          </div>
+        </div>
+
+        <div class="module-form-total mb-4">
+          <div class="module-form-total-label">Amount Collected</div>
+          <div class="module-form-total-value">GHS {{ deposit.amount }}</div>
+        </div>
+
+        <div class="row g-4 mt-2">
+          <div class="col-md-6">
+            <div class="border rounded-4 p-4 h-100">
+              <div class="text-muted small text-uppercase fw-semibold mb-3">Person issuing the money</div>
+              <div class="mb-5"><strong>Name:</strong> {{ issuer_name }}</div>
+              <div class="border-top pt-2 text-muted small">Signature</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded-4 p-4 h-100">
+              <div class="text-muted small text-uppercase fw-semibold mb-3">Person collecting the money</div>
+              <div class="mb-5"><strong>Name:</strong> {{ collector_name }}</div>
+              <div class="border-top pt-2 text-muted small">Signature</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

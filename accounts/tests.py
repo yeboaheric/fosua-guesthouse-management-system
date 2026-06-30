@@ -577,6 +577,31 @@ class SalesDepositsModuleTests(TestCase):
         self.assertEqual(summary_sheet["B4"].value, "Total Amount")
         self.assertEqual(summary_sheet["B5"].value, 40)
 
+    def test_sales_deposit_receipt_page_and_pdf_use_logged_names(self):
+        withdrawal = OwnerWithdrawal.objects.create(
+            amount="125.00",
+            collection_method=OwnerWithdrawal.CollectionMethod.CASH,
+            collected_by="Kwame Collector",
+            recorded_by=self.reception_user,
+        )
+        self.client.force_login(self.reception_user)
+
+        receipt_response = self.client.get(reverse("sales-deposit-receipt", args=[withdrawal.pk]))
+        self.assertEqual(receipt_response.status_code, 200)
+        self.assertContains(receipt_response, "Sales Deposit Receipt")
+        self.assertContains(receipt_response, "Kojo Mensah")
+        self.assertContains(receipt_response, "Kwame Collector")
+        self.assertContains(receipt_response, "Signature")
+
+        list_response = self.client.get(reverse("sales-deposits-center"))
+        self.assertContains(list_response, reverse("sales-deposit-receipt", args=[withdrawal.pk]))
+        self.assertContains(list_response, reverse("sales-deposit-pdf", args=[withdrawal.pk]))
+
+        pdf_response = self.client.get(reverse("sales-deposit-pdf", args=[withdrawal.pk]))
+        self.assertEqual(pdf_response.status_code, 200)
+        self.assertEqual(pdf_response["Content-Type"], "application/pdf")
+        self.assertIn("SD-", pdf_response["Content-Disposition"])
+
     def test_sales_deposit_filter_normalizes_inverted_dates(self):
         OwnerWithdrawal.objects.create(
             amount="60.00",

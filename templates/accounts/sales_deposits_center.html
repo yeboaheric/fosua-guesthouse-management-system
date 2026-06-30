@@ -142,6 +142,7 @@
                       <th>Method</th>
                       <th>Collected By</th>
                       <th>Recorded By</th>
+                      <th>Receipt</th>
                       {% if can_manage_sales_deposits %}<th>Actions</th>{% endif %}
                     </tr>
                   </thead>
@@ -154,6 +155,12 @@
                         <td>{{ deposit.get_collection_method_display }}</td>
                         <td>{{ deposit.collected_by|default:"-" }}</td>
                         <td>{{ deposit.recorded_by_name }}</td>
+                        <td>
+                          <div class="module-table-actions justify-content-start">
+                            <a class="status-pill neutral" href="{% url 'sales-deposit-receipt' deposit.pk %}">Receipt</a>
+                            <a class="status-pill success" href="{% url 'sales-deposit-pdf' deposit.pk %}">PDF</a>
+                          </div>
+                        </td>
                         {% if can_manage_sales_deposits %}
                           <td>
                             <div class="module-table-actions">
@@ -168,7 +175,7 @@
                       </tr>
                     {% empty %}
                       <tr>
-                        <td colspan="{% if can_manage_sales_deposits %}7{% else %}6{% endif %}" class="text-muted">No sales deposits found for the selected filter.</td>
+                        <td colspan="{% if can_manage_sales_deposits %}8{% else %}7{% endif %}" class="text-muted">No sales deposits found for the selected filter.</td>
                       </tr>
                     {% endfor %}
                   </tbody>

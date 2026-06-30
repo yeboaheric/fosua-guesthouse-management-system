@@ -10,11 +10,23 @@ class Guest(StatusTrackingMixin, models.Model):
         MISS = "miss", "Miss"
         SIR = "sir", "Sir"
 
+    class OtherIdType(models.TextChoices):
+        DRIVERS_LICENSE = "drivers_license", "Driving Licence"
+        VOTER_ID = "voter_id", "Voter ID"
+        PASSPORT = "passport", "Passport"
+        NATIONAL_ID = "national_id", "National ID"
+        OTHER = "other", "Other ID"
+
     title = models.CharField(max_length=10, choices=Title.choices, blank=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     phone_number = models.CharField(max_length=20)
     email = models.EmailField(blank=True)
+    id_type = models.CharField(
+        max_length=30,
+        choices=OtherIdType.choices,
+        blank=True,
+    )
     id_number = models.CharField(max_length=50, blank=True)
     ghana_card_number = models.CharField(max_length=50, blank=True)
     ghana_card_expiry_date = models.DateField(blank=True, null=True)

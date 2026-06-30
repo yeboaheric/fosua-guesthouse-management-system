@@ -344,3 +344,62 @@ class SaleItem(models.Model):
 
     def __str__(self):
         return f"{self.item.name} x {self.quantity}"
+
+
+class CashDrawerSession(models.Model):
+    class SessionStatus(models.TextChoices):
+        OPEN = "open", "Open"
+        CLOSED = "closed", "Closed"
+
+    staff = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="cash_drawer_sessions",
+    )
+    opening_float = models.DecimalField(max_digits=12, decimal_places=2)
+    opening_time = models.DateTimeField(default=timezone.now)
+    opening_note = models.TextField(blank=True)
+    closing_count = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    closing_time = models.DateTimeField(blank=True, null=True)
+    expected_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    variance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    variance_note = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=SessionStatus.choices,
+        default=SessionStatus.OPEN,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-opening_time"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["staff"],
+                condition=models.Q(status="open"),
+                name="unique_open_cash_drawer_session_per_staff",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "opening_time"], name="inventory_c_status_028c6f_idx"),
+            models.Index(fields=["staff", "opening_time"], name="inventory_c_staff_i_611d8b_idx"),
+        ]
+
+    def __str__(self):
+        staff_name = self.staff.get_full_name() or self.staff.username
+        return f"{staff_name} cash drawer - {self.opening_time:%Y-%m-%d %H:%M}"
+
+    @property
+    def staff_name(self):
+        return self.staff.get_full_name() or self.staff.username
+
+    @property
+    def variance_status(self):
+        if self.status != self.SessionStatus.CLOSED:
+            return "Open"
+        if self.variance == 0:
+            return "Balanced"
+        if self.variance > 0:
+            return "Over"
+        return "Short"

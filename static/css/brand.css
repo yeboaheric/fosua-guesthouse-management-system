@@ -2778,6 +2778,9 @@ body {
 
 .dashboard-chip,
 .dashboard-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 42px;
   padding: 0.7rem 1rem;
   border-radius: 14px;
@@ -2785,6 +2788,7 @@ body {
   background: #fff;
   font-weight: 500;
   color: #4d555d;
+  text-decoration: none;
 }
 
 .dashboard-filter-pill {

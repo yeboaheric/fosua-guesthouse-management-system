@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Front desk</div>
+        <h1 class="module-title">Check-In / Check-Out</h1>
+        <div class="module-subcopy">Process today’s guest arrivals and departures using the same reservation, room, and payment records already in the system.</div>
+      </div>
+      <div class="module-action-row">
+        <button class="btn btn-outline-secondary" type="button" disabled title="Coming soon">Walk-In Check-In</button>
+        <a class="btn btn-outline-primary" href="{% url 'booking-list' %}">Reservations</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="get" class="row g-3 align-items-end">
+          <div class="col-lg-9">
+            <label class="form-label" for="frontDeskSearch">Quick search</label>
+            <input class="form-control" id="frontDeskSearch" type="search" name="q" value="{{ query }}" placeholder="Search guest name, phone, Ghana card, booking number, or room number">
+          </div>
+          <div class="col-lg-3">
+            <button class="btn btn-primary w-100" type="submit">Search</button>
+          </div>
+        </form>
+        <div class="form-text mt-2">Walk-in check-in is intentionally left as a future hook. Use Reservations to create a booking first.</div>
+      </div>
+    </section>
+
+    {% if query %}
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Search results</h2>
+            <div class="module-card-copy">Use this for early check-ins, late check-outs, or guests not listed in today’s queue.</div>
+          </div>
+        </div>
+        <div class="module-card-body p-0">
+          <div class="module-table-wrap table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Booking</th>
+                  <th>Guest</th>
+                  <th>Room</th>
+                  <th>Stay</th>
+                  <th>Status</th>
+                  <th class="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for booking in search_results %}
+                  <tr>
+                    <td>#{{ booking.pk }}</td>
+                    <td>{{ booking.guest }}</td>
+                    <td>{{ booking.room.room_number }}</td>
+                    <td>{{ booking.check_in|date:"d/m/Y" }} - {{ booking.check_out|date:"d/m/Y" }}</td>
+                    <td><span class="status-pill neutral">{{ booking.get_status_display }}</span></td>
+                    <td class="text-end">
+                      {% if booking.status == "pending" or booking.status == "confirmed" %}
+                        <a class="status-pill success" href="{% url 'front-desk-center' %}?checkin={{ booking.pk }}">Check In</a>
+                      {% elif booking.status == "checked_in" %}
+                        <a class="status-pill warning" href="{% url 'front-desk-center' %}?checkout={{ booking.pk }}">Check Out</a>
+                      {% else %}
+                        <a class="status-pill neutral" href="{% url 'booking-detail' booking.pk %}">View</a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="6" class="module-empty">No matching reservations found.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-xl-6">
+        <section class="module-card h-100" id="arrivals-today">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Arrivals today</h2>
+              <div class="module-card-copy">Guests due to check in on {{ today|date:"l, d F Y" }}.</div>
+            </div>
+            <span class="status-pill success">{{ arrivals|length }} due</span>
+          </div>
+          <div class="module-card-body">
+            <div class="d-grid gap-3">
+              {% for booking in arrivals %}
+                <article class="result-card">
+                  <div class="d-flex justify-content-between gap-3 flex-wrap">
+                    <div>
+                      <div class="result-title">{{ booking.guest }}</div>
+                      <div class="text-muted small">Booking #{{ booking.pk }} · Room {{ booking.room.room_number }} · {{ booking.check_in_time|time:"H:i" }}</div>
+                    </div>
+                    <a class="status-pill success" href="{% url 'front-desk-center' %}?checkin={{ booking.pk }}">Check In</a>
+                  </div>
+                  <div class="row g-2 mt-2">
+                    <div class="col-sm-4"><span class="text-muted small">Guests</span><div>{{ booking.adults }} adult(s), {{ booking.children }} child(ren)</div></div>
+                    <div class="col-sm-4"><span class="text-muted small">Payment</span><div>{% if booking.balance_due <= 0 %}Paid in full{% elif booking.amount_paid > 0 %}Deposit paid{% else %}Pending{% endif %}</div></div>
+                    <div class="col-sm-4"><span class="text-muted small">Balance</span><div>GHS {{ booking.balance_due }}</div></div>
+                  </div>
+                </article>
+              {% empty %}
+                <div class="module-empty">No pending arrivals for today.</div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-6">
+        <section class="module-card h-100" id="departures-today">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Departures today</h2>
+              <div class="module-card-copy">Checked-in guests scheduled to leave today.</div>
+            </div>
+            <span class="status-pill warning">{{ departures|length }} due</span>
+          </div>
+          <div class="module-card-body">
+            <div class="d-grid gap-3">
+              {% for booking in departures %}
+                <article class="result-card">
+                  <div class="d-flex justify-content-between gap-3 flex-wrap">
+                    <div>
+                      <div class="result-title">{{ booking.guest }}</div>
+                      <div class="text-muted small">Booking #{{ booking.pk }} · Room {{ booking.room.room_number }} · {{ booking.check_out_time|time:"H:i" }}</div>
+                    </div>
+                    <a class="status-pill warning" href="{% url 'front-desk-center' %}?checkout={{ booking.pk }}">Check Out</a>
+                  </div>
+                  <div class="row g-2 mt-2">
+                    <div class="col-sm-4"><span class="text-muted small">Length of stay</span><div>{{ booking.nights }} night(s)</div></div>
+                    <div class="col-sm-4"><span class="text-muted small">Outstanding</span><div>GHS {{ booking.balance_due }}</div></div>
+                    <div class="col-sm-4"><span class="text-muted small">Status</span><div>{{ booking.get_status_display }}</div></div>
+                  </div>
+                </article>
+              {% empty %}
+                <div class="module-empty">No departures waiting for check-out today.</div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    {% if selected_checkin and checkin_form %}
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Complete check-in</h2>
+            <div class="module-card-copy">Confirm ID details, room assignment, guest count, notes, and payment status for {{ selected_checkin.guest }}.</div>
+          </div>
+          <a class="status-pill neutral" href="{% url 'front-desk-center' %}">Close</a>
+        </div>
+        <div class="module-card-body">
+          {% if checkin_form.non_field_errors %}<div class="alert alert-danger">{{ checkin_form.non_field_errors }}</div>{% endif %}
+          <div class="module-inline-list mb-3">
+            <div class="module-inline-item"><div class="module-inline-label">Payment status</div><div class="module-inline-value">{% if selected_checkin.balance_due <= 0 %}Paid in full{% elif selected_checkin.amount_paid > 0 %}Deposit paid{% else %}Pending{% endif %}</div></div>
+            <div class="module-inline-item"><div class="module-inline-label">Paid</div><div class="module-inline-value">GHS {{ selected_checkin.amount_paid }}</div></div>
+            <div class="module-inline-item"><div class="module-inline-label">Balance</div><div class="module-inline-value">GHS {{ selected_checkin.balance_due }}</div></div>
+          </div>
+          <form method="post" class="row g-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="checkin">
+            <input type="hidden" name="booking_id" value="{{ selected_checkin.pk }}">
+            <div class="col-md-6">
+              <label class="form-label" for="{{ checkin_form.ghana_card_number.id_for_label }}">Guest ID / Ghana card</label>
+              {{ checkin_form.ghana_card_number }}
+              {% for error in checkin_form.ghana_card_number.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ checkin_form.room.id_for_label }}">Room assignment</label>
+              {{ checkin_form.room }}
+              {% for error in checkin_form.room.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="{{ checkin_form.adults.id_for_label }}">Adults</label>
+              {{ checkin_form.adults }}
+              {% for error in checkin_form.adults.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="{{ checkin_form.children.id_for_label }}">Children</label>
+              {{ checkin_form.children }}
+              {% for error in checkin_form.children.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ checkin_form.notes.id_for_label }}">Special requests / notes</label>
+              {{ checkin_form.notes }}
+              {% for error in checkin_form.notes.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">Complete Check-In</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if selected_checkout and checkout_form %}
+      <section class="module-card">
+        <div class="module-card-header">
+          <div>
+            <h2 class="module-card-title">Complete check-out</h2>
+            <div class="module-card-copy">Review balance, room condition notes, and final check-out for {{ selected_checkout.guest }}.</div>
+          </div>
+          <a class="status-pill neutral" href="{% url 'front-desk-center' %}">Close</a>
+        </div>
+        <div class="module-card-body">
+          {% if checkout_form.non_field_errors %}<div class="alert alert-danger">{{ checkout_form.non_field_errors }}</div>{% endif %}
+          <div class="module-inline-list mb-3">
+            <div class="module-inline-item"><div class="module-inline-label">Room</div><div class="module-inline-value">{{ selected_checkout.room.room_number }}</div></div>
+            <div class="module-inline-item"><div class="module-inline-label">Stay</div><div class="module-inline-value">{{ selected_checkout.nights }} night(s)</div></div>
+            <div class="module-inline-item"><div class="module-inline-label">Outstanding</div><div class="module-inline-value">GHS {{ selected_checkout.balance_due }}</div></div>
+          </div>
+          {% if selected_checkout.balance_due > 0 %}
+            <div class="alert alert-warning">This booking still has an outstanding balance. Admin override is required to complete check-out without clearing it.</div>
+          {% endif %}
+          <form method="post" class="row g-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="checkout">
+            <input type="hidden" name="booking_id" value="{{ selected_checkout.pk }}">
+            <div class="col-12">
+              <label class="form-label" for="{{ checkout_form.notes.id_for_label }}">Check-out notes</label>
+              {{ checkout_form.notes }}
+              {% for error in checkout_form.notes.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+            {% if selected_checkout.balance_due > 0 %}
+              <div class="col-12">
+                <label class="form-check d-flex align-items-center gap-2">
+                  {{ checkout_form.acknowledge_balance }}
+                  <span>{{ checkout_form.acknowledge_balance.label }}</span>
+                </label>
+              </div>
+              {% if can_admin_override %}
+                <div class="col-12">
+                  <label class="form-check d-flex align-items-center gap-2">
+                    {{ checkout_form.admin_override_balance }}
+                    <span>{{ checkout_form.admin_override_balance.label }}</span>
+                  </label>
+                </div>
+              {% endif %}
+            {% endif %}
+            <div class="col-12 text-end">
+              <button class="btn btn-primary" type="submit">Complete Check-Out</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="module-card" id="room-status-overview">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Room status overview</h2>
+          <div class="module-card-copy">Live room status snapshot for the front desk, using the same room records as the Rooms module.</div>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="row g-3">
+          {% for item in room_cards %}
+            <div class="col-sm-6 col-xl-3">
+              <article class="result-card h-100">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                  <div>
+                    <div class="result-title">Room {{ item.room.room_number }}</div>
+                    <div class="text-muted small">{{ item.room.get_room_type_display }} · GHS {{ item.room.base_rate }}</div>
+                  </div>
+                  <span class="status-pill {{ item.status_class }}">{{ item.room.get_status_display }}</span>
+                </div>
+              </article>
+            </div>
+          {% empty %}
+            <div class="module-empty">No rooms have been added yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

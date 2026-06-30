@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Admin correction</div>
+        <h1 class="module-title">Edit Cash Drawer Session</h1>
+        <div class="module-subcopy">Correct a closed drawer session for {{ session.staff_name }}. Expected cash and variance recalculate when saved.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'cash-drawer-detail' session.pk %}"><i data-lucide="arrow-left"></i> Back</a>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-body">
+        <form method="post" class="module-stack">
+          {% csrf_token %}
+          {{ form.non_field_errors }}
+          <div class="module-form-grid">
+            {% for field in form %}
+              <div class="module-form-field {% if field.name == 'opening_note' or field.name == 'variance_note' %}module-form-field--full{% else %}module-form-field--half{% endif %}">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="module-form-actions">
+            <div class="module-card-copy">Only admin accounts can correct closed drawer sessions.</div>
+            <div class="module-form-actions-end">
+              <a class="btn btn-outline-secondary" href="{% url 'cash-drawer-detail' session.pk %}">Cancel</a>
+              <button class="btn btn-primary" type="submit">Save Correction</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

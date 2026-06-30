@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">POS reconciliation</div>
+        <h1 class="module-title">Cash Drawer</h1>
+        <div class="module-subcopy">Open, track, and close receptionist cash drawer shifts against cash POS sales.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i> POS Terminal</a>
+        <a class="topbar-pill" href="{% url 'inventory-sales' %}"><i data-lucide="history"></i> Sales History</a>
+        <a class="topbar-pill" href="{% url 'cash-drawer-export' %}?start_date={{ filters.start_date }}&end_date={{ filters.end_date }}{% if filters.staff %}&staff={{ filters.staff }}{% endif %}"><i data-lucide="download"></i> Export Excel</a>
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-3">
+        <div class="mini-metric h-100">
+          <div class="metric-label">This week shifts</div>
+          <div class="metric-value">{{ week_shift_count }}</div>
+          <div class="text-muted small mt-2">Closed drawer sessions</div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="mini-metric h-100">
+          <div class="metric-label">This week variance</div>
+          <div class="metric-value">GHS {{ week_variance }}</div>
+          <div class="text-muted small mt-2">Over/short total</div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="mini-metric h-100">
+          <div class="metric-label">This month shifts</div>
+          <div class="metric-value">{{ month_shift_count }}</div>
+          <div class="text-muted small mt-2">Closed drawer sessions</div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-3">
+        <div class="mini-metric h-100">
+          <div class="metric-label">This month variance</div>
+          <div class="metric-value">GHS {{ month_variance }}</div>
+          <div class="text-muted small mt-2">Over/short total</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-5">
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">{% if open_session %}Current open shift{% else %}Start of shift{% endif %}</h2>
+              <div class="module-card-copy">Staff: {{ request.user.get_full_name|default:request.user.username }}</div>
+            </div>
+            {% if open_session %}<span class="status-pill success">Open</span>{% endif %}
+          </div>
+          <div class="module-card-body">
+            {% if open_session %}
+              <div class="module-inline-list mb-3">
+                <div class="module-inline-item">
+                  <div class="module-inline-label">Opening float</div>
+                  <div class="module-inline-value">GHS {{ open_session.opening_float }}</div>
+                </div>
+                <div class="module-inline-item">
+                  <div class="module-inline-label">Cash sales so far</div>
+                  <div class="module-inline-value">GHS {{ current_cash_sales }}</div>
+                </div>
+                <div class="module-inline-item">
+                  <div class="module-inline-label">Expected cash</div>
+                  <div class="module-inline-value">GHS {{ current_expected }}</div>
+                </div>
+              </div>
+              <form method="post" class="row g-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="close">
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ closing_form.closing_count.id_for_label }}">{{ closing_form.closing_count.label }}</label>
+                  {{ closing_form.closing_count }}
+                  {% for error in closing_form.closing_count.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ closing_form.closing_time.id_for_label }}">{{ closing_form.closing_time.label }}</label>
+                  {{ closing_form.closing_time }}
+                  {% for error in closing_form.closing_time.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="{{ closing_form.variance_note.id_for_label }}">{{ closing_form.variance_note.label }}</label>
+                  {{ closing_form.variance_note }}
+                  {% for error in closing_form.variance_note.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                  <div class="form-text">Required if the closing count is over or short.</div>
+                </div>
+                {% if closing_form.non_field_errors %}<div class="text-danger small">{{ closing_form.non_field_errors }}</div>{% endif %}
+                <div class="col-12 text-end">
+                  <button class="btn btn-primary" type="submit">Close Shift</button>
+                </div>
+              </form>
+            {% else %}
+              <form method="post" class="row g-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="open">
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ opening_form.opening_float.id_for_label }}">{{ opening_form.opening_float.label }}</label>
+                  {{ opening_form.opening_float }}
+                  {% for error in opening_form.opening_float.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label" for="{{ opening_form.opening_time.id_for_label }}">{{ opening_form.opening_time.label }}</label>
+                  {{ opening_form.opening_time }}
+                  {% for error in opening_form.opening_time.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="{{ opening_form.opening_note.id_for_label }}">{{ opening_form.opening_note.label }}</label>
+                  {{ opening_form.opening_note }}
+                  {% for error in opening_form.opening_note.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                {% if opening_form.non_field_errors %}<div class="text-danger small">{{ opening_form.non_field_errors }}</div>{% endif %}
+                <div class="col-12 text-end">
+                  <button class="btn btn-primary" type="submit">Open Shift</button>
+                </div>
+              </form>
+            {% endif %}
+          </div>
+        </section>
+      </div>
+
+      <div class="col-xl-7">
+        <section class="module-card h-100">
+          <div class="module-card-header">
+            <div>
+              <h2 class="module-card-title">Variance by staff</h2>
+              <div class="module-card-copy">Month-to-date drawer variance grouped by staff member.</div>
+            </div>
+          </div>
+          <div class="module-card-body p-0">
+            <div class="module-table-wrap table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light"><tr><th>Staff</th><th>Sessions</th><th>Total variance</th></tr></thead>
+                <tbody>
+                  {% for row in staff_breakdown %}
+                    <tr>
+                      <td>{{ row.staff__first_name }} {{ row.staff__last_name }}{% if not row.staff__first_name and not row.staff__last_name %}{{ row.staff__username }}{% endif %}</td>
+                      <td>{{ row.sessions }}</td>
+                      <td>GHS {{ row.total_variance }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="module-empty">No closed cash drawer sessions this month.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Shift history</h2>
+          <div class="module-card-copy">Review opening float, expected cash, closing count, variance, and reconciliation status.</div>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <form method="get" class="module-filter-grid">
+          {% if is_admin %}
+            <div class="module-filter-field">
+              <label class="form-label" for="staff">Staff</label>
+              <select class="form-select" name="staff" id="staff">
+                <option value="">All staff</option>
+                {% for staff in staff_options %}
+                  <option value="{{ staff.pk }}" {% if filters.staff == staff.pk|stringformat:"s" %}selected{% endif %}>{{ staff.get_full_name|default:staff.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          {% endif %}
+          <div class="module-filter-field">
+            <label class="form-label" for="start_date">Start date</label>
+            <input class="form-control" type="date" name="start_date" id="start_date" value="{{ filters.start_date }}">
+          </div>
+          <div class="module-filter-field">
+            <label class="form-label" for="end_date">End date</label>
+            <input class="form-control" type="date" name="end_date" id="end_date" value="{{ filters.end_date }}">
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
+          </div>
+          <div class="module-filter-field module-form-field--narrow">
+            <a class="btn btn-outline-secondary w-100" href="{% url 'cash-drawer' %}">Reset</a>
+          </div>
+        </form>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Date</th>
+                <th>Staff</th>
+                <th>Opening Float</th>
+                <th>Expected</th>
+                <th>Closing Count</th>
+                <th>Variance</th>
+                <th>Status</th>
+                <th class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in session_rows %}
+                <tr>
+                  <td>{{ row.session.opening_time|date:"d/m/Y H:i" }}</td>
+                  <td>{{ row.staff_name }}</td>
+                  <td>GHS {{ row.session.opening_float }}</td>
+                  <td>GHS {{ row.expected_amount }}</td>
+                  <td>{% if row.session.closing_count is not None %}GHS {{ row.session.closing_count }}{% else %}-{% endif %}</td>
+                  <td>{% if row.variance is not None %}GHS {{ row.variance }}{% else %}-{% endif %}</td>
+                  <td><span class="status-pill {{ row.status_class }}">{{ row.status_label }}</span></td>
+                  <td class="text-end">
+                    <a class="status-pill neutral" href="{% url 'cash-drawer-detail' row.session.pk %}">View</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="8" class="module-empty">No cash drawer sessions found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

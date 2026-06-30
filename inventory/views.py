@@ -8,6 +8,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.mail import EmailMessage
@@ -40,6 +41,9 @@ from accounts.reporting import (
     report_window_for_period as shared_report_window_for_period,
 )
 from inventory.forms import (
+    CashDrawerAdminEditForm,
+    CashDrawerClosingForm,
+    CashDrawerOpeningForm,
     InventoryCategoryForm,
     InventoryItemForm,
     InventorySubcategoryForm,
@@ -49,6 +53,7 @@ from inventory.forms import (
     SupplierForm,
 )
 from inventory.models import (
+    CashDrawerSession,
     InventoryCategory,
     InventoryItem,
     InventorySubcategory,
@@ -954,6 +959,367 @@ def pos_reports_export(request):
         summary_sheet.column_dimensions[letter].width = min(max(max_length + 2, 14), 34)
 
     filename = f"pos-report-{context['period']}-{context['window']['filename_range']}.xlsx"
+    return _inventory_xlsx_response(workbook, filename)
+
+
+def _cash_drawer_datetime_value(value):
+    if not value:
+        return "-"
+    return timezone.localtime(value).strftime("%d/%m/%Y %H:%M")
+
+
+def _cash_drawer_sales_queryset(session, end_at=None):
+    end_at = end_at or session.closing_time or timezone.now()
+    return (
+        Sale.objects.filter(
+            cashier=session.staff,
+            payment_method=Sale.PaymentMethod.CASH,
+            status=Sale.SaleStatus.COMPLETED,
+            created_at__gte=session.opening_time,
+            created_at__lte=end_at,
+        )
+        .select_related("cashier")
+        .prefetch_related("items__item")
+        .order_by("created_at")
+    )
+
+
+def _cash_drawer_cash_sales_total(session, end_at=None):
+    return _cash_drawer_sales_queryset(session, end_at=end_at).aggregate(
+        total=Coalesce(Sum("grand_total"), ZERO_MONEY)
+    )["total"] or Decimal("0.00")
+
+
+def _cash_drawer_expected_amount(session, end_at=None):
+    return (Decimal(session.opening_float or 0) + _cash_drawer_cash_sales_total(session, end_at=end_at)).quantize(MONEY_PLACES)
+
+
+def _cash_drawer_variance_status(variance):
+    variance = Decimal(variance or 0)
+    if variance == 0:
+        return "Balanced", "success"
+    if variance > 0:
+        return "Over", "warning"
+    return "Short", "danger"
+
+
+def _cash_drawer_session_rows(sessions):
+    rows = []
+    for session in sessions:
+        end_at = session.closing_time if session.status == CashDrawerSession.SessionStatus.CLOSED else timezone.now()
+        cash_sales_total = _cash_drawer_cash_sales_total(session, end_at=end_at)
+        expected_amount = (
+            session.expected_amount
+            if session.status == CashDrawerSession.SessionStatus.CLOSED
+            else (Decimal(session.opening_float or 0) + cash_sales_total).quantize(MONEY_PLACES)
+        )
+        variance = session.variance if session.status == CashDrawerSession.SessionStatus.CLOSED else None
+        status_label, status_class = (
+            _cash_drawer_variance_status(variance)
+            if session.status == CashDrawerSession.SessionStatus.CLOSED
+            else ("Open", "neutral")
+        )
+        rows.append(
+            {
+                "session": session,
+                "staff_name": session.staff_name,
+                "cash_sales_total": cash_sales_total,
+                "expected_amount": expected_amount,
+                "variance": variance,
+                "status_label": status_label,
+                "status_class": status_class,
+            }
+        )
+    return rows
+
+
+def _cash_drawer_date_filters(request):
+    start_date = _parse_iso_date_or_none(request.GET.get("start_date"))
+    end_date = _parse_iso_date_or_none(request.GET.get("end_date"))
+    if start_date and end_date:
+        start_date, end_date = normalize_date_range(start_date, end_date)
+    return start_date, end_date
+
+
+def _cash_drawer_filtered_sessions(request):
+    is_admin = user_is_admin_role(request.user)
+    sessions = CashDrawerSession.objects.select_related("staff").all()
+    if not is_admin:
+        sessions = sessions.filter(staff=request.user)
+    staff_id = request.GET.get("staff", "").strip()
+    if is_admin and staff_id:
+        sessions = sessions.filter(staff_id=staff_id)
+    start_date, end_date = _cash_drawer_date_filters(request)
+    if start_date:
+        sessions = sessions.filter(opening_time__date__gte=start_date)
+    if end_date:
+        sessions = sessions.filter(opening_time__date__lte=end_date)
+    return sessions, {
+        "staff": staff_id,
+        "start_date": start_date.isoformat() if start_date else "",
+        "end_date": end_date.isoformat() if end_date else "",
+    }
+
+
+def _cash_drawer_summary(user, is_admin):
+    today = timezone.localdate()
+    week_start, week_end = shared_report_window_for_period("weekly", today)
+    month_start, month_end = shared_report_window_for_period("monthly", today)
+    week_sessions = filter_queryset_for_local_datetime_range(
+        CashDrawerSession.objects.filter(status=CashDrawerSession.SessionStatus.CLOSED),
+        "opening_time",
+        week_start,
+        week_end,
+    )
+    month_sessions = filter_queryset_for_local_datetime_range(
+        CashDrawerSession.objects.filter(status=CashDrawerSession.SessionStatus.CLOSED),
+        "opening_time",
+        month_start,
+        min(month_end, today),
+    )
+    if not is_admin:
+        week_sessions = week_sessions.filter(staff=user)
+        month_sessions = month_sessions.filter(staff=user)
+    week_variance = week_sessions.aggregate(total=Coalesce(Sum("variance"), ZERO_MONEY))["total"] or Decimal("0.00")
+    month_variance = month_sessions.aggregate(total=Coalesce(Sum("variance"), ZERO_MONEY))["total"] or Decimal("0.00")
+    staff_breakdown = (
+        month_sessions.values("staff__first_name", "staff__last_name", "staff__username")
+        .annotate(total_variance=Coalesce(Sum("variance"), ZERO_MONEY), sessions=Count("id"))
+        .order_by("staff__first_name", "staff__username")
+    )
+    return {
+        "week_shift_count": week_sessions.count(),
+        "month_shift_count": month_sessions.count(),
+        "week_variance": week_variance,
+        "month_variance": month_variance,
+        "staff_breakdown": list(staff_breakdown),
+    }
+
+
+def _cash_drawer_staff_options():
+    User = get_user_model()
+    staff_ids = CashDrawerSession.objects.values_list("staff_id", flat=True).distinct()
+    return User.objects.filter(pk__in=staff_ids).order_by("first_name", "username")
+
+
+@group_required("Admin", "Receptionist", module="pos")
+def cash_drawer(request):
+    is_admin = user_is_admin_role(request.user)
+    open_session = CashDrawerSession.objects.filter(
+        staff=request.user,
+        status=CashDrawerSession.SessionStatus.OPEN,
+    ).first()
+    opening_form = CashDrawerOpeningForm()
+    closing_form = CashDrawerClosingForm(instance=open_session) if open_session else CashDrawerClosingForm()
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "open":
+            if open_session:
+                messages.error(request, "You already have an open cash drawer session. Close it before opening a new one.")
+                return redirect("cash-drawer")
+            opening_form = CashDrawerOpeningForm(request.POST)
+            if opening_form.is_valid():
+                session = opening_form.save(commit=False)
+                session.staff = request.user
+                session.status = CashDrawerSession.SessionStatus.OPEN
+                session.save()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.CREATE,
+                    module="pos",
+                    object_repr="Cash drawer opened",
+                    object_id=session.pk,
+                    details={"event": "cash_drawer_opened", "opening_float": str(session.opening_float)},
+                )
+                messages.success(request, "Cash drawer opened for this shift.")
+                return redirect("cash-drawer")
+        elif action == "close":
+            if not open_session:
+                messages.error(request, "No open cash drawer session was found for your account.")
+                return redirect("cash-drawer")
+            closing_form = CashDrawerClosingForm(request.POST, instance=open_session)
+            if closing_form.is_valid():
+                session = closing_form.save(commit=False)
+                expected_amount = _cash_drawer_expected_amount(open_session, end_at=session.closing_time)
+                variance = (Decimal(session.closing_count or 0) - expected_amount).quantize(MONEY_PLACES)
+                if variance != 0 and not (session.variance_note or "").strip():
+                    closing_form.add_error("variance_note", "Explain the over/short amount before closing this drawer.")
+                else:
+                    session.expected_amount = expected_amount
+                    session.variance = variance
+                    session.status = CashDrawerSession.SessionStatus.CLOSED
+                    session.save(update_fields=[
+                        "closing_count",
+                        "closing_time",
+                        "expected_amount",
+                        "variance",
+                        "variance_note",
+                        "status",
+                        "updated_at",
+                    ])
+                    log_audit_event(
+                        request=request,
+                        user=request.user,
+                        action=AuditLog.ActionType.UPDATE,
+                        module="pos",
+                        object_repr="Cash drawer closed",
+                        object_id=session.pk,
+                        details={
+                            "event": "cash_drawer_closed",
+                            "expected_amount": str(expected_amount),
+                            "closing_count": str(session.closing_count),
+                            "variance": str(variance),
+                        },
+                    )
+                    messages.success(request, "Cash drawer session closed and reconciled.")
+                    return redirect("cash-drawer")
+
+    sessions, filters = _cash_drawer_filtered_sessions(request)
+    session_rows = _cash_drawer_session_rows(sessions[:100])
+    current_cash_sales = _cash_drawer_cash_sales_total(open_session) if open_session else Decimal("0.00")
+    current_expected = _cash_drawer_expected_amount(open_session) if open_session else Decimal("0.00")
+    summary = _cash_drawer_summary(request.user, is_admin)
+    return render(
+        request,
+        "inventory/cash_drawer.html",
+        {
+            "opening_form": opening_form,
+            "closing_form": closing_form,
+            "open_session": open_session,
+            "current_cash_sales": current_cash_sales,
+            "current_expected": current_expected,
+            "session_rows": session_rows,
+            "filters": filters,
+            "staff_options": _cash_drawer_staff_options() if is_admin else [],
+            "is_admin": is_admin,
+            **summary,
+        },
+    )
+
+
+@group_required("Admin", "Receptionist", module="pos")
+def cash_drawer_detail(request, pk):
+    session = get_object_or_404(CashDrawerSession.objects.select_related("staff"), pk=pk)
+    if not user_is_admin_role(request.user) and session.staff_id != request.user.pk:
+        raise PermissionDenied
+    end_at = session.closing_time if session.status == CashDrawerSession.SessionStatus.CLOSED else timezone.now()
+    sales = _cash_drawer_sales_queryset(session, end_at=end_at)
+    cash_sales_total = _cash_drawer_cash_sales_total(session, end_at=end_at)
+    expected_amount = (
+        session.expected_amount
+        if session.status == CashDrawerSession.SessionStatus.CLOSED
+        else _cash_drawer_expected_amount(session, end_at=end_at)
+    )
+    status_label, status_class = (
+        _cash_drawer_variance_status(session.variance)
+        if session.status == CashDrawerSession.SessionStatus.CLOSED
+        else ("Open", "neutral")
+    )
+    return render(
+        request,
+        "inventory/cash_drawer_detail.html",
+        {
+            "session": session,
+            "sales": sales,
+            "cash_sales_total": cash_sales_total,
+            "expected_amount": expected_amount,
+            "status_label": status_label,
+            "status_class": status_class,
+            "can_admin_edit": user_is_admin_role(request.user) and session.status == CashDrawerSession.SessionStatus.CLOSED,
+        },
+    )
+
+
+@group_required("Admin", module="pos", action="edit")
+def cash_drawer_edit(request, pk):
+    if not user_is_admin_role(request.user):
+        raise PermissionDenied
+    session = get_object_or_404(CashDrawerSession.objects.select_related("staff"), pk=pk)
+    if session.status != CashDrawerSession.SessionStatus.CLOSED:
+        messages.error(request, "Only closed cash drawer sessions can be corrected.")
+        return redirect("cash-drawer-detail", pk=session.pk)
+    if request.method == "POST":
+        form = CashDrawerAdminEditForm(request.POST, instance=session)
+        if form.is_valid():
+            session = form.save(commit=False)
+            expected_amount = _cash_drawer_expected_amount(session, end_at=session.closing_time)
+            variance = (Decimal(session.closing_count or 0) - expected_amount).quantize(MONEY_PLACES)
+            if variance != 0 and not (session.variance_note or "").strip():
+                form.add_error("variance_note", "Explain the corrected variance before saving.")
+            else:
+                session.expected_amount = expected_amount
+                session.variance = variance
+                session.status = CashDrawerSession.SessionStatus.CLOSED
+                session.save()
+                log_audit_event(
+                    request=request,
+                    user=request.user,
+                    action=AuditLog.ActionType.UPDATE,
+                    module="pos",
+                    object_repr="Cash drawer corrected",
+                    object_id=session.pk,
+                    details={
+                        "event": "cash_drawer_corrected",
+                        "expected_amount": str(expected_amount),
+                        "variance": str(variance),
+                    },
+                )
+                messages.success(request, "Cash drawer session corrected.")
+                return redirect("cash-drawer-detail", pk=session.pk)
+    else:
+        form = CashDrawerAdminEditForm(instance=session)
+    return render(request, "inventory/cash_drawer_edit.html", {"form": form, "session": session})
+
+
+@group_required("Admin", "Receptionist", module="pos", action="export")
+def cash_drawer_export(request):
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        messages.error(request, "openpyxl is required for cash drawer exports.")
+        return redirect("cash-drawer")
+
+    sessions, filters = _cash_drawer_filtered_sessions(request)
+    start_label = filters["start_date"] or timezone.localdate().isoformat()
+    end_label = filters["end_date"] or timezone.localdate().isoformat()
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Cash Drawer Log"
+    sheet.append(["Date", "Staff", "Opening Float", "Cash Sales", "Expected Amount", "Closing Count", "Variance", "Status", "Notes"])
+    total_opening = Decimal("0.00")
+    total_cash_sales = Decimal("0.00")
+    total_expected = Decimal("0.00")
+    total_closing = Decimal("0.00")
+    total_variance = Decimal("0.00")
+    for row in _cash_drawer_session_rows(sessions):
+        session = row["session"]
+        closing_count = session.closing_count or Decimal("0.00")
+        variance = row["variance"] or Decimal("0.00")
+        sheet.append([
+            _cash_drawer_datetime_value(session.opening_time),
+            row["staff_name"],
+            float(session.opening_float),
+            float(row["cash_sales_total"]),
+            float(row["expected_amount"]),
+            float(closing_count),
+            float(variance),
+            row["status_label"],
+            session.variance_note or session.opening_note,
+        ])
+        total_opening += session.opening_float
+        total_cash_sales += row["cash_sales_total"]
+        total_expected += row["expected_amount"]
+        total_closing += closing_count
+        total_variance += variance
+    sheet.append([])
+    sheet.append(["Totals", "", float(total_opening), float(total_cash_sales), float(total_expected), float(total_closing), float(total_variance), "", ""])
+    for column in sheet.columns:
+        letter = column[0].column_letter
+        max_length = max(len(str(cell.value or "")) for cell in column)
+        sheet.column_dimensions[letter].width = min(max(max_length + 2, 14), 38)
+    filename = f"cash-drawer-log-{date.fromisoformat(start_label).strftime('%d-%m-%Y')}-to-{date.fromisoformat(end_label).strftime('%d-%m-%Y')}.xlsx"
     return _inventory_xlsx_response(workbook, filename)
 
 

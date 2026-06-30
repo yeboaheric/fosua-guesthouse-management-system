@@ -1,5 +1,6 @@
 import json
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 from io import BytesIO
 
 from django.contrib.auth.models import Group, User
@@ -10,6 +11,7 @@ from openpyxl import load_workbook
 
 from accounts.models import AuditLog, UserAccessProfile
 from inventory.models import (
+    CashDrawerSession,
     InventoryCategory,
     InventoryItem,
     InventorySubcategory,
@@ -98,6 +100,125 @@ class InventoryPermissionTests(TestCase):
         detail_response = self.client.get(reverse("inventory-pos-report-detail"))
         self.assertEqual(detail_response.status_code, 200)
         self.assertContains(detail_response, "POS Report")
+
+    def test_receptionist_can_open_and_close_cash_drawer_against_cash_sales(self):
+        self.client.force_login(self.reception)
+        opening_time = timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M")
+        open_response = self.client.post(
+            reverse("cash-drawer"),
+            {
+                "action": "open",
+                "opening_float": "20.00",
+                "opening_time": opening_time,
+                "opening_note": "Morning float counted",
+            },
+        )
+        self.assertRedirects(open_response, reverse("cash-drawer"))
+        session = CashDrawerSession.objects.get(staff=self.reception)
+
+        Sale.objects.create(
+            cashier=self.reception,
+            payment_method=Sale.PaymentMethod.CASH,
+            subtotal="35.00",
+            grand_total="35.00",
+            amount_paid="35.00",
+        )
+        close_response = self.client.post(
+            reverse("cash-drawer"),
+            {
+                "action": "close",
+                "closing_count": "55.00",
+                "closing_time": timezone.localtime(timezone.now() + timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M"),
+                "variance_note": "",
+            },
+        )
+        self.assertRedirects(close_response, reverse("cash-drawer"))
+        session.refresh_from_db()
+        self.assertEqual(session.status, CashDrawerSession.SessionStatus.CLOSED)
+        self.assertEqual(session.expected_amount, Decimal("55.00"))
+        self.assertEqual(session.variance, Decimal("0.00"))
+
+    def test_receptionist_cannot_open_second_cash_drawer_session(self):
+        CashDrawerSession.objects.create(staff=self.reception, opening_float="10.00")
+        self.client.force_login(self.reception)
+        response = self.client.post(
+            reverse("cash-drawer"),
+            {
+                "action": "open",
+                "opening_float": "15.00",
+                "opening_time": timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M"),
+            },
+        )
+        self.assertRedirects(response, reverse("cash-drawer"))
+        self.assertEqual(
+            CashDrawerSession.objects.filter(staff=self.reception, status=CashDrawerSession.SessionStatus.OPEN).count(),
+            1,
+        )
+
+    def test_cash_drawer_requires_note_when_variance_exists(self):
+        CashDrawerSession.objects.create(staff=self.reception, opening_float="20.00")
+        Sale.objects.create(
+            cashier=self.reception,
+            payment_method=Sale.PaymentMethod.CASH,
+            subtotal="35.00",
+            grand_total="35.00",
+            amount_paid="35.00",
+        )
+        self.client.force_login(self.reception)
+        response = self.client.post(
+            reverse("cash-drawer"),
+            {
+                "action": "close",
+                "closing_count": "50.00",
+                "closing_time": timezone.localtime(timezone.now() + timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M"),
+                "variance_note": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Explain the over/short amount")
+        session = CashDrawerSession.objects.get(staff=self.reception)
+        self.assertEqual(session.status, CashDrawerSession.SessionStatus.OPEN)
+
+    def test_admin_can_correct_closed_cash_drawer_session(self):
+        session = CashDrawerSession.objects.create(
+            staff=self.reception,
+            opening_float="20.00",
+            closing_count="55.00",
+            closing_time=timezone.now(),
+            expected_amount="55.00",
+            variance="0.00",
+            status=CashDrawerSession.SessionStatus.CLOSED,
+        )
+        self.client.force_login(self.admin)
+        response = self.client.post(
+            reverse("cash-drawer-edit", args=[session.pk]),
+            {
+                "opening_float": "20.00",
+                "opening_time": timezone.localtime(session.opening_time).strftime("%Y-%m-%dT%H:%M"),
+                "opening_note": "",
+                "closing_count": "56.00",
+                "closing_time": timezone.localtime(session.closing_time).strftime("%Y-%m-%dT%H:%M"),
+                "variance_note": "Found GHS 1 extra after recount",
+            },
+        )
+        self.assertRedirects(response, reverse("cash-drawer-detail", args=[session.pk]))
+        session.refresh_from_db()
+        self.assertEqual(session.variance, Decimal("36.00"))
+        self.assertEqual(session.variance_note, "Found GHS 1 extra after recount")
+
+    def test_receptionist_cannot_edit_closed_cash_drawer_session(self):
+        session = CashDrawerSession.objects.create(
+            staff=self.reception,
+            opening_float="20.00",
+            closing_count="20.00",
+            closing_time=timezone.now(),
+            expected_amount="20.00",
+            variance="0.00",
+            status=CashDrawerSession.SessionStatus.CLOSED,
+        )
+        self.client.force_login(self.reception)
+        response = self.client.get(reverse("cash-drawer-edit", args=[session.pk]))
+        self.assertEqual(response.status_code, 403)
 
 
 class InventoryPosWorkflowTests(TestCase):

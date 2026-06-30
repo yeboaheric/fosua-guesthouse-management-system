@@ -22,12 +22,14 @@ from bookings.views import (
     event_payment_update,
     event_booking_start,
     event_booking_update,
+    front_desk_center,
     operations_overview,
 )
 
 urlpatterns = [
     path("", booking_list, name="booking-list"),
     path("new/", booking_create, name="booking-create"),
+    path("front-desk/", front_desk_center, name="front-desk-center"),
     path("<int:pk>/view/", booking_detail, name="booking-detail"),
     path("<int:pk>/edit/", booking_update, name="booking-update"),
     path("<int:pk>/confirm/", booking_confirm, name="booking-confirm"),

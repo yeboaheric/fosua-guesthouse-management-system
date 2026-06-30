@@ -18,6 +18,7 @@ def guest_list(request):
             | Q(phone_number__icontains=query)
             | Q(email__icontains=query)
             | Q(ghana_card_number__icontains=query)
+            | Q(id_number__icontains=query)
             | Q(digital_address__icontains=query)
         )
     return render(request, "guests/guest_list.html", {"guests": guests, "query": query})

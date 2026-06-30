@@ -22,10 +22,10 @@
         </div>
       </div>
       <div class="dashboard-chip-row mb-4">
-        <div class="dashboard-chip is-active">Bookings</div>
-        <div class="dashboard-chip">Arrivals</div>
-        <div class="dashboard-chip">Departures</div>
-        <div class="dashboard-chip">Rooms</div>
+        <a class="dashboard-chip is-active" href="{% url 'booking-list' %}">Bookings</a>
+        <a class="dashboard-chip" href="{% url 'front-desk-center' %}#arrivals-today">Arrivals</a>
+        <a class="dashboard-chip" href="{% url 'front-desk-center' %}#departures-today">Departures</a>
+        <a class="dashboard-chip" href="{% url 'room-list' %}">Rooms</a>
       </div>
       <div class="row g-3">
         <div class="col-md-6">

@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from accounts.models import AuditLog
 from bookings.models import Booking, EventBooking, EventPayment, Payment
 from guests.models import Guest
 from rooms.models import Room
@@ -114,7 +115,10 @@ class BookingValidationTests(TestCase):
 
 class BookingWorkflowTests(TestCase):
     def setUp(self):
+        self.admin_role = Group.objects.create(name="Super Administrator")
         self.reception_role = Group.objects.create(name="Receptionist")
+        self.admin_user = User.objects.create_user(username="admin1", password="pass123456")
+        self.admin_user.groups.add(self.admin_role)
         self.user = User.objects.create_user(username="reception1", password="pass123456")
         self.user.groups.add(self.reception_role)
         self.room = Room.objects.create(
@@ -235,6 +239,100 @@ class BookingWorkflowTests(TestCase):
         self.booking.refresh_from_db()
         self.assertEqual(self.booking.amount_paid, 150)
         self.assertEqual(self.booking.balance_due, 250)
+
+    def test_front_desk_page_lists_todays_arrivals_and_room_status(self):
+        self.booking.check_in = timezone.localdate()
+        self.booking.check_out = timezone.localdate() + timedelta(days=2)
+        self.booking.save()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("front-desk-center"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Check-In / Check-Out")
+        self.assertContains(response, "Arrivals today")
+        self.assertContains(response, "Akua Owusu")
+        self.assertContains(response, "Room status overview")
+
+    def test_front_desk_check_in_updates_guest_id_room_and_logs_action(self):
+        self.booking.check_in = timezone.localdate()
+        self.booking.check_out = timezone.localdate() + timedelta(days=2)
+        self.booking.save()
+        available_room = Room.objects.create(
+            room_number="204",
+            room_type=Room.RoomType.STANDARD,
+            status=Room.RoomStatus.AVAILABLE,
+            base_rate=180,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("front-desk-center"),
+            {
+                "action": "checkin",
+                "booking_id": self.booking.pk,
+                "ghana_card_number": "GHA-123456789-0",
+                "room": available_room.pk,
+                "adults": "2",
+                "children": "1",
+                "notes": "Needs extra towel",
+            },
+        )
+
+        self.assertRedirects(response, reverse("front-desk-center"))
+        self.booking.refresh_from_db()
+        self.guest.refresh_from_db()
+        available_room.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_IN)
+        self.assertEqual(self.booking.room, available_room)
+        self.assertEqual(self.booking.adults, 2)
+        self.assertEqual(self.booking.children, 1)
+        self.assertEqual(self.guest.ghana_card_number, "GHA-123456789-0")
+        self.assertEqual(available_room.status, Room.RoomStatus.OCCUPIED)
+        self.assertTrue(AuditLog.objects.filter(details__event="front_desk_check_in").exists())
+
+    def test_front_desk_checkout_requires_admin_override_for_outstanding_balance(self):
+        self.booking.status = Booking.BookingStatus.CHECKED_IN
+        self.booking.check_in = timezone.localdate()
+        self.booking.check_in_time = time(9, 0)
+        self.booking.check_out = timezone.localdate()
+        self.booking.check_out_time = time(18, 0)
+        self.booking.save()
+        self.room.status = Room.RoomStatus.OCCUPIED
+        self.room.save()
+        self.client.force_login(self.user)
+
+        blocked_response = self.client.post(
+            reverse("front-desk-center"),
+            {
+                "action": "checkout",
+                "booking_id": self.booking.pk,
+                "notes": "Guest left early",
+                "acknowledge_balance": "on",
+            },
+        )
+        self.assertEqual(blocked_response.status_code, 200)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_IN)
+
+        self.client.force_login(self.admin_user)
+        response = self.client.post(
+            reverse("front-desk-center"),
+            {
+                "action": "checkout",
+                "booking_id": self.booking.pk,
+                "notes": "Admin approved balance follow-up",
+                "acknowledge_balance": "on",
+                "admin_override_balance": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("front-desk-center"))
+        self.booking.refresh_from_db()
+        self.room.refresh_from_db()
+        self.assertEqual(self.booking.status, Booking.BookingStatus.CHECKED_OUT)
+        self.assertEqual(self.room.status, Room.RoomStatus.CLEANING)
+        self.assertTrue(AuditLog.objects.filter(details__event="front_desk_check_out").exists())
 
     def test_operations_overview_access_and_counts(self):
         self.room.status = Room.RoomStatus.CLEANING

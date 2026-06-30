@@ -19,7 +19,7 @@
         <form method="get" class="module-filter-grid">
           <div class="module-filter-field module-filter-field--full">
             <label class="form-label" for="q">Search guests</label>
-            <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, phone, email, Ghana Card, digital address">
+            <input class="form-control" type="search" name="q" id="q" value="{{ query }}" placeholder="Name, phone, email, Ghana Card, other ID, digital address">
           </div>
           <div class="module-filter-field module-form-field--narrow">
             <button class="btn btn-outline-primary w-100" type="submit">Filter</button>
@@ -48,6 +48,7 @@
                   <th>Phone</th>
                   <th>Email</th>
                   <th>Ghana Card Number</th>
+                  <th>Other ID</th>
                   <th></th>
                 </tr>
               </thead>
@@ -58,13 +59,20 @@
                     <td>{{ guest.phone_number }}</td>
                     <td>{{ guest.email|default:"-" }}</td>
                     <td>{{ guest.ghana_card_number|default:"-" }}</td>
+                    <td>
+                      {% if guest.id_type and guest.id_number %}
+                        {{ guest.get_id_type_display }}: {{ guest.id_number }}
+                      {% else %}
+                        -
+                      {% endif %}
+                    </td>
                     <td class="text-end">
                       <a class="status-pill neutral" href="{% url 'guest-update' guest.pk %}">Edit</a>
                     </td>
                   </tr>
                 {% empty %}
                   <tr>
-                    <td colspan="5" class="text-center text-muted py-4">No guest records yet.</td>
+                    <td colspan="6" class="text-center text-muted py-4">No guest records yet.</td>
                   </tr>
                 {% endfor %}
               </tbody>

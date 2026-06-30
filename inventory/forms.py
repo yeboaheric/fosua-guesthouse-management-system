@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from accounts.formatting import format_quantity
 from inventory.models import (
+    CashDrawerSession,
     InventoryCategory,
     InventoryItem,
     InventorySubcategory,
@@ -192,3 +193,106 @@ class SaleEditForm(forms.ModelForm):
         if not isinstance(payload, list) or not payload:
             raise forms.ValidationError("Add at least one sale item before saving.")
         return payload
+
+
+class CashDrawerOpeningForm(forms.ModelForm):
+    class Meta:
+        model = CashDrawerSession
+        fields = ["opening_float", "opening_time", "opening_note"]
+        widgets = {
+            "opening_float": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "opening_time": forms.DateTimeInput(attrs={"class": "form-control", "type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "opening_note": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Optional opening note"}),
+        }
+        labels = {
+            "opening_float": "Opening float amount",
+            "opening_time": "Date and time",
+            "opening_note": "Opening note",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            self.fields["opening_time"].initial = timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M")
+
+    def clean_opening_float(self):
+        value = self.cleaned_data["opening_float"]
+        if value < 0:
+            raise forms.ValidationError("Opening float cannot be negative.")
+        return value
+
+
+class CashDrawerClosingForm(forms.ModelForm):
+    class Meta:
+        model = CashDrawerSession
+        fields = ["closing_count", "closing_time", "variance_note"]
+        widgets = {
+            "closing_count": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "closing_time": forms.DateTimeInput(attrs={"class": "form-control", "type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "variance_note": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Required if the drawer is over or short"}),
+        }
+        labels = {
+            "closing_count": "Closing count",
+            "closing_time": "Date and time",
+            "variance_note": "Variance explanation",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            self.fields["closing_time"].initial = timezone.localtime(timezone.now()).strftime("%Y-%m-%dT%H:%M")
+
+    def clean_closing_count(self):
+        value = self.cleaned_data["closing_count"]
+        if value < 0:
+            raise forms.ValidationError("Closing count cannot be negative.")
+        return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        closing_time = cleaned_data.get("closing_time")
+        if self.instance and self.instance.pk and closing_time and closing_time < self.instance.opening_time:
+            self.add_error("closing_time", "Closing time cannot be before the opening time.")
+        return cleaned_data
+
+
+class CashDrawerAdminEditForm(forms.ModelForm):
+    class Meta:
+        model = CashDrawerSession
+        fields = [
+            "opening_float",
+            "opening_time",
+            "opening_note",
+            "closing_count",
+            "closing_time",
+            "variance_note",
+        ]
+        widgets = {
+            "opening_float": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "opening_time": forms.DateTimeInput(attrs={"class": "form-control", "type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "opening_note": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "closing_count": forms.NumberInput(attrs={"class": "form-control", "step": "0.01", "min": "0"}),
+            "closing_time": forms.DateTimeInput(attrs={"class": "form-control", "type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "variance_note": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ("opening_time", "closing_time"):
+            field_value = getattr(self.instance, field_name, None)
+            if field_value and not self.is_bound:
+                self.fields[field_name].initial = timezone.localtime(field_value).strftime("%Y-%m-%dT%H:%M")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        opening_float = cleaned_data.get("opening_float")
+        closing_count = cleaned_data.get("closing_count")
+        opening_time = cleaned_data.get("opening_time")
+        closing_time = cleaned_data.get("closing_time")
+        if opening_float is not None and opening_float < 0:
+            self.add_error("opening_float", "Opening float cannot be negative.")
+        if closing_count is not None and closing_count < 0:
+            self.add_error("closing_count", "Closing count cannot be negative.")
+        if opening_time and closing_time and closing_time < opening_time:
+            self.add_error("closing_time", "Closing time cannot be before the opening time.")
+        return cleaned_data

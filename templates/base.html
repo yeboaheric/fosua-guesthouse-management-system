@@ -71,6 +71,7 @@
           <nav class="sidebar-nav">
             <a class="sidebar-link {{ request|nav_active:'dashboard admin-dashboard reception-dashboard' }}" href="{% url 'dashboard' %}"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></a>
             {% if user|can_access_module:'reservations' %}<a class="sidebar-link {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}" href="{% url 'booking-list' %}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>{% endif %}
+            {% if user|can_access_module:'reservations' %}<a class="sidebar-link {{ request|nav_active:'front-desk-center' }}" href="{% url 'front-desk-center' %}"><i data-lucide="concierge-bell"></i><span>Front Desk</span></a>{% endif %}
             {% if user|can_access_module:'rooms' %}<a class="sidebar-link {{ request|nav_active:'room-list room-create room-update room-availability' }}" href="{% url 'room-list' %}"><i data-lucide="bed-double"></i><span>Rooms</span></a>{% endif %}
             {% if user|can_access_module:'guests' %}<a class="sidebar-link {{ request|nav_active:'guest-list guest-create guest-update' }}" href="{% url 'guest-list' %}"><i data-lucide="users"></i><span>Guests</span></a>{% endif %}
             {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
@@ -81,7 +82,7 @@
             {% if user|can_access_module:'dashboard' %}<a class="sidebar-link {{ request|nav_active:'operations-overview' }}" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i><span>Operations Overview</span></a>{% endif %}
             {% if user|can_access_module:'handovers' %}<a class="sidebar-link {{ request|nav_active:'handover-list handover-create handover-detail roster-report roster-detail roster-export-excel' }}" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i><span>Shift Handovers</span></a>{% endif %}
             {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail inventory-sale-update' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
-            {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout inventory-pos-analytics inventory-pos-reports inventory-pos-report-detail inventory-pos-reports-export' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
+            {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout inventory-pos-analytics inventory-pos-reports inventory-pos-report-detail inventory-pos-reports-export cash-drawer cash-drawer-detail cash-drawer-edit cash-drawer-export' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
             {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
             {% if user|can_access_module:'users_roles' %}
               <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
@@ -122,6 +123,7 @@
             <div class="sidebar-nav">
               <a class="sidebar-link {{ request|nav_active:'dashboard admin-dashboard reception-dashboard' }}" href="{% url 'dashboard' %}"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></a>
               {% if user|can_access_module:'reservations' %}<a class="sidebar-link {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}" href="{% url 'booking-list' %}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>{% endif %}
+              {% if user|can_access_module:'reservations' %}<a class="sidebar-link {{ request|nav_active:'front-desk-center' }}" href="{% url 'front-desk-center' %}"><i data-lucide="concierge-bell"></i><span>Front Desk</span></a>{% endif %}
               {% if user|can_access_module:'rooms' %}<a class="sidebar-link {{ request|nav_active:'room-list room-create room-update room-availability' }}" href="{% url 'room-list' %}"><i data-lucide="bed-double"></i><span>Rooms</span></a>{% endif %}
               {% if user|can_access_module:'guests' %}<a class="sidebar-link {{ request|nav_active:'guest-list guest-create guest-update' }}" href="{% url 'guest-list' %}"><i data-lucide="users"></i><span>Guests</span></a>{% endif %}
               {% if user|can_access_module:'payments' %}<a class="sidebar-link {{ request|nav_active:'payments-center booking-payment-update booking-payment-delete event-payment-update event-payment-delete' }}" href="{% url 'payments-center' %}"><i data-lucide="credit-card"></i><span>Payments</span></a>{% endif %}
@@ -132,7 +134,7 @@
               {% if user|can_access_module:'dashboard' %}<a class="sidebar-link {{ request|nav_active:'operations-overview' }}" href="{% url 'operations-overview' %}"><i data-lucide="activity"></i><span>Operations Overview</span></a>{% endif %}
               {% if user|can_access_module:'handovers' %}<a class="sidebar-link {{ request|nav_active:'handover-list handover-create handover-detail roster-report roster-detail roster-export-excel' }}" href="{% url 'handover-list' %}"><i data-lucide="clipboard-list"></i><span>Shift Handovers</span></a>{% endif %}
               {% if user|can_access_module:'inventory' %}<a class="sidebar-link {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail inventory-sale-update' }}" href="{% url 'inventory-dashboard' %}"><i data-lucide="boxes"></i><span>Inventory</span></a>{% endif %}
-              {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout inventory-pos-analytics inventory-pos-reports inventory-pos-report-detail inventory-pos-reports-export' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
+              {% if user|can_access_module:'pos' %}<a class="sidebar-link {{ request|nav_active:'inventory-pos inventory-pos-checkout inventory-pos-analytics inventory-pos-reports inventory-pos-report-detail inventory-pos-reports-export cash-drawer cash-drawer-detail cash-drawer-edit cash-drawer-export' }}" href="{% url 'inventory-pos' %}"><i data-lucide="receipt"></i><span>POS</span></a>{% endif %}
               {% if user|can_access_module:'staff_management' %}<a class="sidebar-link {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}" href="{% url 'hr-list' %}"><i data-lucide="badge-check"></i><span>Staff Management</span></a>{% endif %}
               {% if user|can_access_module:'users_roles' %}
                 <a class="sidebar-link {{ request|nav_active:'users-roles-center' }}" href="{% url 'users-roles-center' %}"><i data-lucide="shield-user"></i><span>Users & Roles</span></a>
@@ -224,6 +226,9 @@
             {% if user|can_access_module:'reservations' %}
               <a href="{% url 'booking-list' %}" class="mobile-bottom-item {{ request|nav_active:'booking-list booking-create booking-update booking-detail booking-payments booking-confirm booking-check-in booking-check-out booking-cancel' }}"><i data-lucide="calendar-range"></i><span>Reservations</span></a>
             {% endif %}
+            {% if user|can_access_module:'reservations' %}
+              <a href="{% url 'front-desk-center' %}" class="mobile-bottom-item {{ request|nav_active:'front-desk-center' }}"><i data-lucide="concierge-bell"></i><span>Front Desk</span></a>
+            {% endif %}
             {% if user|can_access_module:'rooms' %}
               <a href="{% url 'room-list' %}" class="mobile-bottom-item {{ request|nav_active:'room-list room-create room-update room-availability' }}"><i data-lucide="bed-double"></i><span>Rooms</span></a>
             {% endif %}
@@ -255,7 +260,7 @@
               <a href="{% url 'inventory-dashboard' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-dashboard inventory-categories inventory-subcategories inventory-suppliers inventory-items inventory-transactions inventory-reports inventory-sales inventory-sale-detail inventory-sale-update' }}"><i data-lucide="boxes"></i><span>Inventory</span></a>
             {% endif %}
             {% if user|can_access_module:'pos' %}
-              <a href="{% url 'inventory-pos' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-pos inventory-pos-checkout inventory-pos-analytics inventory-pos-reports inventory-pos-report-detail inventory-pos-reports-export' }}"><i data-lucide="receipt"></i><span>POS</span></a>
+              <a href="{% url 'inventory-pos' %}" class="mobile-bottom-item {{ request|nav_active:'inventory-pos inventory-pos-checkout inventory-pos-analytics inventory-pos-reports inventory-pos-report-detail inventory-pos-reports-export cash-drawer cash-drawer-detail cash-drawer-edit cash-drawer-export' }}"><i data-lucide="receipt"></i><span>POS</span></a>
             {% endif %}
             {% if user|can_access_module:'staff_management' %}
               <a href="{% url 'hr-list' %}" class="mobile-bottom-item {{ request|nav_active:'hr-list hr-create hr-update hr-detail hr-rota-list hr-rota-create hr-rota-update hr-rota-detail' }}"><i data-lucide="badge-check"></i><span>Staff</span></a>
@@ -286,6 +291,6 @@
     <script src="{% static 'js/app-loading.js' %}?v=20260630-action-loading-fix"></script>
     <script src="{% static 'js/fg-charts.js' %}?v=20260625-chart-modal2"></script>
     <script src="{% static 'js/password-toggle.js' %}?v=20260630-action-loading-fix"></script>
-    <script src="{% static 'js/app-shell.js' %}?v=20260628-sidebar-pos-active"></script>
+    <script src="{% static 'js/app-shell.js' %}?v=20260630-front-desk-tabs"></script>
   </body>
 </html>

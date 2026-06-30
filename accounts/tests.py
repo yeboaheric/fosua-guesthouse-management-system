@@ -49,6 +49,19 @@ class DashboardRoutingTests(TestCase):
 
         self.assertRedirects(response, reverse("reception-dashboard"))
 
+    def test_reception_dashboard_shortcut_chips_link_to_main_pages(self):
+        user = User.objects.create_user(username="reception-links", password="pass123456")
+        user.groups.add(self.receptionist_group)
+
+        self.client.force_login(user)
+        response = self.client.get(reverse("reception-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'href="{reverse("booking-list")}"')
+        self.assertContains(response, f'href="{reverse("front-desk-center")}#arrivals-today"')
+        self.assertContains(response, f'href="{reverse("front-desk-center")}#departures-today"')
+        self.assertContains(response, f'href="{reverse("room-list")}"')
+
     def test_admin_reports_access_for_admin_only(self):
         admin_user = User.objects.create_user(username="admin2", password="pass123456")
         admin_user.groups.add(self.admin_group)

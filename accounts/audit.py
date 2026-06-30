@@ -44,6 +44,7 @@ def module_from_url_name(url_name: str | None) -> str:
         "hr-rota-update": "staff_management",
         "hr-rota-detail": "staff_management",
         "booking-list": "reservations",
+        "front-desk-center": "reservations",
         "booking-create": "reservations",
         "booking-update": "reservations",
         "booking-detail": "reservations",

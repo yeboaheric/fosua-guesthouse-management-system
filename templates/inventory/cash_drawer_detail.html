@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-background p-3 p-lg-4">
+  <div class="module-shell">
+    <section class="module-hero">
+      <div class="module-hero-copy">
+        <div class="module-kicker">Cash drawer detail</div>
+        <h1 class="module-title">{{ session.staff_name }} Shift</h1>
+        <div class="module-subcopy">Opened {{ session.opening_time|date:"d/m/Y H:i" }}{% if session.closing_time %} and closed {{ session.closing_time|date:"d/m/Y H:i" }}{% endif %}.</div>
+      </div>
+      <div class="module-action-row">
+        <a class="topbar-pill" href="{% url 'cash-drawer' %}"><i data-lucide="arrow-left"></i> Back</a>
+        {% if can_admin_edit %}
+          <a class="topbar-pill" href="{% url 'cash-drawer-edit' session.pk %}"><i data-lucide="pencil"></i> Admin Edit</a>
+        {% endif %}
+      </div>
+    </section>
+
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Opening float</div><div class="metric-value">GHS {{ session.opening_float }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Cash sales</div><div class="metric-value">GHS {{ cash_sales_total }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Expected amount</div><div class="metric-value">GHS {{ expected_amount }}</div></div></div>
+      <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Variance</div><div class="metric-value">GHS {{ session.variance }}</div><div class="mt-2"><span class="status-pill {{ status_class }}">{{ status_label }}</span></div></div></div>
+    </div>
+
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Session notes</h2>
+          <div class="module-card-copy">Opening and variance notes recorded for accountability.</div>
+        </div>
+      </div>
+      <div class="module-card-body">
+        <div class="module-inline-list">
+          <div class="module-inline-item"><div class="module-inline-label">Opening note</div><div class="module-inline-value">{{ session.opening_note|default:"-" }}</div></div>
+          <div class="module-inline-item"><div class="module-inline-label">Variance note</div><div class="module-inline-value">{{ session.variance_note|default:"-" }}</div></div>
+          <div class="module-inline-item"><div class="module-inline-label">Closing count</div><div class="module-inline-value">{% if session.closing_count is not None %}GHS {{ session.closing_count }}{% else %}-{% endif %}</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="module-card">
+      <div class="module-card-header">
+        <div>
+          <h2 class="module-card-title">Cash sales during session</h2>
+          <div class="module-card-copy">Completed POS sales paid with cash and processed by this staff member during the shift window.</div>
+        </div>
+      </div>
+      <div class="module-card-body p-0">
+        <div class="module-table-wrap table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Time</th><th>Receipt</th><th>Customer</th><th>Total</th><th class="text-end">Action</th></tr></thead>
+            <tbody>
+              {% for sale in sales %}
+                <tr>
+                  <td>{{ sale.created_at|date:"d/m/Y H:i" }}</td>
+                  <td>{{ sale.receipt_number }}</td>
+                  <td>{{ sale.customer_name|default:"Walk-in customer" }}</td>
+                  <td>GHS {{ sale.grand_total }}</td>
+                  <td class="text-end"><a class="status-pill neutral" href="{% url 'inventory-sale-detail' sale.pk %}">Receipt</a></td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="module-empty">No cash POS sales were recorded during this session.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

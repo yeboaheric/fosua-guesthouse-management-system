@@ -6,6 +6,7 @@
   const sidebarSubmenus = {
     Reservations: [
       { label: "All Reservations", url: "/bookings/", icon: "calendar-range" },
+      { label: "Front Desk", url: "/bookings/front-desk/", icon: "concierge-bell" },
       { label: "New Reservation", url: "/bookings/new/", icon: "calendar-plus" },
       { label: "Event Reservations", url: "/bookings/events/", icon: "party-popper" },
       { label: "Operations Overview", url: "/bookings/operations/", icon: "activity" }
@@ -50,6 +51,7 @@
     ],
     POS: [
       { label: "POS Terminal", url: "/inventory/pos/", icon: "receipt" },
+      { label: "Cash Drawer", url: "/inventory/pos/cash-drawer/", icon: "wallet-cards" },
       { label: "Sales History", url: "/inventory/sales/", icon: "history" },
       { label: "POS Analytics", url: "/inventory/pos/analytics/", icon: "chart-column" },
       { label: "POS Reports", url: "/inventory/pos/reports/", icon: "file-bar-chart" }
@@ -111,6 +113,7 @@
     [/^\/dashboard\/admin\/hr\/\d+\/[^/]+\/?$/, "Employee Profile"],
     [/^\/dashboard\/admin\/hr\/\d+\/?$/, "Employee Profile"],
     [/^\/dashboard\/admin\/hr\/?$/, "Staff Management"],
+    [/^\/bookings\/front-desk\/?$/, "Front Desk"],
     [/^\/bookings\/operations\/?$/, "Operations Overview"],
     [/^\/bookings\/events\/new\/?$/, "New Event Reservation"],
     [/^\/bookings\/events\/\d+\/edit\/?$/, "Edit Event Reservation"],
@@ -150,6 +153,9 @@
     [/^\/inventory\/items\/?$/, "Inventory Items"],
     [/^\/inventory\/transactions\/?$/, "Inventory Transactions"],
     [/^\/inventory\/pos\/checkout\/?$/, "POS Checkout"],
+    [/^\/inventory\/pos\/cash-drawer\/\d+\/edit\/?$/, "Edit Cash Drawer"],
+    [/^\/inventory\/pos\/cash-drawer\/\d+\/?$/, "Cash Drawer Detail"],
+    [/^\/inventory\/pos\/cash-drawer\/?$/, "Cash Drawer"],
     [/^\/inventory\/pos\/analytics\/?$/, "POS Analytics"],
     [/^\/inventory\/pos\/reports\/detail\/?$/, "POS Report Detail"],
     [/^\/inventory\/pos\/reports\/?$/, "POS Reports"],
@@ -584,13 +590,18 @@
     }
     const isInventoryDashboard = label === "Inventory" && window.location.pathname === "/inventory/";
     const isPosReceiptPage = label === "POS" && /^\/inventory\/sales\/\d+\/?$/.test(window.location.pathname);
+    const isFrontDeskPage = label === "Reservations" && /^\/bookings\/front-desk\/?$/.test(window.location.pathname);
     const moduleItems = isPosReceiptPage
       ? []
-      : isInventoryDashboard
+      : isFrontDeskPage
         ? children.filter(function (item) {
-            return item.url !== "/inventory/sales/" && item.url !== "/inventory/pos/";
+            return !["/bookings/new/", "/bookings/events/", "/bookings/operations/"].includes(item.url);
           })
-        : children;
+        : isInventoryDashboard
+          ? children.filter(function (item) {
+              return item.url !== "/inventory/sales/" && item.url !== "/inventory/pos/";
+            })
+          : children;
     const activeChild = bestSidebarItemMatch(children);
 
     const hero = content.querySelector(".module-hero");

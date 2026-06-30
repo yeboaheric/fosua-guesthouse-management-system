@@ -1,6 +1,10 @@
 from django.urls import path
 
 from inventory.views import (
+    cash_drawer,
+    cash_drawer_detail,
+    cash_drawer_edit,
+    cash_drawer_export,
     category_delete,
     category_list,
     category_update,
@@ -55,6 +59,10 @@ urlpatterns = [
     path("pos/reports/", pos_reports, name="inventory-pos-reports"),
     path("pos/reports/detail/", pos_report_detail, name="inventory-pos-report-detail"),
     path("pos/reports/export/", pos_reports_export, name="inventory-pos-reports-export"),
+    path("pos/cash-drawer/", cash_drawer, name="cash-drawer"),
+    path("pos/cash-drawer/export/", cash_drawer_export, name="cash-drawer-export"),
+    path("pos/cash-drawer/<int:pk>/", cash_drawer_detail, name="cash-drawer-detail"),
+    path("pos/cash-drawer/<int:pk>/edit/", cash_drawer_edit, name="cash-drawer-edit"),
     path("sales/", sale_list, name="inventory-sales"),
     path("sales/<int:pk>/", sale_detail, name="inventory-sale-detail"),
     path("sales/<int:pk>/edit/", sale_update, name="inventory-sale-update"),

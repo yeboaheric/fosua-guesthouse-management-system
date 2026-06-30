@@ -12,12 +12,16 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from accounts.audit import log_audit_event
 from accounts.decorators import group_required
+from accounts.models import AuditLog
 from accounts.permissions import user_is_admin_role
 from bookings.forms import BookingForm
 from bookings.forms import EventBookingForm
 from bookings.forms import EventPaymentAdminEditForm
 from bookings.forms import EventPaymentForm
+from bookings.forms import FrontDeskCheckInForm
+from bookings.forms import FrontDeskCheckOutForm
 from bookings.forms import PaymentAdminEditForm
 from bookings.forms import PaymentForm
 from bookings.models import Booking, EventBooking, EventPayment, Payment
@@ -147,6 +151,184 @@ def _operations_snapshot_for_date(target_date):
         "events_count": today_event_bookings.count(),
         "cancelled_events_count": cancelled_event_bookings.count(),
     }
+
+
+def _front_desk_booking_queryset():
+    return Booking.objects.select_related("guest", "room", "created_by").annotate(
+        paid_total=Coalesce(
+            Sum("payments__amount"),
+            Value(0, output_field=DecimalField(max_digits=10, decimal_places=2)),
+        )
+    )
+
+
+def _front_desk_room_cards():
+    status_class_map = {
+        Room.RoomStatus.AVAILABLE: "success",
+        Room.RoomStatus.OCCUPIED: "danger",
+        Room.RoomStatus.CLEANING: "warning",
+        Room.RoomStatus.MAINTENANCE: "neutral",
+    }
+    cards = []
+    for room in Room.objects.order_by("room_number"):
+        cards.append(
+            {
+                "room": room,
+                "status_class": status_class_map.get(room.status, "neutral"),
+            }
+        )
+    return cards
+
+
+@group_required("Admin", "Receptionist", module="reservations", action={"GET": "view", "POST": "edit"})
+def front_desk_center(request):
+    today = timezone.localdate()
+    query = request.GET.get("q", "").strip()
+    checkin_id = request.GET.get("checkin", "").strip()
+    checkout_id = request.GET.get("checkout", "").strip()
+
+    arrivals = _front_desk_booking_queryset().filter(
+        check_in=today,
+        status__in=[Booking.BookingStatus.PENDING, Booking.BookingStatus.CONFIRMED],
+    )
+    departures = _front_desk_booking_queryset().filter(
+        check_out=today,
+        status=Booking.BookingStatus.CHECKED_IN,
+    )
+    search_results = Booking.objects.none()
+
+    if query:
+        search_filter = (
+            Q(guest__first_name__icontains=query)
+            | Q(guest__last_name__icontains=query)
+            | Q(guest__phone_number__icontains=query)
+            | Q(guest__ghana_card_number__icontains=query)
+            | Q(room__room_number__icontains=query)
+        )
+        if query.isdigit():
+            search_filter |= Q(pk=int(query))
+        search_results = _front_desk_booking_queryset().filter(search_filter)[:12]
+
+    selected_checkin = None
+    selected_checkout = None
+    checkin_form = None
+    checkout_form = None
+
+    if checkin_id:
+        selected_checkin = get_object_or_404(
+            Booking.objects.select_related("guest", "room"),
+            pk=checkin_id,
+            status__in=[Booking.BookingStatus.PENDING, Booking.BookingStatus.CONFIRMED],
+        )
+        checkin_form = FrontDeskCheckInForm(booking=selected_checkin)
+
+    if checkout_id:
+        selected_checkout = get_object_or_404(
+            Booking.objects.select_related("guest", "room"),
+            pk=checkout_id,
+            status=Booking.BookingStatus.CHECKED_IN,
+        )
+        checkout_form = FrontDeskCheckOutForm(booking=selected_checkout, user=request.user)
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        booking = get_object_or_404(Booking.objects.select_related("guest", "room"), pk=request.POST.get("booking_id"))
+
+        if action == "checkin":
+            if booking.status not in [Booking.BookingStatus.PENDING, Booking.BookingStatus.CONFIRMED]:
+                messages.error(request, "Only pending or confirmed reservations can be checked in.")
+                return redirect("front-desk-center")
+            checkin_form = FrontDeskCheckInForm(request.POST, booking=booking)
+            selected_checkin = booking
+            if checkin_form.is_valid():
+                with transaction.atomic():
+                    guest = booking.guest
+                    old_room = booking.room
+                    new_room = checkin_form.cleaned_data["room"]
+                    old_id = guest.ghana_card_number
+                    guest.ghana_card_number = checkin_form.cleaned_data["ghana_card_number"].strip()
+                    guest.save(update_fields=["ghana_card_number", "updated_at"])
+
+                    booking.room = new_room
+                    booking.adults = checkin_form.cleaned_data["adults"]
+                    booking.children = checkin_form.cleaned_data["children"]
+                    booking.notes = checkin_form.cleaned_data["notes"]
+                    booking.status = Booking.BookingStatus.CHECKED_IN
+                    booking.save(changed_by=request.user)
+
+                    if old_room.pk != new_room.pk and old_room.status == Room.RoomStatus.OCCUPIED:
+                        old_room.status = Room.RoomStatus.AVAILABLE
+                        old_room.save()
+                    new_room.status = Room.RoomStatus.OCCUPIED
+                    new_room.save()
+
+                    log_audit_event(
+                        request=request,
+                        user=request.user,
+                        action=AuditLog.ActionType.UPDATE,
+                        module="reservations",
+                        object_repr=f"Front desk check-in for booking #{booking.pk}",
+                        object_id=booking.pk,
+                        details={
+                            "event": "front_desk_check_in",
+                            "old_room": old_room.room_number,
+                            "new_room": new_room.room_number,
+                            "old_guest_id": old_id,
+                            "new_guest_id": guest.ghana_card_number,
+                            "processed_at": timezone.now().isoformat(),
+                        },
+                    )
+                messages.success(request, f"{booking.guest} checked in successfully.")
+                return redirect("front-desk-center")
+            messages.error(request, "Please correct the check-in details and try again.")
+
+        elif action == "checkout":
+            if booking.status != Booking.BookingStatus.CHECKED_IN:
+                messages.error(request, "Only checked-in reservations can be checked out.")
+                return redirect("front-desk-center")
+            checkout_form = FrontDeskCheckOutForm(request.POST, booking=booking, user=request.user)
+            selected_checkout = booking
+            if checkout_form.is_valid():
+                with transaction.atomic():
+                    booking.notes = checkout_form.cleaned_data["notes"]
+                    booking.status = Booking.BookingStatus.CHECKED_OUT
+                    booking.save(changed_by=request.user)
+                    room = booking.room
+                    room.status = Room.RoomStatus.CLEANING
+                    room.save()
+                    log_audit_event(
+                        request=request,
+                        user=request.user,
+                        action=AuditLog.ActionType.UPDATE,
+                        module="reservations",
+                        object_repr=f"Front desk check-out for booking #{booking.pk}",
+                        object_id=booking.pk,
+                        details={
+                            "event": "front_desk_check_out",
+                            "room": room.room_number,
+                            "balance_due": str(booking.balance_due),
+                            "admin_override": bool(checkout_form.cleaned_data.get("admin_override_balance")),
+                            "processed_at": timezone.now().isoformat(),
+                        },
+                    )
+                messages.success(request, f"{booking.guest} checked out successfully. Room {room.room_number} moved to cleaning.")
+                return redirect("front-desk-center")
+            messages.error(request, "Please review the check-out details and try again.")
+
+    context = {
+        "today": today,
+        "query": query,
+        "arrivals": arrivals.order_by("check_in_time", "room__room_number"),
+        "departures": departures.order_by("check_out_time", "room__room_number"),
+        "search_results": search_results,
+        "room_cards": _front_desk_room_cards(),
+        "selected_checkin": selected_checkin,
+        "selected_checkout": selected_checkout,
+        "checkin_form": checkin_form,
+        "checkout_form": checkout_form,
+        "can_admin_override": user_is_admin_role(request.user),
+    }
+    return render(request, "bookings/front_desk_center.html", context)
 
 
 @group_required("Admin", "Receptionist", module="reservations")

@@ -53,6 +53,7 @@
 
   document.addEventListener("submit", function (event) {
     var form = event.target.closest("form[data-confirm]");
+    if (form && form.dataset.confirmHandled === "true") return;
     if (form && !window.confirm(form.dataset.confirm)) event.preventDefault();
   });
 

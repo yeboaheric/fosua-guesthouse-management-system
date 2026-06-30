@@ -2,12 +2,15 @@
   const root = document.documentElement;
   const minVisibleMs = 240;
   const actionResetMs = 6000;
+  const quickActionResetMs = 1800;
+  const navigationFallbackMs = 12000;
   const progressCap = 92;
   const loadingControls = new Set();
   let progressValue = 0;
   let progressTimer = null;
   let finishTimer = null;
   let completeTimer = null;
+  let navigationFallbackTimer = null;
   let progressElement = null;
   let progressBar = null;
 
@@ -89,6 +92,7 @@
     clearInterval(progressTimer);
     window.clearTimeout(finishTimer);
     window.clearTimeout(completeTimer);
+    window.clearTimeout(navigationFallbackTimer);
     progressValue = 0;
     const { progressElement: element, progressBar: bar } = getProgressElements();
     if (element) {
@@ -101,6 +105,32 @@
     root.removeAttribute("data-app-loading");
     clearSkeletonState();
     restoreAllLoadingControls();
+  }
+
+  function showActionToast(message, tone) {
+    if (!message) {
+      return;
+    }
+    let container = document.getElementById("fgActionToastStack");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "fgActionToastStack";
+      container.className = "fg-action-toast-stack";
+      container.setAttribute("aria-live", "polite");
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement("div");
+    toast.className = `fg-action-toast fg-action-toast--${tone || "success"}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    window.setTimeout(function () {
+      toast.classList.add("is-leaving");
+      window.setTimeout(function () {
+        toast.remove();
+      }, 260);
+    }, 2400);
   }
 
   function actionLabelFor(element) {
@@ -231,6 +261,64 @@
     ).trim();
   }
 
+  function valueLooksLikeDownload(value) {
+    if (!value) {
+      return false;
+    }
+    return /(^|\/)(export|download)(\/|$)|\.(xlsx?|csv|pdf)(\?|#|$)|receipt\/pdf|\/pdf\/?|format=(xlsx?|csv|pdf)|type=(xlsx?|csv|pdf)/i.test(value);
+  }
+
+  function textLooksLikeDownload(text) {
+    return /export|download|excel|xlsx|xls|csv|pdf/i.test(text || "");
+  }
+
+  function isPrintControl(element) {
+    return Boolean(element && (element.closest("[data-print]") || /print/i.test(controlText(element))));
+  }
+
+  function isDownloadControl(element) {
+    if (!element) {
+      return false;
+    }
+    if (element.hasAttribute("download")) {
+      return true;
+    }
+    const href = element.getAttribute("href") || "";
+    return textLooksLikeDownload(controlText(element)) || valueLooksLikeDownload(href);
+  }
+
+  function isDownloadForm(form, submitter) {
+    if (!form) {
+      return false;
+    }
+    const action = form.getAttribute("action") || window.location.pathname;
+    const method = (form.getAttribute("method") || "get").toLowerCase();
+    const submitText = submitter ? controlText(submitter) : "";
+    return (
+      form.dataset.download === "true" ||
+      valueLooksLikeDownload(action) ||
+      textLooksLikeDownload(submitText) ||
+      (method === "get" && textLooksLikeDownload(form.textContent || ""))
+    );
+  }
+
+  function scheduleActionReset(element, message) {
+    window.setTimeout(function () {
+      restoreLoadingState(element);
+      resetLoadingUi();
+      showActionToast(message, "success");
+    }, quickActionResetMs);
+  }
+
+  function scheduleNavigationFallback() {
+    window.clearTimeout(navigationFallbackTimer);
+    navigationFallbackTimer = window.setTimeout(function () {
+      if (document.visibilityState !== "hidden") {
+        resetLoadingUi();
+      }
+    }, navigationFallbackMs);
+  }
+
   function isActionControl(element) {
     if (!element) {
       return false;
@@ -307,6 +395,9 @@
       return false;
     }
     if (anchor.hasAttribute("download")) {
+      return false;
+    }
+    if (isDownloadControl(anchor)) {
       return false;
     }
     if (anchor.getAttribute("href").startsWith("#")) {
@@ -503,16 +594,38 @@
     document.addEventListener(
       "submit",
       function (event) {
-        const submitter = event.submitter || event.target.querySelector('button[type="submit"], input[type="submit"]');
+        const form = event.target.closest("form");
+        if (!form || event.defaultPrevented || form.closest("[data-loading-ignore='true']")) {
+          return;
+        }
+
+        if (form.dataset.confirm && form.dataset.confirmHandled !== "true") {
+          form.dataset.confirmHandled = "true";
+          window.setTimeout(function () {
+            delete form.dataset.confirmHandled;
+          }, 0);
+          if (!window.confirm(form.dataset.confirm)) {
+            event.preventDefault();
+            return;
+          }
+        }
+
+        const submitter = event.submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+        const downloadAction = isDownloadForm(form, submitter);
         if (submitter) {
           setLoadingState(submitter);
           window.setTimeout(function () {
             restoreLoadingState(submitter);
           }, actionResetMs);
         }
+        if (downloadAction) {
+          scheduleActionReset(submitter, "Download started.");
+          return;
+        }
         startLoadingState();
+        scheduleNavigationFallback();
       },
-      true
+      false
     );
   }
 
@@ -526,6 +639,10 @@
         }
 
         setLoadingState(control);
+        if (isPrintControl(control)) {
+          scheduleActionReset(control, "Print dialog opened.");
+          return;
+        }
         window.setTimeout(function () {
           restoreLoadingState(control);
         }, actionResetMs);
@@ -543,6 +660,12 @@
           return;
         }
 
+        if (isDownloadControl(anchor)) {
+          setLoadingState(anchor);
+          scheduleActionReset(anchor, "Download started.");
+          return;
+        }
+
         if (isActionControl(anchor)) {
           setLoadingState(anchor);
           window.setTimeout(function () {
@@ -552,6 +675,7 @@
 
         if (shouldTrackNavigation(anchor, event)) {
           startLoadingState();
+          scheduleNavigationFallback();
         }
       },
       true
@@ -597,7 +721,18 @@
         resetLoadingUi();
       }
     });
-    window.addEventListener("focus", restoreAllLoadingControls);
+    window.addEventListener("pagehide", function () {
+      window.clearTimeout(navigationFallbackTimer);
+    });
+    window.addEventListener("afterprint", function () {
+      resetLoadingUi();
+    });
+    window.addEventListener("focus", function () {
+      restoreAllLoadingControls();
+      if (root.getAttribute("data-app-loading") === "true" && document.visibilityState !== "hidden") {
+        finishLoadingState();
+      }
+    });
   }
 
   if (document.readyState === "loading") {

@@ -3156,6 +3156,33 @@ body {
   flex-shrink: 0;
 }
 
+.fg-action-toast-stack {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 2100;
+  display: grid;
+  gap: 0.65rem;
+  pointer-events: none;
+}
+
+.fg-action-toast {
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 0.78rem 1rem;
+  border-radius: 999px;
+  color: #f8fbfa;
+  background: linear-gradient(135deg, #1f3b44, #2d5f67);
+  border: 1px solid rgba(214, 184, 130, 0.42);
+  box-shadow: 0 16px 34px rgba(15, 29, 34, 0.22);
+  font-size: 0.9rem;
+  font-weight: 650;
+  animation: fg-toast-in 220ms ease-out both;
+}
+
+.fg-action-toast.is-leaving {
+  animation: fg-toast-out 240ms ease-in both;
+}
+
 .fg-skeleton-stack {
   display: grid;
   gap: 1rem;
@@ -3359,6 +3386,28 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .brand-panel, .page-title {
   }
   50% {
     opacity: 0.82;
+  }
+}
+
+@keyframes fg-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fg-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
   }
 }
 

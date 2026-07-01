@@ -8,7 +8,7 @@
     <div class="module-hero-copy">
       <div class="module-kicker">Housekeeping</div>
       <h1 class="module-title">Housekeeping</h1>
-      <div class="module-subcopy">Track hotel item usage and manage room servicing stock and supplies.</div>
+      <div class="module-subcopy">Track supplies used by housekeeping and watch stock levels.</div>
     </div>
     <div class="module-action-row">
       <a class="topbar-pill" href="{% url 'housekeeping-dashboard' %}?report={{ report_range }}&mode=item"><i data-lucide="package-plus"></i> Add item</a>
@@ -45,7 +45,7 @@
     <div class="module-card-header">
       <div>
         <h2 class="module-card-title">{{ low_stock_count }} item{{ low_stock_count|pluralize }} currently flagged</h2>
-        <div class="module-card-copy">Items nearing their configured threshold so the team can restock early.</div>
+        <div class="module-card-copy">Items that may need restocking soon.</div>
       </div>
     </div>
     <div class="module-card-body p-0">
@@ -110,7 +110,7 @@
             <div class="col-md-6">
               <label class="form-label" for="{{ item_form.initial_quantity.id_for_label }}">Initial quantity</label>
               {{ item_form.initial_quantity }}
-              <div class="form-text">Initial quantity becomes the opening quantity in stock.</div>
+              <div class="form-text">This becomes the starting stock for the item.</div>
             </div>
             <div class="col-md-6">
               <label class="form-label" for="{{ item_form.unit.id_for_label }}">Unit</label>
@@ -119,7 +119,7 @@
             <div class="col-12">
               <label class="form-label" for="{{ item_form.low_stock_threshold.id_for_label }}">Custom low stock threshold</label>
               {{ item_form.low_stock_threshold }}
-              <div class="form-text">Leave blank to alert at 20% of the initial quantity.</div>
+              <div class="form-text">Leave blank to use the default low-stock alert.</div>
             </div>
             {% if item_form.errors %}
               <div class="col-12">
@@ -183,7 +183,7 @@
             <div class="col-md-6">
               <label class="form-label" for="selected-item-stock">Quantity in stock</label>
               <input class="form-control" id="selected-item-stock" type="text" readonly>
-              <div class="form-text" id="stock-status-text">Select an item to see its current stock before logging usage.</div>
+              <div class="form-text" id="stock-status-text">Choose an item to see how much is in stock.</div>
             </div>
             <div class="col-md-6">
               <label class="form-label" for="{{ log_form.quantity_used.id_for_label }}">Quantity used</label>
@@ -310,7 +310,7 @@
     <div class="module-card-header">
       <div>
         <h2 class="module-card-title">Current housekeeping items</h2>
-        <div class="module-card-copy">Live stock values update from usage logs.</div>
+        <div class="module-card-copy">Stock levels after the latest usage entries.</div>
       </div>
     </div>
     <div class="module-card-body p-0">
@@ -360,7 +360,7 @@
     <div class="module-card-header">
       <div>
         <h2 class="module-card-title">All logged entries</h2>
-        <div class="module-card-copy">Most recent entries first, with quick edit and delete access.</div>
+        <div class="module-card-copy">Newest usage entries, with edit and delete options.</div>
       </div>
     </div>
     <div class="module-card-body p-0">

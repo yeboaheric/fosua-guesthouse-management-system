@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Notifications</div>
         <h1 class="module-title">Notifications</h1>
-        <div class="module-subcopy">Review guest alerts, room updates, staff notices, and other hotel activity in one feed.</div>
+        <div class="module-subcopy">See the alerts and updates that need staff attention.</div>
       </div>
       <div class="module-action-row">
         <span class="status-pill warning">Unread: {{ unread_count|default:0 }}</span>
@@ -18,7 +18,7 @@
       <div class="module-card-header">
         <div>
           <h2 class="module-card-title">Recent notifications</h2>
-          <div class="module-card-copy">Every unread and completed system alert is listed with its source and timestamp.</div>
+          <div class="module-card-copy">Unread and completed alerts with where they came from.</div>
         </div>
         {% if unread_count|default:0 > 0 %}
           <form method="post" action="{% url 'notification-mark-all-read' %}">

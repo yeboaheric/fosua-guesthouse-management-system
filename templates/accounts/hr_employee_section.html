@@ -6,7 +6,7 @@
     <div class="module-hero-copy">
       <div class="module-kicker">Staff management</div>
       <h1 class="module-title">{{ section_title }}</h1>
-      <div class="module-subcopy">Manage {{ section_title|lower }} records for {{ employee.full_name }} · {{ employee.department|default:employee.get_position_display }}</div>
+      <div class="module-subcopy">Review {{ employee.full_name }}’s {{ section_title|lower }} records.</div>
     </div>
     <div class="module-action-row">
       <a class="btn btn-outline-primary" href="{{ back_to_list_url }}">Back</a>
@@ -19,7 +19,7 @@
     <div class="module-card-header">
       <div>
         <h2 class="module-card-title">Employee subsections</h2>
-        <div class="module-card-copy">Switch between the employee-linked records without losing the current staff directory context.</div>
+        <div class="module-card-copy">Move between this employee’s related records.</div>
       </div>
     </div>
     <div class="module-card-body">
@@ -37,7 +37,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Create {{ section_title|lower }}</h2>
-            <div class="module-card-copy">Add a new {{ section_title|lower }} record directly into {{ employee.full_name }}'s personnel file.</div>
+            <div class="module-card-copy">Add this record to {{ employee.full_name }}’s staff file.</div>
           </div>
         </div>
         <div class="module-card-body">
@@ -64,7 +64,7 @@
           </div>
         </form>
         {% if section == "leave" %}
-          <div class="form-text mt-3" id="leave-days-helper">Leave days are calculated automatically from the selected start and end dates using the current calendar-day logic.</div>
+          <div class="form-text mt-3" id="leave-days-helper">Leave days update after you choose the start and end dates.</div>
         {% endif %}
         </div>
       </section>
@@ -75,7 +75,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">{{ record_count }} item(s)</h2>
-            <div class="module-card-copy">Live records tied only to {{ employee.full_name }} inside the {{ section_title|lower }} subsection.</div>
+            <div class="module-card-copy">Only {{ employee.full_name }}’s records are shown here.</div>
           </div>
         </div>
         <div class="module-card-body module-stack">

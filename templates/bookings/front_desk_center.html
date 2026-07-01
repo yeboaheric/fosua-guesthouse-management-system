@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Front desk</div>
         <h1 class="module-title">Check-In / Check-Out</h1>
-        <div class="module-subcopy">Process today’s guest arrivals and departures using the same reservation, room, and payment records already in the system.</div>
+        <div class="module-subcopy">Check guests in and out without leaving the front desk view.</div>
       </div>
       <div class="module-action-row">
         <button class="btn btn-outline-secondary" type="button" disabled title="Coming soon">Walk-In Check-In</button>
@@ -26,7 +26,7 @@
             <button class="btn btn-primary w-100" type="submit">Search</button>
           </div>
         </form>
-        <div class="form-text mt-2">Walk-in check-in is intentionally left as a future hook. Use Reservations to create a booking first.</div>
+        <div class="form-text mt-2">For now, create a reservation first before checking in a walk-in guest.</div>
       </div>
     </section>
 
@@ -35,7 +35,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Search results</h2>
-            <div class="module-card-copy">Use this for early check-ins, late check-outs, or guests not listed in today’s queue.</div>
+            <div class="module-card-copy">Find guests who are early, late, or missing from today’s list.</div>
           </div>
         </div>
         <div class="module-card-body p-0">
@@ -154,7 +154,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Complete check-in</h2>
-            <div class="module-card-copy">Confirm ID details, room assignment, guest count, notes, and payment status for {{ selected_checkin.guest }}.</div>
+            <div class="module-card-copy">Confirm ID, room, guests, notes, and payment before check-in.</div>
           </div>
           <a class="status-pill neutral" href="{% url 'front-desk-center' %}">Close</a>
         </div>
@@ -207,7 +207,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Complete check-out</h2>
-            <div class="module-card-copy">Review balance, room condition notes, and final check-out for {{ selected_checkout.guest }}.</div>
+            <div class="module-card-copy">Check the balance and add any room notes before checkout.</div>
           </div>
           <a class="status-pill neutral" href="{% url 'front-desk-center' %}">Close</a>
         </div>
@@ -258,7 +258,7 @@
       <div class="module-card-header">
         <div>
           <h2 class="module-card-title">Room status overview</h2>
-          <div class="module-card-copy">Live room status snapshot for the front desk, using the same room records as the Rooms module.</div>
+          <div class="module-card-copy">A quick room status view for front desk decisions.</div>
         </div>
       </div>
       <div class="module-card-body">

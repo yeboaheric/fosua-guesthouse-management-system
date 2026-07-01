@@ -8,7 +8,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Inventory</div>
         <h1 class="module-title">Inventory</h1>
-        <div class="module-subcopy">Monitor stock levels, item movement, and point-of-sale activity across the hotel.</div>
+        <div class="module-subcopy">Watch stock levels, recent sales, and item movement.</div>
       </div>
       <div class="module-action-row">
         <a class="topbar-pill" href="{% url 'inventory-items' %}"><i data-lucide="package-search"></i> Items</a>
@@ -18,7 +18,7 @@
 
   <div class="row g-3 mb-3">
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Inventory value</div><div class="metric-value">GHS {{ inventory_value }}</div><div class="text-muted small mt-2">Cost value on the shelves</div></div></div>
-    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Items tracked</div><div class="metric-value">{{ items_count }}</div><div class="text-muted small mt-2">Active stock items in the database</div></div></div>
+    <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Items tracked</div><div class="metric-value">{{ items_count }}</div><div class="text-muted small mt-2">Active stock items</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Low stock</div><div class="metric-value">{{ low_stock_count }}</div><div class="text-muted small mt-2">Items near reorder point</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Out of stock</div><div class="metric-value">{{ out_of_stock_count }}</div><div class="text-muted small mt-2">Items needing urgent restock</div></div></div>
     <div class="col-md-6 col-xl-3"><div class="mini-metric h-100"><div class="metric-label">Today sales</div><div class="metric-value">GHS {{ sales_today_total }}</div><div class="text-muted small mt-2">Completed POS transactions today</div></div></div>
@@ -62,7 +62,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Low stock watchlist</h2>
-            <div class="module-card-copy">Items approaching reorder threshold.</div>
+            <div class="module-card-copy">Items getting close to their reorder level.</div>
           </div>
         </div>
         <div class="module-card-body">
@@ -90,7 +90,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Recent sales</h2>
-            <div class="module-card-copy">Most recent POS activity on the property.</div>
+            <div class="module-card-copy">Latest POS sales from the hotel.</div>
           </div>
         </div>
         <div class="module-card-body p-0">
@@ -128,7 +128,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Recent inventory activity</h2>
-            <div class="module-card-copy">Latest stock movements and logged changes.</div>
+            <div class="module-card-copy">Recent stock changes and adjustments.</div>
           </div>
         </div>
         <div class="module-card-body p-0">

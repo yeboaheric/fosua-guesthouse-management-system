@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Inventory item</div>
         <h1 class="module-title">{{ title|default:"Inventory item" }}</h1>
-        <div class="module-subcopy">Create or update item details, stock levels, supplier information, and pricing.</div>
+        <div class="module-subcopy">Add the item name, stock, supplier, and price details.</div>
       </div>
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Back to items</a>
@@ -40,7 +40,7 @@
             {% endfor %}
           </div>
           <div class="module-form-actions">
-            <div class="module-card-copy">This item will sync into stock adjustments, POS sales, and transaction history automatically.</div>
+            <div class="module-card-copy">This item will be available for stock updates and POS sales.</div>
             <div class="module-form-actions-end">
               <a class="btn btn-outline-secondary" href="{% url 'inventory-items' %}">Cancel</a>
               <button class="btn btn-primary" type="submit">Save item</button>

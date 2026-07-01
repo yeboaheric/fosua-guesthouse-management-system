@@ -6,7 +6,7 @@
     <div class="module-hero-copy">
       <div class="module-kicker">Room bookings</div>
       <h1 class="module-title">Booking Details</h1>
-      <div class="module-subcopy">Review reservation details, room assignments, payment activity, and booking status history for {{ booking.guest }}.</div>
+      <div class="module-subcopy">See {{ booking.guest }}’s stay details, rooms, payments, and status changes.</div>
     </div>
     <div class="module-action-row">
       <a class="btn btn-outline-primary" href="{% url 'booking-list' %}">Back to bookings</a>
@@ -41,7 +41,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Booked rooms</h2>
-            <div class="module-card-copy">Every room grouped under this guest’s stay with amount paid and remaining balance.</div>
+            <div class="module-card-copy">Rooms on this stay, with paid and remaining amounts.</div>
           </div>
         </div>
         <div class="module-card-body">
@@ -86,7 +86,7 @@
         <div class="module-card-header">
           <div>
             <h2 class="module-card-title">Payment history</h2>
-            <div class="module-card-copy">All room payments posted to this grouped reservation account.</div>
+            <div class="module-card-copy">Payments recorded for this reservation.</div>
           </div>
         </div>
         <div class="module-card-body">
@@ -125,7 +125,7 @@
     <div class="module-card-header">
       <div>
         <h2 class="module-card-title">Booking status timeline</h2>
-        <div class="module-card-copy">Operational changes captured as the stay moved through the system.</div>
+        <div class="module-card-copy">Key changes made during this stay.</div>
       </div>
     </div>
     <div class="module-card-body">

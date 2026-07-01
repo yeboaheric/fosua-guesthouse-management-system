@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Financial control</div>
         <h1 class="module-title">Finance</h1>
-        <div class="module-subcopy">Review consolidated hotel revenue, track expenses, and export accounting-grade finance reports.</div>
+        <div class="module-subcopy">Track revenue, expenses, and profit for the selected period.</div>
       </div>
       <div class="module-action-row">
         <a class="topbar-pill" href="{{ export_url }}"><i data-lucide="download"></i> Export finance workbook</a>
@@ -70,21 +70,21 @@
         <div class="mini-metric h-100">
           <div class="metric-label">Gross revenue</div>
           <div class="metric-value">GHS {{ gross_revenue|floatformat:2 }}</div>
-          <div class="text-muted small mt-2">GHS across rooms, POS, and event revenue for the selected range.</div>
+          <div class="text-muted small mt-2">Room, POS, and event income for this range.</div>
         </div>
       </div>
       <div class="col-md-4">
         <div class="mini-metric h-100">
           <div class="metric-label">Total expenses</div>
           <div class="metric-value">GHS {{ total_expenses|floatformat:2 }}</div>
-          <div class="text-muted small mt-2">All logged operating expenses within the selected range.</div>
+          <div class="text-muted small mt-2">Expenses recorded in this range.</div>
         </div>
       </div>
       <div class="col-md-4">
         <div class="mini-metric h-100">
           <div class="metric-label">Net profit / loss</div>
           <div class="metric-value">GHS {{ net_profit|floatformat:2 }}</div>
-          <div class="text-muted small mt-2">Gross revenue minus expenses for this period.</div>
+          <div class="text-muted small mt-2">What remains after expenses.</div>
         </div>
       </div>
     </div>
@@ -125,7 +125,7 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">Revenue breakdown</h2>
-              <div class="module-card-copy">Consolidated gross revenue by source for the selected period.</div>
+              <div class="module-card-copy">Where the money came from in this period.</div>
             </div>
           </div>
           <div class="module-card-body">
@@ -161,7 +161,7 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">Expense breakdown</h2>
-              <div class="module-card-copy">Category totals from the selected date range, including custom categories.</div>
+              <div class="module-card-copy">Expense totals grouped by category.</div>
             </div>
           </div>
           <div class="module-card-body">
@@ -207,7 +207,7 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">Profit & loss statement</h2>
-              <div class="module-card-copy">Accounting view for {{ report_window.display_range|lower }}.</div>
+              <div class="module-card-copy">Revenue, expenses, and profit for {{ report_window.display_range|lower }}.</div>
             </div>
           </div>
           <div class="module-card-body">
@@ -239,7 +239,7 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">Balance sheet snapshot</h2>
-              <div class="module-card-copy">Simplified hotel balance sheet as at {{ balance_sheet.snapshot_date|date:"d/m/Y" }}.</div>
+              <div class="module-card-copy">A simple money snapshot as at {{ balance_sheet.snapshot_date|date:"d/m/Y" }}.</div>
             </div>
           </div>
           <div class="module-card-body">
@@ -291,7 +291,7 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">{% if editing_expense %}Edit expense{% else %}Log expense{% endif %}</h2>
-              <div class="module-card-copy">Add utilities, salaries, supplies, maintenance, rent, marketing, or custom operating costs.</div>
+              <div class="module-card-copy">Log bills, salaries, supplies, repairs, rent, or other costs.</div>
             </div>
           </div>
           <div class="module-card-body">
@@ -305,13 +305,13 @@
               <div class="mb-3">
                 <label class="form-label" for="{{ expense_form.category.id_for_label }}">Category</label>
                 {{ expense_form.category }}
-                <div class="form-text">Choose a default expense category or switch to a custom category when needed.</div>
+                <div class="form-text">Choose a category, or pick custom if it is not listed.</div>
                 {% for error in expense_form.category.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3" id="customExpenseCategoryField" {% if expense_form.category.value != custom_category_sentinel %}style="display:none;"{% endif %}>
                 <label class="form-label" for="{{ expense_form.custom_category.id_for_label }}">Custom category</label>
                 {{ expense_form.custom_category }}
-                <div class="form-text">Saved custom categories will appear in the dropdown the next time an expense is logged.</div>
+                <div class="form-text">Custom categories will be available next time.</div>
                 {% for error in expense_form.custom_category.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
               </div>
               <div class="mb-3">
@@ -359,7 +359,7 @@
           <div class="module-card-header">
             <div>
               <h2 class="module-card-title">Expense log</h2>
-              <div class="module-card-copy">Search and review expenses recorded within the selected range.</div>
+              <div class="module-card-copy">Review the expenses logged in this range.</div>
             </div>
           </div>
           <div class="module-card-body p-0">

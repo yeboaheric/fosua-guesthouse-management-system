@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Operations handover</div>
         <h1 class="module-title">{{ title }}</h1>
-        <div class="module-subcopy">Document shift notes, operational counts, and follow-up context before the next hotel team takes over.</div>
+        <div class="module-subcopy">Record the shift notes the next team should know.</div>
       </div>
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'handover-list' %}">Back</a>
@@ -31,7 +31,7 @@
             {% endfor %}
           </div>
           <div class="module-form-actions">
-            <div class="module-card-copy">The report feeds the live handover list immediately after save.</div>
+            <div class="module-card-copy">Saved notes appear in the handover list right away.</div>
             <div class="module-form-actions-end">
               <a class="btn btn-outline-secondary" href="{% url 'handover-list' %}">Cancel</a>
               <button class="btn btn-primary" type="submit">Create Handover Report</button>

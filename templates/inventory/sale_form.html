@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Point of sale</div>
         <h1 class="module-title">{{ title }}</h1>
-        <div class="module-subcopy">Correct the recorded sale details for receipt {{ sale.receipt_number }}, including line items, pricing, and the sale date, without breaking receipt history or stock tracking.</div>
+        <div class="module-subcopy">Correct receipt {{ sale.receipt_number }} while keeping stock and receipt history in sync.</div>
       </div>
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Back to receipt</a>
@@ -42,7 +42,7 @@
             <div class="module-card-header">
               <div>
                 <h2 class="module-card-title">Receipt items</h2>
-                <div class="module-card-copy">Edit quantities and unit prices, remove items safely, or add more inventory items to this completed sale.</div>
+                <div class="module-card-copy">Change items, quantities, or prices on this sale.</div>
               </div>
               <button class="btn btn-outline-secondary" type="button" id="addSaleItemButton" data-loading-ignore="true">Add item</button>
             </div>
@@ -73,7 +73,7 @@
             <div class="module-card-header">
               <div>
                 <h2 class="module-card-title">Sale totals</h2>
-                <div class="module-card-copy">All totals refresh live while you edit the receipt.</div>
+                <div class="module-card-copy">Totals update as you make changes.</div>
               </div>
             </div>
             <div class="module-card-body">
@@ -92,7 +92,7 @@
             <div class="module-card-header">
               <div>
                 <h2 class="module-card-title">Receipt details</h2>
-                <div class="module-card-copy">The sale date, customer details, notes, and payment figures stay editable for admins only.</div>
+                <div class="module-card-copy">Admins can correct the sale date, customer details, and payment values.</div>
               </div>
             </div>
             <div class="module-card-body">
@@ -109,7 +109,7 @@
                 {% endfor %}
               </div>
               <div class="module-form-actions mt-3">
-                <div class="module-card-copy">Stock corrections, receipt totals, and audit history are applied together when you save.</div>
+                <div class="module-card-copy">Saving updates stock, totals, and the audit trail together.</div>
                 <div class="module-form-actions-end">
                   <a class="btn btn-outline-secondary" href="{% url 'inventory-sale-detail' sale.pk %}">Cancel</a>
                   <button class="btn btn-primary" type="submit">Save sale</button>

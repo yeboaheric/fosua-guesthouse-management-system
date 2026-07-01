@@ -7,7 +7,7 @@
       <div class="module-hero-copy">
         <div class="module-kicker">Guests</div>
         <h1 class="module-title">{{ title }}</h1>
-        <div class="module-subcopy">Create or update guest contact details, addresses, and identity information.</div>
+        <div class="module-subcopy">Save the guest details the front desk needs for stays and payments.</div>
       </div>
       <div class="module-action-row">
         <a class="btn btn-outline-secondary" href="{% url 'guest-list' %}">Back</a>
@@ -31,7 +31,7 @@
             {% endfor %}
           </div>
           <div class="module-form-actions">
-            <div class="module-card-copy">Guest records stay linked to reservations and payment history automatically.</div>
+            <div class="module-card-copy">This guest will be available when creating reservations.</div>
             <div class="module-form-actions-end">
               <a class="btn btn-outline-secondary" href="{% url 'guest-list' %}">Cancel</a>
               <button class="btn btn-primary" type="submit">Save</button>

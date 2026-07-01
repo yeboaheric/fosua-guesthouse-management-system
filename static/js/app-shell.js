@@ -590,9 +590,19 @@
     }
     const isInventoryDashboard = label === "Inventory" && window.location.pathname === "/inventory/";
     const isPosReceiptPage = label === "POS" && /^\/inventory\/sales\/\d+\/?$/.test(window.location.pathname);
+    const isPosMainPage = label === "POS" && /^\/inventory\/pos\/?$/.test(window.location.pathname);
     const isFrontDeskPage = label === "Reservations" && /^\/bookings\/front-desk\/?$/.test(window.location.pathname);
+    const isNewBookingPage = label === "Reservations" && /^\/bookings\/new\/?$/.test(window.location.pathname);
     const moduleItems = isPosReceiptPage
       ? []
+      : isPosMainPage
+        ? children.filter(function (item) {
+            return item.url !== "/inventory/pos/analytics/";
+          })
+      : isNewBookingPage
+        ? children.filter(function (item) {
+            return !["/bookings/front-desk/", "/bookings/new/", "/bookings/events/", "/bookings/operations/"].includes(item.url);
+          })
       : isFrontDeskPage
         ? children.filter(function (item) {
             return !["/bookings/new/", "/bookings/events/", "/bookings/operations/"].includes(item.url);
